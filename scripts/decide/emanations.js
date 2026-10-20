@@ -41,6 +41,17 @@ export function affectsAdmits(affects, casterDisposition, targetDisposition) {
 }
 
 /**
+ * Is this an Emanation from its user (a `radius` or `emanation` template at range self)? Its area
+ * leaves out the origin creature (PHB *Emanation*), listed row or not (Arms of Hadar).
+ * @param {{ target?: { template?: { type?: string } }, range?: { units?: string } }|null|undefined} activity
+ */
+export function selfEmanation(activity) {
+  const type = activity?.target?.template?.type ?? "";
+  if ( !["radius", "emanation"].includes(type) ) return false;
+  return (activity?.range?.units ?? "self") === "self";
+}
+
+/**
  * The listed PULSE row whose form this use is (its damage is the pulse's at turn end, never the use's).
  * @param {Record<string, {pulse?: object|null, item?: string, activity?: string}>} table   EMANATIONS
  * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use

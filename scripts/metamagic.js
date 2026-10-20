@@ -18,6 +18,7 @@ import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
+import { selfEmanation } from "./decide/emanations.js";
 import { postCard, pickInputs } from "./ui.js";
 
 const INDEX = tableIndex(METAMAGIC);
@@ -445,9 +446,9 @@ async function carryDeferredCard(activity, held, templates) {
   const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
   if ( !pool ) log.warn(`${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
   const casterTok = tokenOf(actor) ?? null;
-  // A chosen area never asks its caster about themself.
+  // A chosen area never asks its caster about themself; nor does an Emanation, which leaves its origin out.
   const spell = activity.item?.name ?? "the spell";
-  const chooses = chosenAreaListed(activity.item);
+  const chooses = chosenAreaListed(activity.item) || selfEmanation(activity);
   const contained = (tokensInRegions(templates) ?? [])
     .filter(c => !chooses || ((c.uuid !== actor?.uuid) && !(casterTok && (c.tokenId === casterTok.id))));
   const templateIds = templates.map(t => t.id);

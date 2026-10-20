@@ -13,7 +13,7 @@ import { askCandidates, newAsk, raiseAsk, areaAskOf } from "../area-ask.js";
 import { tokensInRegions, tokenDocOf } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EFFECT_BENDS, EMANATIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
-import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
+import { reachAdmits, affectsAdmits, selfEmanation } from "../decide/emanations.js";
 import { emanationEntries, spentAreaListed, chosenAreaListed } from "../decide/registry.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
@@ -187,7 +187,8 @@ async function stampSaveDemand(activity, message, results) {
     const placed = emanationReach(activity, tokensInRegions((results?.templates ?? []).flat().filter(t => t?.parent)));
     const choice = await areaChoiceForDemand(message, activity, placed);
     const contained = choice.contained;
-    const raw = contained ?? targetsOf(message);
+    // No area to read: the card's targets — an Emanation's origin still never among them.
+    const raw = contained ?? withoutOrigin(activity, targetsOf(message));
     // THE DEAD-TARGET GATE on the RESOLVED set, before the setFlag: an all-dead cast starves
     // everything downstream; raw emptiness still means a WAITING demand.
     const metamagic = choice.hold ? { protectedUuids: new Set(), heightened: null, hold: true, pendingAsk: false }
@@ -321,11 +322,17 @@ function emanationRowFor(activity) {
   if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return null;
   return row;
 }
+/** Targets with a self Emanation's own caster left out (any other area keeps them all). */
+function withoutOrigin(activity, targets) {
+  if ( !selfEmanation(activity) ) return targets;
+  const own = new Set([activity.actor?.uuid, tokenDocOf(activity.actor)?.actor?.uuid].filter(Boolean));
+  return targets.filter(t => !own.has(t.uuid));
+}
 export function emanationReach(activity, contained) {
   if ( !Array.isArray(contained) ) return contained;
   const row = emanationRowFor(activity);
   const affects = activity?.target?.affects?.type ?? null;
-  if ( !row && (affects !== "enemy") && (affects !== "ally") ) return contained;
+  if ( !row && (affects !== "enemy") && (affects !== "ally") && !selfEmanation(activity) ) return contained;
   const caster = activity.actor ?? null;
   const casterTok = tokenDocOf(caster);
   const casterDisposition = casterTok?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;

@@ -34,6 +34,21 @@ describe("reach `all` and the area's own `affects` (the Aasimar walk, 2026-09-25
     for (const a of ["creature", "", null, "any"])
       expect(em.affectsAdmits(a, FRIENDLY, HOSTILE)).toBe(true);
   });
+  it("a `radius` area at range self is an Emanation from its user, its origin left out (Arms of Hadar, unlisted)", () => {
+    const hadar = {
+      range: { units: "self" },
+      target: { template: { type: "radius" }, affects: { type: "creature" } }
+    };
+    expect(em.selfEmanation(hadar)).toBe(true);
+    expect(em.selfEmanation({ ...hadar, range: {} })).toBe(true);
+    expect(em.selfEmanation({ ...hadar, target: { template: { type: "emanation" } } })).toBe(true);
+    expect(em.selfEmanation({ ...hadar, range: { units: "ft" } })).toBe(false);
+    for (const type of ["circle", "sphere", "cone", "line", "cube", undefined])
+      expect(em.selfEmanation({ range: { units: "self" }, target: { template: { type } } })).toBe(
+        false
+      );
+    expect(em.selfEmanation(null)).toBe(false);
+  });
   it("Inner Radiance is a feature row that stands while its effect does and pulses at the bearer's turn end", () => {
     const row = reg.EMANATIONS["Inner Radiance"];
     expect(row).toMatchObject({
