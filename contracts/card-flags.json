@@ -10579,11 +10579,14 @@
         "McpANsULfZHtVTXK",
         "VALfnsDfWrxzBPbm",
         "XDUwGZwWnrEdCIke",
+        "fCbvKoMiripKgOdF",
         "hDtlByYAhJmQjGER",
+        "hMaYgyGXTqghXqSa",
         "iOKQkIvyCfjQfgqc",
         "ptUFHELpMtwibWaW",
         "qCpAfxRjQZTtxfyk",
         "tgyuEuJPzflxrKVs",
+        "wMdcirRTynowxGkd",
         "ydOJGLEzfwrEChfR"
       ],
       "schema": {
@@ -10613,7 +10616,13 @@
           "XDUwGZwWnrEdCIke": {
             "type": "boolean"
           },
+          "fCbvKoMiripKgOdF": {
+            "type": "boolean"
+          },
           "hDtlByYAhJmQjGER": {
+            "type": "boolean"
+          },
+          "hMaYgyGXTqghXqSa": {
             "type": "boolean"
           },
           "iOKQkIvyCfjQfgqc": {
@@ -10626,6 +10635,9 @@
             "type": "boolean"
           },
           "tgyuEuJPzflxrKVs": {
+            "type": "boolean"
+          },
+          "wMdcirRTynowxGkd": {
             "type": "boolean"
           },
           "ydOJGLEzfwrEChfR": {
@@ -18917,7 +18929,7 @@
     "tokenLight": {
       "class": "state",
       "family": "state",
-      "means": "a token light's payload on the use's card and what landed, or on an `out` use's card how many lights it put out (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
+      "means": "a token light's payload on the use's card and what landed, or on an `out` use's card how many lights it put out and a light set on the token itself (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
       "writers": [
         "token-lights.js"
       ],
@@ -18944,6 +18956,9 @@
         "landed[].uuid",
         "name",
         "out",
+        "ownLight",
+        "ownLight.bright",
+        "ownLight.dim",
         "putOut",
         "skipped",
         "sourceUuid",
@@ -19009,6 +19024,21 @@
           },
           "out": {
             "type": "boolean"
+          },
+          "ownLight": {
+            "type": "object",
+            "properties": {
+              "bright": {
+                "type": "number"
+              },
+              "dim": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "bright",
+              "dim"
+            ]
           },
           "putOut": {
             "type": "number"

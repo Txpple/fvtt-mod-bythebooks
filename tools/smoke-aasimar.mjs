@@ -8,8 +8,9 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
-  'token-lights.js',        // §2, §7, §8 — Searing Radiance with its light, the Light spell on a token, Produce Flame on its caster
+  'token-lights.js',        // §2, §7, §8, §9 — Searing Radiance with its light, the Light spell on a token, Produce Flame on its caster
   'emanations.js',          // §1, §2, §4, §6 — the self area placed on the token, the `while` ring, the pulse
+  'cast.js',                // §9 — the cast path leaves the effect a token light adopts
   'clock-riders.js',        // §1, §3, §5 — the form chip, the Revelation rider on a hit and on a spell
   'saves/demand.js'         // §1 — an `enemy` area asks no ally
 ];
@@ -22,7 +23,8 @@ const SECTIONS = {
   5: 'a weapon hit in combat carries +PB RADIANT once; the second hit the same turn carries none',
   6: 'the transformation ends (Searing Radiance removed): the ring comes down and the token\'s light goes',
   7: 'the Light spell at a targeted token: no summon, a "Light" effect with 20 ft Bright / 40 ft Dim on its token; cast again at another, the first light goes out',
-  8: 'Produce Flame: the Cast lights the CASTER\'s token 20 ft Bright / 40 ft Dim under a 10-minute "Produce Flame" effect, receipted on its card; cast again, one copy stands; ✕ Revert takes it off and the token\'s own light is back; Hurl Fire puts it out and its card says so'
+  8: 'Produce Flame: the Cast lights the CASTER\'s token 20 ft Bright / 40 ft Dim under a 10-minute "Produce Flame" effect, receipted on its card; cast again, one copy stands; ✕ Revert takes it off and the token\'s own light is back; Hurl Fire puts it out and its card says so; a hurl with no flame lit lands nothing',
+  9: 'Produce Flame as a table\'s sheet has it: a world copy whose Cast applies its own "Produce Flame" effect, on a token with a light set on it (10 / 20) — the Cast lands ONE "Produce Flame" carrying the light; a recast leaves one; ✕ Revert, and a hurl after the Cast, leave no "Produce Flame" and the token at its own 10 / 20, the hurl\'s card naming that light; a hurl with no Cast lands nothing'
 };
 const DEPENDS = { 3: [2], 4: [2], 5: [2], 6: [2] };
 
@@ -59,7 +61,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   let restored = false;
   const realDice = () => { unrig(); };
   const ours = e => e.getFlag(MOD, 'tokenLight') || e.getFlag(MOD, 'formChip') || e.getFlag(MOD, 'mastery')
-    || /^(Searing Radiance|Heavenly Wings|Necrotic Shroud|Light)$/.test(e.name) || /Celestial Revelation|used this turn/.test(e.name);
+    || /^(Searing Radiance|Heavenly Wings|Necrotic Shroud|Light|Produce Flame)$/.test(e.name) || /Celestial Revelation|used this turn/.test(e.name);
   const clearEffects = async () => {
     for (const a of [victim, aas, ally]) {
       const live = a.effects.filter(ours).map(e => e.id).filter(id => a.effects.get(id));
@@ -469,6 +471,99 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8g. the hurl\'s card says so: "Produce Flame — …\'s light goes out", one light put out',
         (hurlCard?.getFlag(MOD, 'tokenLight')?.putOut === 1) && /Produce Flame — .+'s light goes out/.test(said2 ?? ''),
         `flag=${JSON.stringify(hurlCard?.getFlag(MOD, 'tokenLight'))} text=${(said2 ?? '').slice(-200)}`);
+
+      // A hurl with no flame lit, the way a player throws first: nothing lands, nothing is left.
+      const beforeBare = new Set(game.messages.map(m => m.id));
+      target(victimToken);
+      await use(hurlAct, { subsequentActions: false });
+      const bareCard = await until(() => game.messages.find(m => !beforeBare.has(m.id) && m.getFlag(MOD, 'tokenLight')?.out && m.getFlag(MOD, 'tokenLight')?.done
+        && ('putOut' in (m.getFlag(MOD, 'tokenLight') ?? {}))) ?? null, { timeout: 8000, label: 'the bare hurl\'s card with its put-out written' }).catch(() => null);
+      const stray = await watch(() => aas.effects.find(e => /Produce Flame/.test(e.name)) ?? (!isBase() ? lightOf(aasDoc) : null), { ms: 1500 });
+      ok('8h. a hurl with no flame lit lands nothing: no "Produce Flame", the token at its own light, the card says nothing went out',
+        !!bareCard && (bareCard.getFlag(MOD, 'tokenLight')?.putOut === 0) && !stray && !aas.effects.some(e => /Produce Flame/.test(e.name)) && isBase()
+          && !/light goes out/.test(textOf(cardEl(bareCard.id))),
+        `flag=${JSON.stringify(bareCard?.getFlag(MOD, 'tokenLight'))} stray=${stray?.name ?? JSON.stringify(stray)} light=${JSON.stringify(lightOf(aasDoc))}`);
+    });
+
+    // ---- 9. Produce Flame as a table's sheet has it
+    if (want(9)) await section(9, async () => {
+      await clearEffects();
+      // A world copy whose Cast applies its own "Produce Flame" (the table's sheet), on a token with a light of its own.
+      const copy = await lend('dnd-players-handbook.spells', 'Produce Flame');
+      const [own] = await copy.createEmbeddedDocuments('ActiveEffect', [{ name: 'Produce Flame', img: 'icons/svg/aura.svg', transfer: false,
+        duration: { value: 10, units: 'minutes' }, description: '<p>A flame in the hand (the world copy\'s own effect).</p>',
+        system: { changes: [{ key: 'flags.btbtest.produceFlame', type: 'override', value: '1', phase: 'initial' }] } }]);
+      await actNamed(copy, 'Cast').update({ effects: [{ _id: own.id }] });
+      // The activities are prepared again on the update: read them after it.
+      const castAct = actNamed(copy, 'Cast');
+      const hurlAct = actNamed(copy, 'Hurl Fire');
+      if (!castAct?.effects?.some(e => e._id === own.id)) throw new Error(`the copy's Cast does not apply its own effect: ${JSON.stringify(castAct?.effects)}`);
+      const priorLight = { bright: aasDoc._source.light?.bright ?? 0, dim: aasDoc._source.light?.dim ?? 0 };
+      await aasDoc.update({ light: { bright: 10, dim: 20 } });
+      try {
+        const named = () => aas.effects.filter(e => e.name === 'Produce Flame');
+        const atOwn = () => (lightOf(aasDoc).bright === 10) && (lightOf(aasDoc).dim === 20);
+        await until(atOwn, { timeout: 5000, label: 'the token at its own 10 / 20' });
+        const cast = async () => {
+          const before = new Set(game.messages.map(m => m.id));
+          target(victimToken);
+          await use(castAct);
+          return until(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'tokenLight')?.landed?.length && m.getFlag(MOD, 'effectReceipt')) ?? null,
+            { timeout: 8000, label: 'the copy\'s Cast card with its light landed' });
+        };
+        const hurl = async () => {
+          const before = new Set(game.messages.map(m => m.id));
+          target(victimToken);
+          await use(hurlAct, { subsequentActions: false });
+          return until(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'tokenLight')?.out && m.getFlag(MOD, 'tokenLight')?.done
+            && ('putOut' in (m.getFlag(MOD, 'tokenLight') ?? {}))) ?? null, { timeout: 8000, label: 'the copy\'s hurl card with its put-out written' });
+        };
+
+        const card1 = await cast();
+        await until(() => (lightOf(aasDoc).bright === 20) && named().length, { timeout: 8000, label: 'the copy\'s flame lit' });
+        // The window a second "Produce Flame" (the cast path's copy) must NOT arrive in.
+        const twin = await watch(() => (named().length > 1) ? named() : null, { ms: 1500 });
+        const one = named()[0];
+        const keys = (one?.system?.changes ?? []).map(c => `${c.key}=${c.value}`);
+        const entries = card1?.getFlag(MOD, 'effectReceipt')?.targets?.flatMap(t => t.effects ?? []) ?? [];
+        ok('9a. the Cast lands ONE "Produce Flame" — the copy\'s own effect, carrying the light (20 / 40) and its own change — and one receipt entry',
+          !twin && (named().length === 1) && keys.includes('token.light.bright=20') && keys.includes('flags.btbtest.produceFlame=1')
+            && (lightOf(aasDoc).dim === 40) && (entries.length === 1),
+          `effects=[${named().map(e => e.id).join(', ')}] changes=[${keys.join(', ')}] receipt=${entries.length} light=${JSON.stringify(lightOf(aasDoc))}`);
+
+        await cast();
+        const replaced = await until(() => ((named().length === 1) && (named()[0].id !== one?.id)) ? named()[0] : null, { timeout: 8000, label: 'one fresh copy in place of the first' }).catch(() => null);
+        const twin2 = await watch(() => (named().length > 1) ? named() : null, { ms: 1500 });
+        ok('9b. cast again: one "Produce Flame" stands, the token 20 / 40', !!replaced && !twin2 && (lightOf(aasDoc).bright === 20),
+          `effects=[${named().map(e => e.id).join(', ')}] first=${one?.id} light=${JSON.stringify(lightOf(aasDoc))}`);
+
+        const card3 = game.messages.contents.filter(m => m.getFlag(MOD, 'tokenLight')?.landed?.some(l => l.effectId === replaced?.id)).at(-1);
+        const revertBtn = await until(() => cardEl(card3?.id)?.querySelector('.bythebooks-receipt button') ?? null, { timeout: 5000, label: 'the ✕ Revert on the copy\'s Cast card' }).catch(() => null);
+        revertBtn?.click();
+        const reverted = await until(() => !named().length && atOwn(), { timeout: 8000, label: 'reverted to the token\'s own light' }).catch(() => false);
+        ok('9c. ✕ Revert leaves no "Produce Flame" and the token at its own 10 / 20', !!revertBtn && reverted,
+          `button=${!!revertBtn} effects=${named().length} light=${JSON.stringify(lightOf(aasDoc))}`);
+
+        await cast();
+        await until(() => (lightOf(aasDoc).bright === 20) && (named().length === 1), { timeout: 8000, label: 'lit again for the hurl' });
+        const hurlCard = await hurl();
+        const out = await until(() => !named().length && atOwn(), { timeout: 8000, label: 'the hurl ended the flame' }).catch(() => false);
+        const said = await until(() => /keeps the light set on it: 10 ft Bright, 10 ft more Dim/.test(textOf(cardEl(hurlCard?.id))) ? textOf(cardEl(hurlCard.id)) : null,
+          { timeout: 5000, label: 'the hurl\'s card names the token\'s own light' }).catch(() => textOf(cardEl(hurlCard?.id)));
+        ok('9d. Cast, then Hurl Fire: no "Produce Flame" left, the token at its own 10 / 20, the hurl\'s card naming that light',
+          out && (hurlCard?.getFlag(MOD, 'tokenLight')?.putOut === 1) && (hurlCard?.getFlag(MOD, 'tokenLight')?.ownLight?.bright === 10)
+            && /keeps the light set on it: 10 ft Bright, 10 ft more Dim/.test(said ?? ''),
+          `effects=${named().length} light=${JSON.stringify(lightOf(aasDoc))} flag=${JSON.stringify(hurlCard?.getFlag(MOD, 'tokenLight'))} text=${(said ?? '').slice(-160)}`);
+
+        const bare = await hurl();
+        const stray = await watch(() => named()[0] ?? (!atOwn() ? lightOf(aasDoc) : null), { ms: 1500 });
+        ok('9e. a hurl with no Cast lands nothing: no "Produce Flame", the token at its own 10 / 20',
+          (bare?.getFlag(MOD, 'tokenLight')?.putOut === 0) && !stray && !named().length && atOwn(),
+          `flag=${JSON.stringify(bare?.getFlag(MOD, 'tokenLight'))} stray=${stray?.name ?? JSON.stringify(stray)} light=${JSON.stringify(lightOf(aasDoc))}`);
+      } finally {
+        await aasDoc.update({ light: priorLight });
+        await clearEffects();
+      }
     });
 
     return { log, results, skips };

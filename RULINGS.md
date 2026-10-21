@@ -210,8 +210,27 @@ light by hand.
 - **Any other end gives the light back**: the 10 minutes run out (the platform marks the effect
   expired and a suppressed effect changes no token), the effect is deleted by hand, or a rest tidies
   it (*Rests end the short effects*).
-- Pinned by `tests/decide-token-lights.test.js` (the row, `lightOutKey`, the changes, `lightLasts`)
-  and `smoke-aasimar` §8.
+- **A sheet's own copy of the spell** (the user's hand walk on the sandbox, 2026-10-21: *"light doesnt
+  go out if i just hurl it. if im carrying it, then hurl, the effect of light still stays on"*). Cecil's
+  Produce Flame is the stopgap's world copy: its Cast applies its own "Produce Flame" effect (a marker
+  the macro reads), and the macro had set the token's OWN light (10 / 20 on the prototype and the
+  placed tokens). The cast path landed that effect beside the light's, two "Produce Flame" on the
+  sheet, and the hurl put out only the light's; the token then fell back to its own 10 / 20. Two
+  answers. **The light adopts the use's own effect of the spell's name** (`lightAdopts`): a row with no
+  `effect` of its own whose utility use applies a creature effect named as the row lands THAT effect
+  with the light on it, and the cast path leaves it (`cast.js`), so the caster wears one "Produce
+  Flame" and the hurl, a recast and ✕ Revert each take it whole. An enchantment is never adopted
+  (Sacred Weapon's stays on the weapon, its light on the paladin). **The effect wears the spell's
+  icon** (the user, 2026-10-21: *"can you give the hurl flame active effect the flame icon from the
+  spell"*): the module's own effect and an adopted copy alike take the item's image
+  (`lightEffectImg`); a row that names its pack effect (Searing Radiance) keeps that effect's own. **The hurl's card names a light set on the token itself**
+  ("the token keeps the light set on it: 10 ft Bright, 10 ft more Dim"), so the token's own setting
+  is never taken for the flame; the module never writes the token's own light, so that setting is
+  the table's to clear (the macro's off press, or the token's light config).
+- Pinned by `tests/decide-token-lights.test.js` (the row, `lightOutKey`, `lightAdopts`,
+  `tokenOwnLight`, `lightEffectImg`, the changes, `lightLasts`) and `smoke-aasimar` §8 (the pack's spell: cast,
+  recast, revert, hurl, a hurl with nothing lit) and §9 (the sheet's copy on a token with its own
+  light: one effect, recast, revert, hurl, a hurl with nothing lit).
 
 ## Musician's song lands (2026-10-21)
 

@@ -147,6 +147,103 @@ describe("Produce Flame — the flame in the hand lights its caster; a recast re
       tl.lightOutKey(reg.TOKEN_LIGHTS, { itemName: "Produce Flame", activityName: "" }, all())
     ).toBeNull();
   });
+  it("a world copy whose Cast applies its own 'Produce Flame' effect: the light adopts it (one effect, not two)", () => {
+    const use = effectName => ({
+      itemName: "Produce Flame",
+      activityName: "Cast",
+      activityType: "utility",
+      effectName
+    });
+    expect(tl.lightAdopts(reg.TOKEN_LIGHTS, use("Produce Flame"), all())).toBe("Produce Flame");
+    expect(tl.lightAdopts(reg.TOKEN_LIGHTS, use("produce flame"), all())).toBe("Produce Flame");
+    // another effect the copy carries stays the cast path's
+    expect(tl.lightAdopts(reg.TOKEN_LIGHTS, use("Warmed"), all())).toBeNull();
+    // the hurl is not the row's use; an unlisted row adopts nothing
+    expect(
+      tl.lightAdopts(
+        reg.TOKEN_LIGHTS,
+        {
+          itemName: "Produce Flame",
+          activityName: "Hurl Fire",
+          activityType: "attack",
+          effectName: "Produce Flame"
+        },
+        all()
+      )
+    ).toBeNull();
+    expect(tl.lightAdopts(reg.TOKEN_LIGHTS, use("Produce Flame"), new Set(["light"]))).toBeNull();
+  });
+  it("an enchantment is never adopted, nor a use that is not a utility (Sacred Weapon's Enchant, the hurl)", () => {
+    expect(
+      tl.lightAdopts(
+        reg.TOKEN_LIGHTS,
+        {
+          itemName: "Sacred Weapon",
+          activityName: "Sacred Weapon",
+          activityType: "enchant",
+          effectName: "Sacred Weapon",
+          effectType: "enchantment"
+        },
+        all()
+      )
+    ).toBeNull();
+    expect(
+      tl.lightAdopts(
+        reg.TOKEN_LIGHTS,
+        {
+          itemName: "Sacred Weapon",
+          activityName: "Sacred Weapon",
+          activityType: "utility",
+          effectName: "Sacred Weapon",
+          effectType: "enchantment"
+        },
+        all()
+      )
+    ).toBeNull();
+  });
+  it("a row that names its pack effect adopts nothing: the pack effect is the row's own (Corona of Light)", () => {
+    expect(
+      tl.lightAdopts(
+        reg.TOKEN_LIGHTS,
+        {
+          itemName: "Corona of Light",
+          activityName: "Emit Aura of Sunlight",
+          effectName: "Corona of Light"
+        },
+        all()
+      )
+    ).toBeNull();
+  });
+  it("the item names a row answers to: its `item`, else its key", () => {
+    const names = tl.lightItemNames(reg.TOKEN_LIGHTS);
+    expect(names).toContain("Produce Flame");
+    expect(names).toContain("Celestial Revelation");
+    expect(names).not.toContain("Inner Radiance");
+  });
+  it("the effect wears the spell's icon, the module's own or an adopted copy's; a named pack effect keeps its own", () => {
+    const spellImg = "icons/magic/light/hand-sparks-glow-yellow.webp";
+    expect(tl.lightEffectImg(row(), { itemImg: spellImg, effectImg: "icons/svg/aura.svg" })).toBe(
+      spellImg
+    );
+    expect(tl.lightEffectImg(row(), { itemImg: spellImg })).toBe(spellImg);
+    expect(tl.lightEffectImg(row(), { itemImg: null, effectImg: "icons/svg/aura.svg" })).toBe(
+      "icons/svg/aura.svg"
+    );
+    expect(tl.lightEffectImg(row(), {})).toBe(tl.LIGHT_EFFECT_IMG);
+    expect(
+      tl.lightEffectImg(reg.TOKEN_LIGHTS["Inner Radiance"], {
+        itemImg: "celestial.webp",
+        effectImg: "searing.webp"
+      })
+    ).toBe("searing.webp");
+  });
+  it("a token's own light: its radii when it sheds one, else null (the out card names a light set on the token)", () => {
+    expect(tl.tokenOwnLight({ bright: 10, dim: 20 })).toEqual({ bright: 10, dim: 20 });
+    expect(tl.tokenOwnLight({ bright: 0, dim: 5 })).toEqual({ bright: 0, dim: 5 });
+    expect(tl.tokenOwnLight({ bright: 10, dim: 0 })).toEqual({ bright: 10, dim: 10 });
+    expect(tl.tokenOwnLight({ bright: 0, dim: 0 })).toBeNull();
+    expect(tl.tokenOwnLight(null)).toBeNull();
+  });
   it("only Produce Flame has an `out` use", () => {
     expect(
       Object.entries(reg.TOKEN_LIGHTS)

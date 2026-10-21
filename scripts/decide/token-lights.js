@@ -26,6 +26,57 @@ export function lightRowKey(table, { itemName, activityName }, listed) {
 }
 
 /**
+ * The token-light row whose light ADOPTS this use's own effect: a row with no `effect` of its own, whose UTILITY
+ * use applies a creature effect of the row's name (a world copy that gave the spell its own effect). The light
+ * lands that effect with the light on it, and the cast path leaves it, so the caster wears one effect, not two.
+ * An enchantment (Sacred Weapon's, on the weapon) is never adopted.
+ * @param {Record<string, {item?: string, activity?: string|null, effect?: string|null}>} table
+ * @param {{ itemName: string|null|undefined, activityName: string|null|undefined, activityType: string|null|undefined,
+ *   effectName: string|null|undefined, effectType?: string|null }} use
+ * @param {Set<string>} listed   lower-cased row names
+ * @returns {string|null}
+ */
+export function lightAdopts(table, { itemName, activityName, activityType, effectName, effectType = null }, listed) {
+  if ( (activityType !== "utility") || (effectType === "enchantment") ) return null;
+  const key = lightRowKey(table, { itemName, activityName }, listed);
+  if ( !key || table[key]?.effect ) return null;
+  return (String(effectName ?? "").toLowerCase() === key.toLowerCase()) ? key : null;
+}
+
+/** The icon a light's effect wears when neither the spell nor its effect has one. */
+export const LIGHT_EFFECT_IMG = "icons/magic/light/explosion-star-glow-silhouette.webp";
+
+/**
+ * The icon a row's light effect wears: a row that names its pack effect keeps that effect's own; the module's own
+ * effect and an adopted copy (`lightAdopts`) wear the spell's (the item's) icon.
+ * @param {{ effect?: string|null }} row
+ * @param {{ itemImg?: string|null, effectImg?: string|null }} imgs
+ * @returns {string}
+ */
+export function lightEffectImg(row, { itemImg = null, effectImg = null } = {}) {
+  if ( row?.effect ) return effectImg || itemImg || LIGHT_EFFECT_IMG;
+  return itemImg || effectImg || LIGHT_EFFECT_IMG;
+}
+
+/**
+ * A token's OWN light (its source, no effect applied) as radii, or null when it sheds none.
+ * @param {{ bright?: number|null, dim?: number|null }|null|undefined} light
+ * @returns {{ bright: number, dim: number }|null}
+ */
+export function tokenOwnLight(light) {
+  const bright = Math.max(0, Number(light?.bright) || 0);
+  const dim = Math.max(bright, Number(light?.dim) || 0);
+  return (bright || dim) ? { bright, dim } : null;
+}
+
+/**
+ * The names a token-light row's item answers to, for `namesAnswering`.
+ * @param {Record<string, {item?: string}>} table
+ * @returns {string[]}
+ */
+export const lightItemNames = table => Object.entries(table ?? {}).map(([k, r]) => r.item ?? k);
+
+/**
  * The token-light row whose light this use puts OUT: the row's `out` names the activity, on the row's item.
  * @param {Record<string, {item?: string, out?: string|null}>} table
  * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use
