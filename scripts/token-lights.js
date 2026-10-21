@@ -8,7 +8,7 @@ import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } f
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { TOKEN_LIGHTS, TOKEN_SENSES, TOKEN_SIZES } from "./decide/registry.js";
-import { lightRowKey, lightChanges, lightTargets, senseRowKey, senseChanges, carriesSense,
+import { lightRowKey, lightOutKey, lightChanges, lightTargets, lightLasts, senseRowKey, senseChanges, carriesSense,
   sizeRowFor, sizeAfter, sizeChanges, carriesSize } from "./decide/token-lights.js";
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -19,15 +19,25 @@ import { tokenDocOf } from "./geometry.js";
 // TOKEN LIGHTS (registry TOKEN_LIGHTS): a `token.*` change on an effect lights the bearer's tokens and
 // lives the effect's life; no token document is written. `self`: the pack's Searing Radiance sits on a
 // DAMAGE activity that lands nothing, so it is landed here (emanations.js and clock-riders.js read it).
-// The caster's client stamps the use's card; the flow elect applies it.
+// The caster's client stamps the use's card; the flow elect applies it. A row's `out` activity stamps
+// its card the same way, and the elect deletes the caster's standing light: the token's own comes back.
 
 const LIGHT_FLAG = "tokenLight";
 const listed = () => listedNames(tokenLightEntries());
 
+/** The table's name for this use's item, or null. */
+const itemNameOf = activity => activity?.item
+  ? namesAnswering([activity.item], Object.entries(TOKEN_LIGHTS).map(([k, r]) => r.item ?? k))[0] : null;
+
 /** The row this use answers to, as `{ key, ...row }`, or null. */
 function rowFor(activity) {
-  const itemName = activity?.item ? namesAnswering([activity.item], Object.entries(TOKEN_LIGHTS).map(([k, r]) => r.item ?? k))[0] : null;
-  const key = lightRowKey(TOKEN_LIGHTS, { itemName, activityName: activity?.name }, listed());
+  const key = lightRowKey(TOKEN_LIGHTS, { itemName: itemNameOf(activity), activityName: activity?.name }, listed());
+  return key ? { key, ...TOKEN_LIGHTS[key] } : null;
+}
+
+/** The row whose light this use puts out, as `{ key, ...row }`, or null. */
+function outRowFor(activity) {
+  const key = lightOutKey(TOKEN_LIGHTS, { itemName: itemNameOf(activity), activityName: activity?.name }, listed());
   return key ? { key, ...TOKEN_LIGHTS[key] } : null;
 }
 
@@ -44,9 +54,15 @@ listen("dnd5e.preUseActivity", "token-lights", (activity, usageConfig) => {
 
 listen("dnd5e.postUseActivity", "token-lights", (activity, usageConfig, results) => {
   try {
-    const row = rowFor(activity);
     const actor = activity?.actor;
-    if ( !row || !actor?.isOwner ) return;
+    if ( !actor?.isOwner ) return;
+    const outRow = outRowFor(activity);
+    if ( outRow ) {
+      stampOut(outRow, activity, results);
+      return;
+    }
+    const row = rowFor(activity);
+    if ( !row ) return;
     // The summon menu put the light on an OBJECT (SUMMON_LIGHTS): summons.js places it; no token is lit,
     // and a recast that ends the caster's earlier light ends the one on a token too.
     if ( usageConfig?.[MODULE_ID]?.lightOn === "object" ) {
@@ -83,11 +99,33 @@ function standingLights(key, sourceUuid) {
   return out;
 }
 
-/** The caster's standing light of a row put out where this client may write (a recast on an object). */
+/**
+ * The caster's standing light of a row put out where this client may write (a recast on an object, a row's
+ * `out` use). Returns how many lights that were still shining went out.
+ */
 async function putOutStanding(key, sourceUuid) {
+  let n = 0;
   for ( const e of standingLights(key, sourceUuid) ) {
-    if ( canApplyTo(e.parent) ) await e.delete().catch(err => log.warn(`Could not put the earlier light out — delete it by hand.`, err));
+    if ( !canApplyTo(e.parent) ) continue;
+    const shining = e.active;
+    await e.delete().then(() => { if ( shining ) n += 1; },
+      err => log.warn(`Could not put the light out — delete it by hand.`, err));
   }
+  return n;
+}
+
+/**
+ * A row's `out` activity was used: its card is stamped for the elect to put the caster's light out; with no
+ * card, this client puts out what it may.
+ */
+function stampOut(row, activity, results) {
+  const actor = activity.actor;
+  const message = (results?.message instanceof ChatMessage) ? results.message : null;
+  const tok = tokenDocOf(actor, { activity });
+  const payload = { ...statContext(actor.uuid), key: row.key, itemUuid: activity.item.uuid, activityUuid: activity.uuid,
+    out: true, name: tok?.name ?? actor.name, done: false };
+  if ( message ) void message.setFlag(MODULE_ID, LIGHT_FLAG, payload).catch(err => log.error(`Could not stamp the light going out.`, err));
+  else void putOutStanding(row.key, actor.uuid);
 }
 
 /** The effect data this row lands on one creature: the pack's own effect or the module's, the light added. */
@@ -155,6 +193,12 @@ async function driveLight(message) {
   });
   if ( !claimed ) return;
   const payload = readFlag(message, LIGHT_FLAG);
+  // An `out` use: the caster's light deleted, the count written back for the card. Nothing landed, so no receipt.
+  if ( payload?.out ) {
+    const putOut = await putOutStanding(payload.key, payload.sourceUuid);
+    await queueFlagWrite(message, LIGHT_FLAG, current => { current.putOut = putOut; });
+    return;
+  }
   const { landed, skipped } = await applyLight(payload);
   await queueFlagWrite(message, LIGHT_FLAG, current => { current.landed = landed; current.skipped = skipped; });
   // The effect receipt: its revert takes the light off with the effect.
@@ -168,7 +212,7 @@ async function driveLight(message) {
 
 // On the flow elect, on arrival, on the stamp's update and on reload — once, behind the claim.
 registerResumable(LIGHT_FLAG, {
-  pending: flag => !!flag?.targets?.length && !flag.done,
+  pending: flag => !flag?.done && (!!flag?.out || !!flag?.targets?.length),
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: driveLight
 });
@@ -177,18 +221,29 @@ registerResumable(LIGHT_FLAG, {
 
 listen("dnd5e.renderChatMessage", "token-lights", (message, html) => {
   const f = readFlag(message, LIGHT_FLAG);
-  if ( !f?.done || !(f.landed || f.skipped) ) return;
-  const row = TOKEN_LIGHTS[f.key];
-  if ( !row ) return;
-  const names = (f.landed ?? []).map(l => l.name);
+  const row = TOKEN_LIGHTS[f?.key];
+  if ( !f?.done || !row ) return;
   const line = document.createElement("div");
+  if ( f.out ) {
+    // An `out` use says so only when a light was still shining.
+    if ( !f.putOut ) return;
+    line.innerHTML = bfCard({
+      eyebrow: "Token light", tone: "neutral",
+      title: `${f.key} — ${f.name}'s light goes out`,
+      subtitle: `${row.out} puts it out · the token's own light is back`,
+      lines: [ruleLine(row.rule)]
+    });
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
+    return;
+  }
+  if ( !(f.landed || f.skipped) ) return;
+  const names = (f.landed ?? []).map(l => l.name);
   line.innerHTML = bfCard({
     eyebrow: "Token light", tone: names.length ? "good" : "neutral",
     title: names.length ? `${f.key} — ${names.join(", ")} shed${names.length === 1 ? "s" : ""} light: ${row.bright} ft Bright, ${row.dim - row.bright} ft more Dim`
       : `${f.key} — no light landed`,
     subtitle: [
-      (row.ends === "enchantment") ? "while the weapon's enchantment stands"
-        : row.on === "self" ? "while the transformation stands" : "for the spell's duration; casting it again puts it out",
+      lightLasts(row),
       (f.skipped ?? []).length ? `not landed (no permission here): ${f.skipped.join(", ")}` : null,
       row.caveat ?? null
     ].filter(Boolean).join(" · "),

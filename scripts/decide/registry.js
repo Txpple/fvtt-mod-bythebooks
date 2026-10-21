@@ -1941,13 +1941,16 @@ export const EFFECT_CHOICES = Object.freeze({
 /**
  * How a spell's light looks on the token: a token light's own fields, as GEAR_LOOKS' are. Light is a
  * steady glow, coloured as the caster likes (warm white unless the table recolours it); Continual Flame
- * "looks like a regular flame"; a Dancing Light is a torch-size light; the Flaming Sphere a ball of fire
- * that flickers with no core (`flame`'s white core blew out 20 ft of the map on the sandbox).
+ * "looks like a regular flame"; Produce Flame a flickering flame in the hand, a torch's colour; a Dancing
+ * Light is a torch-size light; the Flaming Sphere a ball of fire that flickers with no core (`flame`'s white
+ * core blew out 20 ft of the map on the sandbox).
  */
 export const SPELL_LOOKS = Object.freeze({
   light: Object.freeze({ color: "#fff1d6", alpha: 0.3, luminosity: 0.45, attenuation: 0.8 }),
   continualFlame: Object.freeze({ color: "#ff9a3c", alpha: 0.4, luminosity: 0.45, attenuation: 0.8,
     animation: Object.freeze({ type: "torch", speed: 3, intensity: 4 }) }),
+  produceFlame: Object.freeze({ color: "#ff8a33", alpha: 0.4, luminosity: 0.45, attenuation: 0.8,
+    animation: Object.freeze({ type: "torch", speed: 5, intensity: 5 }) }),
   dancingLight: Object.freeze({ color: "#ffcf7a", alpha: 0.35, luminosity: 0.4, attenuation: 0.85,
     animation: Object.freeze({ type: "torch", speed: 3, intensity: 3 }) }),
   flamingSphere: Object.freeze({ color: "#ff6a1a", alpha: 0.4, luminosity: 0.4, attenuation: 0.85,
@@ -1962,6 +1965,8 @@ export const SPELL_LOOKS = Object.freeze({
  *   item / activity   the pack item and activity whose use lands it (activity null: any use)
  *   effect    the pack effect the light rides, landed WITH it; null: the module's own, named as the item
  *   recast    "ends" — casting it again ends the caster's earlier light
+ *   out       the item's other activity whose use puts the caster's light out (the effect deleted on the elect,
+ *             the token's own light back); the use itself runs as the pack's
  *   ends      "enchantment" — the light goes out with the ENCHANTMENT the use put on a weapon (the item's own
  *             effect of the row's `item` name, deleted from the weapon); `clock` its duration off that effect
  */
@@ -1978,6 +1983,12 @@ export const TOKEN_LIGHTS = Object.freeze({
     caveat: "on a creature's token, as Light's — the rule's object is the table's to name",
     rule: Object.freeze({ item: "Continual Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContinualF" }),
     from: "PHB, level 2 (until dispelled)" }),
+  // Produce Flame: the flame in the caster's hand lights the caster's token for the spell's 10 minutes; casting it
+  // again ends the earlier one, and hurling it puts the light out (RULINGS *Produce Flame*; the bend, RULINGS *Bent by choice*).
+  "Produce Flame": Object.freeze({ activity: "Cast", on: "self", effect: null, recast: "ends", out: "Hurl Fire", bright: 20, dim: 40,
+    look: SPELL_LOOKS.produceFlame,
+    rule: Object.freeze({ item: "Produce Flame", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplProduceFla" }),
+    from: "PHB cantrip (10 minutes)" }),
   // D1 — the uses whose OWN effect marks the form on the bearer (`on: "self"`): the EMANATIONS rows stand while it does.
   // Corona of Light: Bright Light 60 ft, Dim 30 more.
   "Corona of Light": Object.freeze({ item: "Corona of Light", activity: "Emit Aura of Sunlight", on: "self", effect: "Corona of Light", bright: 60, dim: 90,
