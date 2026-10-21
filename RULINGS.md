@@ -3877,7 +3877,8 @@ seeing and comes back from the pocket seeing), §10 (Pip: the token, its creatur
 new form with the line pre-filled; an answer with no line; the line cleared) and §11 (the Fiendish vestige named Ash, its
 memory beside Pip's); `smoke-familiar` §1, §9 and §11 (seeing through the empower and the revert). Unit:
 `decide-summons` (`summonSees` and the sensor's row, the name folded into the answer, the memory, the Vestige's own).
-Written and NOT YET RUN on the sandbox.
+All green on the sandbox 2026-10-21 (battery `2026-10-21T14-47-40`: summons 45/45, familiar 31/31, companions 41/41,
+the two-GM sections included); the menu's name line itself is the walk's.
 
 **The walk table:**
 

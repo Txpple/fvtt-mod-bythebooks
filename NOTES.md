@@ -620,7 +620,8 @@ is kept — exactly a polymorph spell's ending.
 
 ### A summoned token is blind: the packs ship sight off, and dnd5e's sense sync never switches it on (2026-10-21, item 10)
 
-Read off the 6.0.6 bundle and the pack snapshots (the live suites to confirm, RULINGS *Summons*, call 60): every npc in the
+Read off the 6.0.6 bundle and the pack snapshots, and measured on the sandbox (RULINGS *Summons*, call 60: the MM Owl's
+token, `range: 0, basic` in its prototype, prepares Darkvision 120 ft once its sight is on; Mage Hand's stays off): every npc in the
 PHB, Monster Manual, DMG, Arcana Unleashed, Heroes of Faerûn and dnd5e's own `actors24` ships `prototypeToken.sight.enabled:
 false`, except the Arcane Eye (the PHB's and `actors24`'s) and the PHB's three Primal Companion beasts. `TokenDocument5e#_applySenseVision`
 (world setting `senseVisionSync`, default on) runs in `_prepareDetectionModes` and writes the senses' range, vision mode and
