@@ -3,11 +3,12 @@
  * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
 import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM, resolveUuid, writableTargets, log } from "./core.js";
-import { activityNamed, cardActivity, cardItem, featureNamed, lower } from "./lookup.js";
+import { activityNamed, cardActivity, cardItem, featureNamed, lower, namesAnswering } from "./lookup.js";
 import { chipData, damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice, effectsAfterPick, slotHours } from "./decide/choices.js";
-import { EFFECT_CHOICES, HEAL_REROLLS, MARK_USES, SLOT_DURATIONS, healRerollEntries, listedNames } from "./decide/registry.js";
+import { EFFECT_CHOICES, HEAL_REROLLS, MARK_USES, SLOT_DURATIONS, TOKEN_LIGHTS, healRerollEntries, listedNames, tokenLightEntries } from "./decide/registry.js";
+import { lightAdopts, lightItemNames } from "./decide/token-lights.js";
 import { rollMaximum } from "./decide/damage-dice.js";
 import { registerResumable, pendingRow, closePopup } from "./ui.js";
 import { openPicker } from "./gallery.js";
@@ -36,7 +37,7 @@ async function executeCastApply(message) {
       : effectsAfterChoice(applicable.map(e => e.name), payload.choice ?? null);
     if ( names === null ) return;   // pending — the caster's popup is open on their client
     const wanted = new Set(names.map(n => String(n).toLowerCase()));
-    const effects = lookedAs(row, applicable.filter(e => wanted.has(String(e.name).toLowerCase())));
+    const effects = lookedAs(row, applicable.filter(e => wanted.has(String(e.name).toLowerCase()) && !lightAdopted(activity, e)));
     if ( !effects.length ) return;
     // Apply what this client MAY; the driver is told the rest (core.js "THE FLOW ELECT"). The marker
     // still writes, so a rejoining GM re-pays nothing.
@@ -64,6 +65,13 @@ async function executeCastApply(message) {
   } catch(err) {
     log.error(`Cast auto-apply failed.`, err);
   }
+}
+
+/** A token light adopts this use's own effect of the spell's name (token-lights.js lands it, carrying the light), so the cast leaves it. */
+function lightAdopted(activity, effect) {
+  const itemName = activity?.item ? namesAnswering([activity.item], lightItemNames(TOKEN_LIGHTS))[0] : null;
+  return !!lightAdopts(TOKEN_LIGHTS, { itemName, activityName: activity?.name, activityType: activity?.type,
+    effectName: effect?.name, effectType: effect?.type }, listedNames(tokenLightEntries()));
 }
 
 /** A row's look (EFFECT_CHOICES `img`, `says` — Hex): each effect drawn and told as the row says, under its own id, so

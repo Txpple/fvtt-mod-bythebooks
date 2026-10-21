@@ -3,12 +3,12 @@
  */
 import { MODULE_ID, readFlag, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, namesAnswering } from "./lookup.js";
+import { lower, namesAnswering, profileEffectSync } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { TOKEN_LIGHTS, TOKEN_SENSES, TOKEN_SIZES } from "./decide/registry.js";
-import { lightRowKey, lightOutKey, lightChanges, lightTargets, lightLasts, senseRowKey, senseChanges, carriesSense,
+import { lightRowKey, lightOutKey, lightAdopts, lightItemNames, lightChanges, lightTargets, lightLasts, tokenOwnLight, gearLightWords, senseRowKey, senseChanges, carriesSense,
   sizeRowFor, sizeAfter, sizeChanges, carriesSize } from "./decide/token-lights.js";
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -26,8 +26,7 @@ const LIGHT_FLAG = "tokenLight";
 const listed = () => listedNames(tokenLightEntries());
 
 /** The table's name for this use's item, or null. */
-const itemNameOf = activity => activity?.item
-  ? namesAnswering([activity.item], Object.entries(TOKEN_LIGHTS).map(([k, r]) => r.item ?? k))[0] : null;
+const itemNameOf = activity => activity?.item ? namesAnswering([activity.item], lightItemNames(TOKEN_LIGHTS))[0] : null;
 
 /** The row this use answers to, as `{ key, ...row }`, or null. */
 function rowFor(activity) {
@@ -128,9 +127,22 @@ function stampOut(row, activity, results) {
   else void putOutStanding(row.key, actor.uuid);
 }
 
-/** The effect data this row lands on one creature: the pack's own effect or the module's, the light added. */
+/** The use's own effect this row's light adopts (`lightAdopts`): an effect the activity applies, of the row's name. */
+function adoptedEffect(row, item, activity) {
+  for ( const profile of activity?.applicableEffects ?? [] ) {
+    const effect = profileEffectSync(profile, item);
+    const use = { itemName: itemNameOf(activity), activityName: activity?.name, activityType: activity?.type, effectName: effect?.name, effectType: effect?.type };
+    if ( lightAdopts(TOKEN_LIGHTS, use, listed()) === row.key ) return effect;
+  }
+  return null;
+}
+
+/**
+ * The effect data this row lands on one creature: the pack's own effect (the row's `effect`, else the use's own
+ * effect it adopts) or the module's, the light added.
+ */
 function lightEffectData(row, item, activity, target, sourceUuid, ruleHtml = "") {
-  const base = row.effect ? item?.effects?.find(e => lower(e.name) === lower(row.effect)) ?? null : null;
+  const base = row.effect ? item?.effects?.find(e => lower(e.name) === lower(row.effect)) ?? null : adoptedEffect(row, item, activity);
   if ( row.effect && !base ) return null;
   // An `ends: "enchantment"` row's clock is its enchantment's (the activity carries none of its own).
   const enchantment = (row.ends === "enchantment") ? item?.effects?.find(e => (e.type === "enchantment") && (lower(e.name) === lower(row.key))) ?? null : null;
@@ -196,7 +208,12 @@ async function driveLight(message) {
   // An `out` use: the caster's light deleted, the count written back for the card. Nothing landed, so no receipt.
   if ( payload?.out ) {
     const putOut = await putOutStanding(payload.key, payload.sourceUuid);
-    await queueFlagWrite(message, LIGHT_FLAG, current => { current.putOut = putOut; });
+    // A light set on the token itself outlives the spell's; the card names it, so it is not taken for the flame.
+    const own = tokenOwnLight(tokenDocOf(resolveUuid(payload.sourceUuid ?? null))?._source?.light);
+    await queueFlagWrite(message, LIGHT_FLAG, current => {
+      current.putOut = putOut;
+      if ( own ) current.ownLight = own;
+    });
     return;
   }
   const { landed, skipped } = await applyLight(payload);
@@ -230,7 +247,8 @@ listen("dnd5e.renderChatMessage", "token-lights", (message, html) => {
     line.innerHTML = bfCard({
       eyebrow: "Token light", tone: "neutral",
       title: `${f.key} — ${f.name}'s light goes out`,
-      subtitle: `${row.out} puts it out · the token's own light is back`,
+      subtitle: `${row.out} puts it out · ${f.ownLight
+        ? `the token keeps the light set on it: ${gearLightWords(f.ownLight)}` : "the token's own light is back"}`,
       lines: [ruleLine(row.rule)]
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);

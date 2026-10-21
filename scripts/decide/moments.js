@@ -872,7 +872,7 @@ export const STATE_KEYS = Object.freeze({
   emanationHeal: "a button on the emanation's card — the heal's use posts its own card",
   emanationPulse: "the card a pulse ring posts at its bearer's turn end (Inner Radiance, 2026-09-25) — the receipt on the same card is the resolve",
   gearLight: "a gear light's press on its receipt card (gear-lights.js) — the effectReceipt a lighting writes is the resolve; on an ActiveEffect, the light's fingerprint (its item and state)",
-  tokenLight: "a token light's payload on the use's card and what landed, or on an `out` use's card how many lights it put out (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
+  tokenLight: "a token light's payload on the use's card and what landed, or on an `out` use's card how many lights it put out and a light set on the token itself (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
   formChip: "an ActiveEffect's fingerprint — the transformation form a clock rider reads (Celestial Revelation's Necrotic Shroud, clock-riders.js)",
   spellRider: "the caster's pick of the ONE target a spell's extra damage goes to, on the spell's damage card; spellRiderCard is the resolve",
   emanationRemind: "a reminder on the emanation's card — presentation",

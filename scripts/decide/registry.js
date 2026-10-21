@@ -1963,7 +1963,9 @@ export const SPELL_LOOKS = Object.freeze({
  * ⚠ A Foundry light's `dim` is the OUTER radius: dim = bright + "an additional".
  *   on        "self" | "targets" (every creature targeted at the use; none → the pack's use stands)
  *   item / activity   the pack item and activity whose use lands it (activity null: any use)
- *   effect    the pack effect the light rides, landed WITH it; null: the module's own, named as the item
+ *   effect    the pack effect the light rides, landed WITH it; null: the module's own, named as the item, or
+ *             a utility use's own creature effect of the row's name when a world copy gives it one
+ *             (`lightAdopts`: the light lands that effect and the cast path leaves it, so the bearer wears one)
  *   recast    "ends" — casting it again ends the caster's earlier light
  *   out       the item's other activity whose use puts the caster's light out (the effect deleted on the elect,
  *             the token's own light back); the use itself runs as the pack's
