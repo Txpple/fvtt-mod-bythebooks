@@ -18848,7 +18848,7 @@
     "tokenLight": {
       "class": "state",
       "family": "state",
-      "means": "a token light's payload on the use's card and what landed (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
+      "means": "a token light's payload on the use's card and what landed, or on an `out` use's card how many lights it put out (token-lights.js) — the effectReceipt it writes is the resolve; on an ActiveEffect, the light's fingerprint",
       "writers": [
         "token-lights.js"
       ],

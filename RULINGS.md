@@ -125,6 +125,7 @@ as its code.**
 | **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | asked in a popup; when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`) | the smite's gift is never lost to a slow answer (the plan's pre-listed bend, stage A7) | 2026-09-29 |
 | **Relentless**: "once per turn, when you use a maneuver, you can roll 1d8 and use the number rolled instead of expending a Superiority Die" | the d8 stands in only when NO Superiority Dice are left; with dice left the module spends one | an ask on every maneuver would double the popups for a trade nobody takes with dice in hand (the noise gate, Q2); the user may overrule | 2026-09-30 |
 | **Candles, Torches, Lamps and Lanterns**: a Candle or Torch burns for 1 hour, a Lamp or Lantern for 6 hours on a flask of Oil; a Torch is used up | using the item toggles its light on the bearer's token; nothing is consumed and nothing expires by the clock; it stays lit until put out or a Long Rest (`gear-lights.js`, `GEAR_LIGHTS`; *Gear lights*) | no light bookkeeping; the table lights a torch and forgets about it (the user, 2026-10-11) | 2026-10-12 |
+| **Produce Flame** (2024): "Until the spell ends, you can take a Magic action to hurl fire" — the flame stays in the hand after a hurl, for the spell's 10 minutes | a use of the spell's **Hurl Fire** puts the caster's flame out: the "Produce Flame" effect deleted on the elect, the token's own light back, the hurl's card saying so; the hurl itself rolls as the pack's, and hurling again with no flame lit is the table's to allow (`TOKEN_LIGHTS` `out`, `token-lights.js`; *Produce Flame*) | the light follows the flame: thrown, the hand is dark (the user, 2026-10-21: *"cast light on the token per spell. if thrown, light goes away."*) — the older printing's "doing so ends the spell" | 2026-10-21 |
 
 ## Gear lights (2026-10-12)
 
@@ -179,6 +180,38 @@ source, and on a token that covers its art (the user, 2026-10-12).
 
 The hard ring at a light's edge is the scene's darkness, not the light: a scene with a dim global
 light under its darkness shows none (the MCP's scene-builder skill).
+
+## Produce Flame (2026-10-21)
+
+**The flame in the caster's hand lights the caster's token** (issue #13; the user, 2026-10-21:
+*"cast light on the token per spell. if thrown, light goes away."*). A `TOKEN_LIGHTS` row beside
+Light and Continual Flame on the same machine (`scripts/token-lights.js`, the pure half in
+`scripts/decide/token-lights.js`); it replaces the table's hotbar macro, which set the token's own
+light by hand.
+
+- **The Cast lights the caster.** `on: "self"`: whoever is targeted, the spell's **Cast** lands the
+  module's own "Produce Flame" effect on the caster (the pack ships none), carrying 20 ft Bright and
+  40 ft Dim (`dim` is the outer radius: 20 more) in a torch's colour and flicker
+  (`SPELL_LOOKS.produceFlame`: orange `#ff8a33`, `torch` at speed 5, intensity 5, soft at its edge),
+  on the Cast's own clock, the spell's 10 minutes. No token document is written: the light is the
+  effect's `token.light.*` changes, so whatever ends the effect gives the token its own light back whole.
+- **Receipted.** The Cast's card says it ("Produce Flame — <token> sheds light: 20 ft Bright, 20 ft
+  more Dim", then how long and what puts it out) and carries the effect receipt; ✕ Revert deletes
+  the effect, and the light with it.
+- **Casting it again replaces it** ("The spell ends if you cast it again"): `recast: "ends"`, Light's
+  word. The caster's earlier flame is deleted before the new one lands, so a recast never stacks two
+  lights or two effects.
+- **Hurling it puts it out** (the bend: *Bent by choice*). The row's new word, `out: "Hurl Fire"`:
+  a use of that activity stamps its card (`tokenLight` with `out`), and the elect deletes the
+  caster's standing flame. The card says "Produce Flame — <token>'s light goes out" when a flame was
+  still shining, and nothing when none was. The hurl itself is the pack's attack, untouched. The
+  put-out carries no receipt, as a recast's put-out and a gear light's Put out carry none: nothing
+  landed, and reverting the hurl's damage does not light the flame again (cast it again).
+- **Any other end gives the light back**: the 10 minutes run out (the platform marks the effect
+  expired and a suppressed effect changes no token), the effect is deleted by hand, or a rest tidies
+  it (*Rests end the short effects*).
+- Pinned by `tests/decide-token-lights.test.js` (the row, `lightOutKey`, the changes, `lightLasts`)
+  and `smoke-aasimar` §8.
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 

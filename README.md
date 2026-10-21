@@ -142,8 +142,9 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   and Magic Circle and Forcecage say so when a creature crosses their line. Every PHB spell is
   accounted for in [the register](audits/spells-register.md).
 - **Lights follow the token.** A use whose text sheds light puts it on the token for as long as
-  it lasts: the Light cantrip on any token you target (casting it again puts the old one out), an
-  Aasimar's Inner Radiance, Corona of Light, Holy Nimbus, Sacred Weapon. Torches and lanterns are a
+  it lasts: the Light cantrip on any token you target (casting it again puts the old one out),
+  Produce Flame on your own token (hurling the flame puts it out), an Aasimar's Inner Radiance,
+  Corona of Light, Holy Nimbus, Sacred Weapon. Torches and lanterns are a
   switch: using a Candle, Torch, Lamp or Lantern, from the sheet or the hotbar, opens a small popup
   with **Light** and **Put out** (the Hooded Lantern also raises and lowers its hood), and the
   light shines from your token at the book's radius, coloured for its flame: an orange, flickering

@@ -85,6 +85,115 @@ describe("lightTargets — who the light lands on", () => {
   });
 });
 
+describe("Produce Flame — the flame in the hand lights its caster; a recast replaces it, a hurl puts it out (RULINGS *Produce Flame*)", () => {
+  const row = () => reg.TOKEN_LIGHTS["Produce Flame"];
+  it("the row: on the caster, the module's own effect, a recast ends the earlier one, Hurl Fire puts it out", () => {
+    expect(row()).toMatchObject({
+      activity: "Cast",
+      on: "self",
+      effect: null,
+      recast: "ends",
+      out: "Hurl Fire",
+      bright: 20,
+      dim: 40
+    });
+    expect(Object.isFrozen(row())).toBe(true);
+    expect(row().rule).toEqual({
+      item: "Produce Flame",
+      uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplProduceFla"
+    });
+  });
+  it("the Cast lights it; Hurl Fire does not light it", () => {
+    expect(
+      tl.lightRowKey(reg.TOKEN_LIGHTS, { itemName: "Produce Flame", activityName: "Cast" }, all())
+    ).toBe("Produce Flame");
+    expect(
+      tl.lightRowKey(
+        reg.TOKEN_LIGHTS,
+        { itemName: "Produce Flame", activityName: "Hurl Fire" },
+        all()
+      )
+    ).toBeNull();
+  });
+  it("Hurl Fire puts it out; the Cast, another spell's use and an unlisted row put nothing out", () => {
+    expect(
+      tl.lightOutKey(
+        reg.TOKEN_LIGHTS,
+        { itemName: "Produce Flame", activityName: "Hurl Fire" },
+        all()
+      )
+    ).toBe("Produce Flame");
+    expect(
+      tl.lightOutKey(
+        reg.TOKEN_LIGHTS,
+        { itemName: "produce flame", activityName: "hurl fire" },
+        all()
+      )
+    ).toBe("Produce Flame");
+    expect(
+      tl.lightOutKey(reg.TOKEN_LIGHTS, { itemName: "Produce Flame", activityName: "Cast" }, all())
+    ).toBeNull();
+    expect(
+      tl.lightOutKey(reg.TOKEN_LIGHTS, { itemName: "Light", activityName: "Hurl Fire" }, all())
+    ).toBeNull();
+    expect(
+      tl.lightOutKey(
+        reg.TOKEN_LIGHTS,
+        { itemName: "Produce Flame", activityName: "Hurl Fire" },
+        new Set(["light"])
+      )
+    ).toBeNull();
+    expect(
+      tl.lightOutKey(reg.TOKEN_LIGHTS, { itemName: "Produce Flame", activityName: "" }, all())
+    ).toBeNull();
+  });
+  it("only Produce Flame has an `out` use", () => {
+    expect(
+      Object.entries(reg.TOKEN_LIGHTS)
+        .filter(([, r]) => r.out)
+        .map(([k]) => k)
+    ).toEqual(["Produce Flame"]);
+  });
+  it("20 ft Bright, 40 ft Dim (the OUTER radius), a warm flame's flicker with no white core", () => {
+    const changes = tl.lightChanges(row());
+    const at = key => changes.find(c => c.key === key)?.value;
+    expect(at("token.light.bright")).toBe(20);
+    expect(at("token.light.dim")).toBe(40);
+    expect(at("token.light.color")).toBe(reg.SPELL_LOOKS.produceFlame.color);
+    expect(at("token.light.animation.type")).toBe("torch");
+    expect(at("token.light.attenuation")).toBeGreaterThanOrEqual(0.8);
+    expect(changes.every(c => c.type === "override" && c.phase === "initial")).toBe(true);
+  });
+  it("it lights the caster alone, whoever is targeted", () => {
+    const me = { uuid: "Actor.d", name: "Druid" };
+    expect(
+      tl.lightTargets(row(), { self: me, targets: [{ uuid: "Actor.v", name: "Victim" }] })
+    ).toEqual([me]);
+  });
+});
+
+describe("lightLasts — how long the light stands, in the card's words", () => {
+  it("a recast row is the spell's; Produce Flame says what else puts it out", () => {
+    expect(tl.lightLasts(reg.TOKEN_LIGHTS.Light)).toBe(
+      "for the spell's duration; casting it again puts it out"
+    );
+    expect(tl.lightLasts(reg.TOKEN_LIGHTS["Produce Flame"])).toBe(
+      "for the spell's duration; casting it again puts it out; Hurl Fire puts it out"
+    );
+  });
+  it("a form's light stands while the form does; an enchantment's while the enchantment does", () => {
+    expect(tl.lightLasts(reg.TOKEN_LIGHTS["Inner Radiance"])).toBe(
+      "while the transformation stands"
+    );
+    expect(tl.lightLasts(reg.TOKEN_LIGHTS["Sacred Weapon"])).toBe(
+      "while the weapon's enchantment stands"
+    );
+  });
+  it("a spell no recast ends never says a recast ends it (Continual Flame)", () => {
+    expect(tl.lightLasts(reg.TOKEN_LIGHTS["Continual Flame"])).toBe("for the spell's duration");
+  });
+});
+
 describe("token senses — the pack's own effect, the token's vision (the Dwarf walk, 2026-09-25)", () => {
   const senses = () => new Set(Object.keys(reg.TOKEN_SENSES).map(k => k.toLowerCase()));
   it("Stonecunning's effect answers by its name, case-insensitive; unlisted or unnamed is nothing", () => {

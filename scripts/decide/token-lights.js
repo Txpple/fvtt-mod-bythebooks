@@ -26,6 +26,25 @@ export function lightRowKey(table, { itemName, activityName }, listed) {
 }
 
 /**
+ * The token-light row whose light this use puts OUT: the row's `out` names the activity, on the row's item.
+ * @param {Record<string, {item?: string, out?: string|null}>} table
+ * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use
+ * @param {Set<string>} listed   lower-cased row names
+ * @returns {string|null}
+ */
+export function lightOutKey(table, { itemName, activityName }, listed) {
+  const item = String(itemName ?? "").toLowerCase();
+  const act = String(activityName ?? "").toLowerCase();
+  if ( !item || !act ) return null;
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !row?.out || !listed?.has?.(key.toLowerCase()) ) continue;
+    if ( String(row.item ?? key).toLowerCase() !== item ) continue;
+    if ( String(row.out).toLowerCase() === act ) return key;
+  }
+  return null;
+}
+
+/**
  * The changes that carry a row's light. Foundry's `dim` is the OUTER radius; `angle` and the `look`
  * (colour, alpha, luminosity, attenuation, animation) are written only for a row that has them, so a
  * row without them leaves the token's own.
@@ -173,6 +192,20 @@ export function lightTargets(row, { self = null, targets = [] } = {}) {
   if ( row?.on === "self" ) return self?.uuid ? [self] : [];
   const seen = new Set();
   return (targets ?? []).filter(t => t?.uuid && !seen.has(t.uuid) && seen.add(t.uuid));
+}
+
+/**
+ * How long a row's light stands, in the card's words: a form's while it stands, a spell's for its duration,
+ * and what puts it out early.
+ * @param {{ on?: string, recast?: string|null, ends?: string|null, out?: string|null }} row
+ * @returns {string}
+ */
+export function lightLasts(row) {
+  const span = (row?.ends === "enchantment") ? "while the weapon's enchantment stands"
+    : row?.recast ? "for the spell's duration; casting it again puts it out"
+    : (row?.on === "self") ? "while the transformation stands"
+    : "for the spell's duration";
+  return row?.out ? `${span}; ${row.out} puts it out` : span;
 }
 
 /**
