@@ -242,7 +242,10 @@
             "type": "boolean"
           },
           "cap": {
-            "type": "number"
+            "type": [
+              "null",
+              "number"
+            ]
           },
           "chosen": {
             "type": "array",
@@ -10578,7 +10581,8 @@
         "iOKQkIvyCfjQfgqc",
         "ptUFHELpMtwibWaW",
         "qCpAfxRjQZTtxfyk",
-        "tgyuEuJPzflxrKVs"
+        "tgyuEuJPzflxrKVs",
+        "ydOJGLEzfwrEChfR"
       ],
       "schema": {
         "type": "object",
@@ -10620,6 +10624,9 @@
             "type": "boolean"
           },
           "tgyuEuJPzflxrKVs": {
+            "type": "boolean"
+          },
+          "ydOJGLEzfwrEChfR": {
             "type": "boolean"
           }
         },
@@ -12191,6 +12198,7 @@
               "type": "string",
               "examples": [
                 "Actor.1of7ytmp95RmP3dY",
+                "Actor.J89prVUQbY6D5G5T",
                 "Actor.g9Trxwz18XE3BUKr"
               ]
             }
@@ -12226,7 +12234,10 @@
             }
           },
           "cap": {
-            "type": "number"
+            "type": [
+              "null",
+              "number"
+            ]
           },
           "casterDisposition": {
             "type": "number"
@@ -12969,7 +12980,8 @@
           "outcome": {
             "type": "string",
             "examples": [
-              "failed"
+              "failed",
+              "saved"
             ]
           },
           "save": {
