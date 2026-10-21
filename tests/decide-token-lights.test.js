@@ -220,6 +220,23 @@ describe("Produce Flame — the flame in the hand lights its caster; a recast re
     expect(names).toContain("Celestial Revelation");
     expect(names).not.toContain("Inner Radiance");
   });
+  it("the effect wears the spell's icon, the module's own or an adopted copy's; a named pack effect keeps its own", () => {
+    const spellImg = "icons/magic/light/hand-sparks-glow-yellow.webp";
+    expect(tl.lightEffectImg(row(), { itemImg: spellImg, effectImg: "icons/svg/aura.svg" })).toBe(
+      spellImg
+    );
+    expect(tl.lightEffectImg(row(), { itemImg: spellImg })).toBe(spellImg);
+    expect(tl.lightEffectImg(row(), { itemImg: null, effectImg: "icons/svg/aura.svg" })).toBe(
+      "icons/svg/aura.svg"
+    );
+    expect(tl.lightEffectImg(row(), {})).toBe(tl.LIGHT_EFFECT_IMG);
+    expect(
+      tl.lightEffectImg(reg.TOKEN_LIGHTS["Inner Radiance"], {
+        itemImg: "celestial.webp",
+        effectImg: "searing.webp"
+      })
+    ).toBe("searing.webp");
+  });
   it("a token's own light: its radii when it sheds one, else null (the out card names a light set on the token)", () => {
     expect(tl.tokenOwnLight({ bright: 10, dim: 20 })).toEqual({ bright: 10, dim: 20 });
     expect(tl.tokenOwnLight({ bright: 0, dim: 5 })).toEqual({ bright: 0, dim: 5 });

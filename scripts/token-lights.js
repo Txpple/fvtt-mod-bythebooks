@@ -8,7 +8,7 @@ import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } f
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { TOKEN_LIGHTS, TOKEN_SENSES, TOKEN_SIZES } from "./decide/registry.js";
-import { lightRowKey, lightOutKey, lightAdopts, lightItemNames, lightChanges, lightTargets, lightLasts, tokenOwnLight, gearLightWords, senseRowKey, senseChanges, carriesSense,
+import { lightRowKey, lightOutKey, lightAdopts, lightItemNames, lightEffectImg, lightChanges, lightTargets, lightLasts, tokenOwnLight, gearLightWords, senseRowKey, senseChanges, carriesSense,
   sizeRowFor, sizeAfter, sizeChanges, carriesSize } from "./decide/token-lights.js";
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -147,11 +147,12 @@ function lightEffectData(row, item, activity, target, sourceUuid, ruleHtml = "")
   // An `ends: "enchantment"` row's clock is its enchantment's (the activity carries none of its own).
   const enchantment = (row.ends === "enchantment") ? item?.effects?.find(e => (e.type === "enchantment") && (lower(e.name) === lower(row.key))) ?? null : null;
   const data = base ? base.toObject() : {
-    name: item?.name ?? row.key, img: item?.img ?? "icons/magic/light/explosion-star-glow-silhouette.webp",
+    name: item?.name ?? row.key,
     type: "base", description: ruleHtml,
     duration: enchantment ? { ...(enchantment._source?.duration ?? {}) } : (activity?.duration?.getEffectData?.() ?? {})
   };
   delete data._id;
+  data.img = lightEffectImg(row, { itemImg: item?.img ?? null, effectImg: base?.img ?? null });
   // The pack's own clock for its effect — or, clockless, the activity's.
   if ( base ) foundry.utils.mergeObject(data, activity?.getAppliedEffectChanges?.(base, { target }) ?? {});
   data.system ??= {};

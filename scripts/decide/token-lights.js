@@ -43,6 +43,21 @@ export function lightAdopts(table, { itemName, activityName, activityType, effec
   return (String(effectName ?? "").toLowerCase() === key.toLowerCase()) ? key : null;
 }
 
+/** The icon a light's effect wears when neither the spell nor its effect has one. */
+export const LIGHT_EFFECT_IMG = "icons/magic/light/explosion-star-glow-silhouette.webp";
+
+/**
+ * The icon a row's light effect wears: a row that names its pack effect keeps that effect's own; the module's own
+ * effect and an adopted copy (`lightAdopts`) wear the spell's (the item's) icon.
+ * @param {{ effect?: string|null }} row
+ * @param {{ itemImg?: string|null, effectImg?: string|null }} imgs
+ * @returns {string}
+ */
+export function lightEffectImg(row, { itemImg = null, effectImg = null } = {}) {
+  if ( row?.effect ) return effectImg || itemImg || LIGHT_EFFECT_IMG;
+  return itemImg || effectImg || LIGHT_EFFECT_IMG;
+}
+
 /**
  * A token's OWN light (its source, no effect applied) as radii, or null when it sheds none.
  * @param {{ bright?: number|null, dim?: number|null }|null|undefined} light
