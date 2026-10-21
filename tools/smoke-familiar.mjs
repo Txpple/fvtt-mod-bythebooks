@@ -21,11 +21,11 @@ import { Foundry } from 'fvtt-mcp-dnd5e/client';
 export const COVERS = [
   'summons.js',         // §1 the free cast's cause and spend, §2 a cancelled menu spends nothing, §3 the boon landed, §7 the pocket, §8 the player's cast; §9 Battle Familiar's empower record, §13 dismissed while empowered
   'advantage-buys.js',  // §4 the box offered and spent, §5 greyed beyond 5 ft, §6 absent on an unproficient skill and a raw check, §7 greyed in the pocket, §10 offered while empowered
-  'transforms.js'       // §9 the familiar empowered in place, §11 the temp HP gone reverts and re-points, §12 the caster's effect as the lever
+  'transforms.js'       // §9 the familiar empowered in place (its sight kept), §11 the temp HP gone reverts and re-points (the sight put back), §12 the caster's effect as the lever
 ];
 
 const SECTIONS = {
-  1: 'THE FREE CAST: Find Familiar used through its "(free casting)" forward, sent to its card — the record stamps `asked`, the spell\'s one use is spent and no slot; answered as an Owl (Celestial), the elect lands it',
+  1: 'THE FREE CAST: Find Familiar used through its "(free casting)" forward, sent to its card — the record stamps `asked`, the spell\'s one use is spent and no slot; answered as an Owl (Celestial), the elect lands it, its token seeing',
   2: 'A CANCELLED MENU SPENDS NOTHING: the forward used with the menu in the way, the menu cancelled — the use stands at 0 of 1 spent, no card',
   3: 'THE BOON: the landed Owl carries the feat\'s Hit Points — its maximum and current both the Owl\'s plus twice the caster\'s level; the record names Fortified Familiar',
   4: 'HELPFUL FRIEND, OFFERED: an Arcana check (proficient) with the Owl one square away — the box "Familiar Friend — 1 use · N left" with a tick; ticked, the net and default Advantage; pressed, a use spent, the record names the feat',
@@ -33,9 +33,9 @@ const SECTIONS = {
   6: 'NOT A PROFICIENT SKILL: a Stealth check (unproficient) and a raw Wisdom check carry no box at all',
   7: 'IN THE POCKET: the familiar put away — the box greyed "in its pocket dimension"; Dismiss ends it',
   8: 'THE PLAYER\'S CAST: with Allow Summoning off, the player test user\'s free cast on their own Mage posts its card with the record `asked`, no token created, the use spent',
-  9: 'EMPOWERED (Battle Familiar, Arcana Unleashed): cast with the Owl on the table and answered as the Brute, the elect transforms the Owl IN PLACE — the same token, the Brute\'s stat block (AC 15 at level 2, Str 16, Rend), its own Hit Points and type kept, 30 Temporary Hit Points, the caster\'s Proficiency Bonus, still named Owl; the caster\'s "Battle Familiar: Owl" effect for an hour and the form effect depending on it; the companion record knows',
+  9: 'EMPOWERED (Battle Familiar, Arcana Unleashed): cast with the Owl on the table and answered as the Brute, the elect transforms the Owl IN PLACE — the same token, the Brute\'s stat block (AC 15 at level 2, Str 16, Rend), its own Hit Points and type kept, 30 Temporary Hit Points, the caster\'s Proficiency Bonus, still named Owl and still seeing; the caster\'s "Battle Familiar: Owl" effect for an hour and the form effect depending on it; the companion record knows',
   10: 'HELPFUL FRIEND WHILE EMPOWERED: the box still offered one square from the empowered Owl',
-  11: 'THE TEMP HP GONE: the Owl reverts — a new token, the Hit Points lost kept, no temp HP, its seat in the tracker and the companion record re-pointed, the caster\'s effect gone, the record ended "noTemp"',
+  11: 'THE TEMP HP GONE: the Owl reverts — a new token, the Hit Points lost kept, no temp HP, its seat in the tracker and the companion record re-pointed, the new token seeing, the caster\'s effect gone, the record ended "noTemp"',
   12: 'THE LEVER: empowered again, the caster\'s "Battle Familiar: Owl" effect removed by hand — the Owl reverts, the record ended',
   13: 'DISMISSED WHILE EMPOWERED: empowered again, Dismiss — the token goes, the caster\'s effect with it, the record ended "gone"'
 };
@@ -121,6 +121,8 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
   const grid = canvas.scene.grid.size;
+  // a token's sight as stored: the landing's, the empower's and the revert's (RULINGS *Summons*, call 60)
+  const sees = tok => !!tok?._source?.sight?.enabled;
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode',
@@ -297,6 +299,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('§1c answered as an Owl, the elect lands it beside the caster with the companion effect on the caster',
         landed?.outcome === 'landed' && !!owlToken && caster.effects.some(e => e.getFlag(MOD, 'companion') === message.id),
         JSON.stringify({ patch: !!patch, owl: !!owl, outcome: landed?.outcome, failure: landed?.failure, token: !!owlToken }));
+      ok('§1d the Owl\'s token sees', sees(owlDoc), JSON.stringify(owlDoc?._source?.sight ?? null));
     });
 
     // ---- 2. a cancelled menu spends nothing
@@ -408,6 +411,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         rec?.outcome === 'landed' && !!tok && !!a?.isPolymorphed && (a?.name === 'Owl') && (tok?.name === 'Owl') && (tok?._source?.texture?.src === LOOK.token) && (a?.img === LOOK.portrait)
           && (tok?.width === 1) && (tok?.height === 1) && (Number(tok?._source?.texture?.scaleX) === 1) && (!!tok?._source?.ring?.enabled === ringBefore),
         JSON.stringify({ outcome: rec?.outcome, failure: rec?.failure, token: !!tok, poly: a?.isPolymorphed, name: a?.name, tokenName: tok?.name, stored: tok?._source?.texture?.src, prepared: tok?.texture?.src, img: a?.img, width: tok?.width, scale: tok?._source?.texture?.scaleX, ring: tok?._source?.ring?.enabled, ringBefore, landedLook: rec?.landed?.[0]?.look ?? null, recordLook: message?.getFlag(MOD, 'transform')?.empower?.look ?? null }));
+      ok('§9d empowered, it still sees (dnd5e\'s transform takes the world Owl\'s sight, which the pack ships off)', sees(tok), JSON.stringify(tok?._source?.sight ?? null));
       ok(`§9b the Brute's stat block at level 2 on its own Hit Points and type: AC 15, Str 16, Rend, HP ${base + 2 * level}, 30 temp, Celestial, PB ${PROF}, level 2 stamped`,
         (Number(a?.system?.attributes?.ac?.value) === 15) && (Number(a?.system?.abilities?.str?.value) === 16) && !!a?.items?.find(i => i.name === 'Rend')
           && (Number(hp.max) === base + 2 * level) && (Number(hp.value) === base + 2 * level) && (Number(hp.temp) === 30)
@@ -456,6 +460,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('§11b its seat and the companion record follow the new token; the caster\'s effect is gone; the companion is no longer empowered',
         !!seat && (seat.tokenId === now?.id) && (companionRecord()?.landed?.[0]?.tokenId === now?.id) && !casterEffect() && !companionRecord()?.companion?.empower,
         JSON.stringify({ seat: seat?.tokenId, record: companionRecord()?.landed?.[0]?.tokenId, effect: !!casterEffect(), empower: companionRecord()?.companion?.empower }));
+      // the revert's new token takes the world Owl's sight (off): the re-point puts the familiar's back
+      const sight = await until(() => sees(liveOwl()) ? true : null, { timeout: 8000, label: '§11 the reverted Owl sees' }).catch(() => null);
+      ok('§11c the reverted Owl\'s new token sees', !!sight, JSON.stringify(liveOwl()?._source?.sight ?? null));
       owlDoc = now;
       if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
       await combat.delete();

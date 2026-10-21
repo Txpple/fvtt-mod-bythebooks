@@ -3772,6 +3772,66 @@ setting, the temp HP, the changes set aside, the re-point). All green on the san
 | Dismiss the familiar while empowered | the Owl goes, the caster's effect with it, the card "dismissed" |
 | The Owl to 0 HP while empowered | it disappears as a familiar does (no revert), its gear where it stood |
 
+**The familiar's eyes and its name (2026-10-21; the table's item 10, a familiar its owner could not see through, and
+the user's ask to name it).**
+
+60. **A summoned creature sees through its token; a thing does not.** Read off dnd5e 6.0.6 and the pack snapshots: every
+   creature the packs ship has its prototype token's sight OFF (the Arcane Eye and the Ranger's three Primal Companion
+   beasts alone ship it on); dnd5e's sense sync (`senseVisionSync`, on by default; `TokenDocument5e#_applySenseVision`)
+   derives a token's range, vision mode and detection modes from the creature's senses but never sets `sight.enabled`; and
+   the summon activity's `getTokenData` builds the token off the prototype. So every summon the module landed arrived
+   blind — Find Familiar, Find Steed, the Summon spells, Animate Dead, the conjures — and its owner saw nothing through it
+   (the table's slot-7 macro was the stopgap). They all land through ONE path (`landSummon`), which now switches sight on
+   for a creature and leaves a thing's as the pack ships it (`summonSees`): a creature is a creature type of the book's
+   own, or any sense with a range (the Arcane Eye, the Faithful Hound, the Battle Familiar's forms); a thing is the rest —
+   an illusion, Mage Hand, Spiritual Weapon, Bigby's Hand, the Floating Disk, the Unseen Servant, the conjures' spirits,
+   Clairvoyance's sensor, Invoke Duplicity's duplicate, a light's stone. Clairvoyance's sensor is the one thing whose text
+   lets the caster see through it; by this rule it stays as the pack ships it (open: the table's call). Only the switch is
+   the module's: the range and the mode stay dnd5e's (with the sync off, the prototype's own range stands). The sight rides the companion through its
+   pocket (one put away blind comes back seeing) and through Battle Familiar's empower and its revert: dnd5e's transform
+   and revert both take the world actor's prototype sight, so the empower record carries the familiar's and puts it back
+   (`empowerOne`, `repointEmpowered`). A familiar landed before this keeps its sight off until it is summoned again, or
+   put away and called back.
+61. **The familiar is named by its owner** (the user: "when a familiar is summoned, give a text box offering to change
+   the name of the familiar, so people can name their pets. if one is previously named, next summon carries that forward
+   and remembered"; and "the prompt ALWAYS appears on every summon, even when a name is remembered"). A `COMPANIONS` row's
+   `names` (Find Familiar, so Wild Companion's and Pact of the Chain's familiars too): the summon menu, still the ONE popup
+   (call 2), asks "Its name" every time, a text line under the form and the type (the picker's `text` section kind,
+   `gallery.js`), pre-filled with the name the caster last gave it; left blank, the picked creature's own name shows in the
+   line as it follows the pick, and it lands so. **One name per caster, not per form:** the spell's text makes a new form
+   the same familiar ("you instead cause it to adopt a new eligible form"), so Pip the owl cast again as a cat is Pip the
+   cat. Place carries the line on the answer (`placedAnswer` `petName`: control characters gone, spaces folded, at most 60
+   characters, null when blank); the elect lands the token and its creature so named (the unlinked token's delta: the
+   world actor keeps the book's name), the companion effect "Familiar: Pip (Fey)", the card "Pip — summoned" with the form
+   beside it, and keeps the name on the caster through the serializer (`petNames`, `rememberName`; a line left blank forgets
+   it). The name is undone by the familiar's own Dismiss with everything else the landing made; the memory is the
+   caster's and outlives the familiar, as the last form does (call 50). Never a block: the line as it opened is an answer
+   (the remembered name, or the creature's own), cancelling the menu casts nothing as before, and an answer that carries no
+   line (a macro's, the live suites' fold) lands the creature's own name and leaves the memory alone.
+
+| Row | Where | What it does |
+| --- | --- | --- |
+| The eyes | decide/summons.js `summonSees`; summons.js `landSummon`, `actCompanion` (the recall); transforms.js `empowerOne`, `repointEmpowered` | sight on for a creature at the landing, the recall, the empower and its revert |
+| The name | registry `COMPANIONS` `names`; summons.js `askSummon` (the "Its name" line), `landSummon`, `rememberPetName`; decide/summons.js `petNameOf`, `rememberedName`, `rememberName`; gallery.js the `text` section | asked, landed, remembered |
+
+**Suites:** `smoke-summons` §2, §7, §9 (the Land spirit, the Owl and the Brute land seeing, Darkvision off their senses)
+and §11 (Mage Hand lands blind); `smoke-companions` §1 and §3 (the Owl lands seeing and comes back from the pocket seeing)
+and §10 (Pip: the token, its creature, the effect, the card and the memory; a new form with the line pre-filled; an answer
+with no line; the line cleared); `smoke-familiar` §1, §9 and §11 (seeing through the empower and the revert). Unit:
+`decide-summons` (`summonSees`, the name folded into the answer, the memory). Written and NOT YET RUN on the sandbox.
+
+**The walk table:**
+
+| Step | What you should see |
+| --- | --- |
+| Find Familiar, the menu | "Its name" under the creature type: blank, the picked creature's name greyed in it, following the pick |
+| Type "Pip", Place | the Owl lands named Pip (its token, its sheet), "Familiar: Pip (Fey)" on the caster, the card "Pip — summoned · Owl · Fey"; the player sees through it in the dark (Darkvision 120 ft) |
+| Cast it again (the menu's Summon) | "Its name" pre-filled "Pip"; Place as a Cat: Pip the Cat, in the Owl's square |
+| Clear the line, Place | it lands under the creature's own name, and the next menu opens blank |
+| Put it away, call it back | it comes back named and seeing |
+| Battle Familiar, empower it | still Pip, still seeing; after the revert, the same |
+| Mage Hand, Spiritual Weapon, an illusion | they land as before: nothing to see through |
+
 ## Rests end the short effects (2026-10-12)
 
 **The user's rule, on the sandbox: "long rest should remove anything with concentration, it should also remove

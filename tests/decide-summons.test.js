@@ -978,3 +978,94 @@ describe("Battle Familiar: the rows, a standing summon that falls, the last form
     expect(s.companionMenu("present", { pocket: true })).toEqual(["away", "dismiss", "summon"]);
   });
 });
+
+describe("a summoned token's eyes — a creature sees, a thing does not (call 60)", () => {
+  it("a creature type of the book's own sees, senses or none: the Raven and the Hawk have no darkvision", () => {
+    expect(s.summonSees({ type: "beast", senses: { darkvision: 120 } })).toBe(true);
+    expect(s.summonSees({ type: "beast", senses: { darkvision: null, blindsight: null } })).toBe(
+      true
+    );
+    expect(s.summonSees({ type: "celestial", senses: {} })).toBe(true);
+    expect(s.summonSees({ type: "Undead" })).toBe(true);
+  });
+  it("a custom or typeless stat block sees only with a sense: the Arcane Eye and the Faithful Hound do, Mage Hand does not", () => {
+    expect(s.summonSees({ type: "custom", senses: { darkvision: 30 } })).toBe(true);
+    expect(
+      s.summonSees({ type: "custom", senses: { truesight: 30, units: "ft", special: "" } })
+    ).toBe(true);
+    expect(s.summonSees({ type: "custom", senses: { darkvision: null, units: "ft" } })).toBe(false);
+    expect(s.summonSees({ type: null, senses: null })).toBe(false);
+    expect(s.summonSees({ type: "", senses: { darkvision: 0 } })).toBe(false);
+  });
+  it("a light's object never sees, whatever its stat block says", () => {
+    expect(s.summonSees({ type: "beast", senses: { darkvision: 60 }, thing: true })).toBe(false);
+  });
+});
+
+describe("a familiar's name — asked every time, remembered per caster (call 61)", () => {
+  const rec = () => ({
+    status: "asked",
+    mode: "cr",
+    choice: null,
+    creatureTypes: ["celestial", "fey", "fiend"],
+    creatureSizes: [],
+    profiles: [{ id: "p", uuid: "Compendium.phb.actors.Actor.bat", cr: "0", types: ["beast"] }]
+  });
+  const answer = petName => ({
+    profileId: "p",
+    pick: { uuid: "Compendium.mm.actors.Actor.owl", name: "Owl" },
+    creatureType: "fey",
+    placements: [{ x: 100, y: 100 }],
+    count: 1,
+    ...(petName === undefined ? {} : { petName })
+  });
+
+  it("the menu's field rides the answer, cleaned; a blank field is the creature's own name; no field, no key", () => {
+    expect(s.placedAnswer(rec(), answer("  Pip   the\tWise "), {})).toMatchObject({
+      petName: "Pip the Wise",
+      summonName: "Owl"
+    });
+    expect(s.placedAnswer(rec(), answer(""), {})?.petName).toBe(null);
+    expect(s.placedAnswer(rec(), answer("   "), {})?.petName).toBe(null);
+    expect(Object.hasOwn(s.placedAnswer(rec(), answer(undefined), {}) ?? {}, "petName")).toBe(
+      false
+    );
+  });
+
+  it("a name is cut to its longest and loses control characters", () => {
+    expect(s.petNameOf("a".repeat(s.PET_NAME_MAX + 20))).toHaveLength(s.PET_NAME_MAX);
+    expect(s.petNameOf("Hoot\u0000s\nworth")).toBe("Hoot s worth");
+    expect(s.petNameOf(null)).toBe(null);
+  });
+
+  it("remembered per caster by the spell the tables know, whatever the form; a cleared field forgets", () => {
+    const one = s.rememberName([], "Find Familiar", "Pip");
+    expect(one).toEqual([{ spell: "find familiar", name: "Pip" }]);
+    expect(s.rememberedName(one, "Find Familiar")).toBe("Pip");
+    expect(s.rememberedName(one, "find familiar")).toBe("Pip");
+    expect(s.rememberedName(one, "Vestige Companion")).toBe(null);
+    // the same name again changes nothing (no write)
+    expect(s.rememberName(one, "Find Familiar", " Pip ")).toBe(null);
+    // a new name replaces the old; another spell's entry stays
+    const two = s.rememberName(
+      [...(one ?? []), { spell: "vestige companion", name: "Ash" }],
+      "Find Familiar",
+      "Hoot"
+    );
+    expect(two).toEqual([
+      { spell: "vestige companion", name: "Ash" },
+      { spell: "find familiar", name: "Hoot" }
+    ]);
+    // a cleared field forgets the spell's name; nothing to forget is no write
+    expect(s.rememberName(two, "Find Familiar", null)).toEqual([
+      { spell: "vestige companion", name: "Ash" }
+    ]);
+    expect(s.rememberName([], "Find Familiar", "")).toBe(null);
+    expect(s.rememberedName(null, "Find Familiar")).toBe(null);
+  });
+
+  it("the familiar is the named companion; the Vestige is not", () => {
+    expect(reg.COMPANIONS["Find Familiar"]?.names).toBe(true);
+    expect(reg.COMPANIONS["Vestige Companion"]?.names).toBeFalsy();
+  });
+});

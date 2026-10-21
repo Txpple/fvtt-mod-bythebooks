@@ -12519,6 +12519,19 @@
         "type": "string"
       }
     },
+    "petNames": {
+      "class": "state",
+      "family": "state",
+      "means": "an Actor field on a caster — the name it last gave its companion of each COMPANIONS `names` spell (summons.js), the next summon menu's name field pre-filled with it; the summon record's landing is the resolve",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
     "poleStrike": {
       "class": "state",
       "family": "state",

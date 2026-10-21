@@ -618,6 +618,20 @@ SOURCE's PB, which is null for a stat block with no CR: delete it when the summo
 `keep: hp` carries the Hit Points lost in the form back on the revert and drops the Temporary Hit Points unless `tempHP`
 is kept — exactly a polymorph spell's ending.
 
+### A summoned token is blind: the packs ship sight off, and dnd5e's sense sync never switches it on (2026-10-21, item 10)
+
+Read off the 6.0.6 bundle and the pack snapshots (the live suites to confirm, RULINGS *Summons*, call 60): every npc in the
+PHB, Monster Manual, DMG, Arcana Unleashed, Heroes of Faerûn and dnd5e's own `actors24` ships `prototypeToken.sight.enabled:
+false`, except the Arcane Eye (the PHB's and `actors24`'s) and the PHB's three Primal Companion beasts. `TokenDocument5e#_applySenseVision`
+(world setting `senseVisionSync`, default on) runs in `_prepareDetectionModes` and writes the senses' range, vision mode and
+detection modes onto the PREPARED token, but `applySenseOverrides` deletes `enabled` from what it applies: sight stays
+whatever the source says. `SummonActivity#getTokenData` builds the token from `actor.getTokenDocument(placement +
+tokenUpdates)`, so a summon lands blind unless `tokenUpdates.sight.enabled` says otherwise. The same holds through a
+transform of an unlinked token (`transformInto` sets `sight.enabled` from the token actor's `prototypeToken`, which is the
+WORLD actor's) and its revert (`revertOriginalForm` writes the world actor's prototype `sight` onto the new token): a
+token's own sight is lost both ways unless put back. The MM and `actors24` prototypes carry `range: 0, visionMode: "basic"`
+whatever the senses (the PHB's carry the darkvision range): with the sync off, a token sees by those.
+
 ### A transferred enchantment change keyed to an activity is inert on the actor (2026-10-14, Familiar Friend)
 
 Arcana Unleashed's Familiar Friend carries "Fortified Familiar" as an `enchantment` effect, `transfer: true`, one change

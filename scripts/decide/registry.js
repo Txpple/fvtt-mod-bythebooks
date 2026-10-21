@@ -4329,11 +4329,13 @@ export const SUMMON_LOOKS = Object.freeze({
  * `recallFt` the reach of its return (an unoccupied space, no sight needed); `says` the book's sentence;
  * `brief` the cast menu's one line under the creature (the spell's full text is a click away on its card);
  * `rangeFt` where it first appears, when the use's own range says none (the Vestige's "Self": the familiar's 10 ft).
+ * `names`: its owner names it — the summon menu asks a name every time, pre-filled with the one the caster last
+ * gave it (one name per caster, whatever the form: a new form is the same familiar), and it lands so named.
  * Primal Companion and Find Steed join when their text is ruled.
  */
 export const COMPANIONS = Object.freeze({
   "Find Familiar": Object.freeze({
-    noun: "Familiar", pocket: true, recallFt: 30,
+    noun: "Familiar", pocket: true, recallFt: 30, names: true,
     brief: "A Magic action puts it away into its pocket dimension or calls it back within 30 ft; casting the spell again gives it a new form.",
     says: "As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })

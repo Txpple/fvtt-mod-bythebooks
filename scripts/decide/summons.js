@@ -192,7 +192,8 @@ export function rangeFeet(range) {
  * @param {object} record
  * @param {{ profileId: string|null, pick?: { uuid: string, name: string, img?: string|null }|null, choice?: string|null,
  *   placements: Array<{ x: number, y: number, elevation?: number, rotation?: number, level?: string|null }>,
- *   count: number, sceneId: string|null, creatureSize?: string|null, creatureType?: string|null, intoPocket?: boolean, guise?: string|null }} answer
+ *   count: number, sceneId: string|null, creatureSize?: string|null, creatureType?: string|null, intoPocket?: boolean, guise?: string|null,
+ *   petName?: string }} answer   `petName` the name field as typed, when the menu asked one
  * @param {Record<string, { options: string[] }>} table  SUMMON_CHOICES
  */
 export function placedAnswer(record, answer, table) {
@@ -226,8 +227,72 @@ export function placedAnswer(record, answer, table) {
     sceneId: answer?.sceneId ?? record.sceneId ?? null,
     creatureSize: size.value, creatureType: type.value,
     intoPocket: !!answer?.intoPocket,
+    // the name the menu asked (a COMPANIONS row with `names`): its field as typed, null for the creature's own; absent when not asked
+    ...((typeof answer?.petName === "string") ? { petName: petNameOf(answer.petName) } : {}),
     placedAt: Date.now()
   };
+}
+
+/* --- the summoned token's eyes, and the familiar's name ------------------------------------------- */
+
+/**
+ * Whether a summoned token sees, so its owner sees through it: a creature does — a creature type of the
+ * book's own (any but `custom`) or a sense with a range — and a thing does not (an illusion, a spectral hand
+ * or weapon, a light's stone, a typeless effect). Only `sight.enabled` is the landing's: the packs ship
+ * every creature's token with it off, and dnd5e derives the range, the vision mode and the detection
+ * modes from the senses but never switches sight on.
+ * @param {{ type?: string|null, senses?: Record<string, unknown>|null, thing?: boolean }} facts
+ *   `type` the creature type the creature lands with; `senses` its sense ranges, by sense; `thing` a light's object
+ * @returns {boolean}
+ */
+export function summonSees({ type = null, senses = null, thing = false }) {
+  if ( thing ) return false;
+  const t = String(type ?? "").trim().toLowerCase();
+  if ( t && (t !== "custom") ) return true;
+  return Object.values(senses ?? {}).some(v => (typeof v === "number") && (v > 0));
+}
+
+/** The longest name a familiar takes. */
+export const PET_NAME_MAX = 60;
+
+/**
+ * A name typed for a familiar, made safe to land: control characters gone, runs of space one space, trimmed,
+ * cut to `PET_NAME_MAX`. Null when nothing is left (the creature keeps its own name).
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+export function petNameOf(raw) {
+  const clean = String(raw ?? "").replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, PET_NAME_MAX).trim();
+  return clean || null;
+}
+
+/**
+ * The name a caster gave the companion of a spell, off the caster's list; null when it has none.
+ * @param {Array<{ spell?: string, name?: string }>|null|undefined} entries
+ * @param {string|null|undefined} spell   the spell as the tables know it (Wild Companion's is Find Familiar)
+ * @returns {string|null}
+ */
+export function rememberedName(entries, spell) {
+  const key = String(spell ?? "").toLowerCase();
+  if ( !key ) return null;
+  return petNameOf((entries ?? []).find(e => String(e?.spell ?? "").toLowerCase() === key)?.name);
+}
+
+/**
+ * The caster's list with a spell's companion named `name`: the spell's entry set, or dropped for no name (a
+ * field cleared gives the creature its own name back). Null when the list already says so.
+ * @param {Array<{ spell: string, name: string }>|null|undefined} entries
+ * @param {string} spell
+ * @param {string|null} name
+ * @returns {Array<{ spell: string, name: string }>|null}
+ */
+export function rememberName(entries, spell, name) {
+  const key = String(spell ?? "").toLowerCase();
+  if ( !key ) return null;
+  const clean = petNameOf(name);
+  if ( rememberedName(entries, spell) === clean ) return null;
+  const rest = (entries ?? []).filter(e => String(e?.spell ?? "").toLowerCase() !== key);
+  return clean ? [...rest, { spell: key, name: clean }] : rest;
 }
 
 /**

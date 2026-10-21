@@ -3,11 +3,13 @@
 // token on the scene, exactly one standing record in the log (zero of each once dismissed). The thing a table sees as
 // "two familiar effects at once" is what this suite exists to catch: a new form landing while the old one is dismissed,
 // the pocket and the recall, a new form summoned into the pocket, two casts fired back to back, the fall at 0 HP, and an
-// orphan effect (its card gone from the log) swept at the next landing.
+// orphan effect (its card gone from the log) swept at the next landing. The familiar's token sees (RULINGS *Summons*,
+// call 60), and it lands under the name its owner gave it, remembered on the caster for the next summon (call 61).
 //
 // Fixtures: BTB Test Sorcerer (tools/fixture-suite.mjs) is lent the PHB's Find Familiar for the run. The records are
-// answered through the pure fold and a `toCard` use (which passes the companion menu as its "Summon"), never the popup.
-// The cards, the imported beasts, the tokens, the companion effects and the lent spell are torn down.
+// answered through the pure fold and a `toCard` use (which passes the companion menu as its "Summon"), never the popup:
+// a name rides the answer as the menu's field would carry it. The cards, the imported beasts, the tokens, the companion
+// effects, the lent spell and the caster's remembered name are torn down.
 //
 // §9 holds TWO GM CLIENTS (suite issue #8): the assistant identity joins beside the suite's while a Find Familiar
 // landing is answered, and the record lands once (tools/gm-clients.mjs, the arrival landing).
@@ -19,22 +21,23 @@ import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js'   // §1 the first landing, §2 a new form replaces the old, §3 the pocket and the recall, §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard)
+  'summons.js'   // §1 the first landing (its token sees), §3 the recall (it comes back seeing), §10 the name and its memory, §2 a new form replaces the old, §3 the pocket and the recall, §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard)
 ];
 
 // §9's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
 export const GM_CLIENTS = ['suite', 'assistant'];
 
 const SECTIONS = {
-  1: 'THE FIRST LANDING: Find Familiar answered as an Owl lands beside the caster — one companion effect "Familiar: Owl (Fey)", one token, one standing record',
+  1: 'THE FIRST LANDING: Find Familiar answered as an Owl lands beside the caster — one companion effect "Familiar: Owl (Fey)", one token, one standing record; its token sees (the Owl\'s Darkvision 120 ft)',
   2: 'A NEW FORM: the spell cast again (the menu\'s Summon) answered as a Bat — the Bat lands in the Owl\'s square, the Owl\'s record is dismissed and its effect gone; one effect, one token, one record',
-  3: 'THE POCKET AND BACK: put away — one effect "· in the pocket", no token; called back — one effect, one token',
+  3: 'THE POCKET AND BACK: put away — one effect "· in the pocket", no token; called back — one effect, one token, and it sees',
   4: 'A NEW FORM INTO THE POCKET: put away, then cast again answered as a Cat — the Cat waits in the pocket, no token, one effect naming the Cat; called back — one token',
   5: 'DISMISS FOREVER: no companion effect, no token, no standing record',
   6: 'TWO CASTS BACK TO BACK: two uses fired before either is answered, both answered — the later lands, the earlier is dismissed; one effect, one token, one record',
   7: 'THE FALL: the familiar at 0 HP disappears — no effect, no token, the card says so',
   8: 'AN ORPHAN SWEPT: a companion effect left on the caster naming a card no longer in the log is removed by the next landing; one effect after it',
-  9: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Find Familiar answered as the assistant client arrives lands once — one claim, one token, one companion effect, one moment, no extra card'
+  9: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Find Familiar answered as the assistant client arrives lands once — one claim, one token, one companion effect, one moment, no extra card',
+  10: 'THE NAME: answered as an Owl named Pip — the token and its creature are Pip, the effect "Familiar: Pip (Fey)", the card "Pip — summoned" with "Owl", the world Owl keeps its name, the caster remembers Pip; cast again as a Cat with the field as the menu pre-fills it — Pip, a Cat, in the Owl\'s square; cast again with the field cleared — the Rat lands as Rat and the caster forgets; an answer with no field leaves the memory alone'
 };
 const DEPENDS = { 2: [1], 3: [2], 4: [3], 5: [4], 7: [6] };
 
@@ -65,6 +68,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
   const grid = canvas.scene.grid.size;
+  // a token's eyes: sight as stored (the landing's), the range and mode as dnd5e prepares them off the senses
+  const senseSync = game.settings.get('dnd5e', 'senseVisionSync') !== false;
+  const eyes = tok => ({ on: !!tok?._source?.sight?.enabled, range: tok?.sight?.range ?? null, mode: tok?.sight?.visionMode ?? null, sync: senseSync });
+  const seesWith = (tok, range) => { const e = eyes(tok); return e.on && (!e.sync || ((Number(e.range) === range) && (e.mode === 'darkvision'))); };
+  // the name the menu's field would be pre-filled with (summons.js reads the same flag through the same fold)
+  const { rememberedName } = await import(`/modules/${MOD}/scripts/decide/summons.js`);
+  const remembered = () => rememberedName(caster.getFlag(MOD, 'petNames')?.names ?? [], 'Find Familiar');
 
   const lent = [];
   const madeActors = [];
@@ -82,6 +92,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const tokens = familiarTokens().map(t => t.id);
       if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
       for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name) || e.getFlag(MOD, 'companion'))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { try { await e.delete(); } catch { /* gone */ } } }
+      if (caster.getFlag(MOD, 'petNames') !== undefined) await caster.unsetFlag(MOD, 'petNames');
       const live = caster.items.filter(i => lent.includes(i.id) || ((i.type === 'spell') && (i.name === 'Find Familiar'))).map(i => i.id);
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
       for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
@@ -121,14 +132,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const flag = await until(() => message?.getFlag(MOD, 'summon')?.status === 'asked' ? message.getFlag(MOD, 'summon') : null, { timeout: 6000 });
     return { message, flag };
   };
-  const answer = async (message, flag, name, { dx = 1, dy = 0, type = 'fey' } = {}) => {
+  // `petName`: the menu's name field as typed (a string), or undefined for an answer that carries none
+  const answer = async (message, flag, name, { dx = 1, dy = 0, type = 'fey', petName = undefined } = {}) => {
     const b = await beast(name);
     // as the menu answers: a companion standing in its pocket is replaced there (`intoPocket`), one on the table in its square
     const intoPocket = flag?.replaces?.state === 'pocket';
     const inPlace = (flag?.replaces?.state === 'present') ? flag.replaces.placement : null;
     const placements = intoPocket ? [{ x: 0, y: 0, elevation: 0, rotation: 0 }] : inPlace ? [inPlace] : [{ x: casterToken.x + grid * dx, y: casterToken.y + grid * dy, elevation: casterToken.elevation ?? 0, rotation: 0 }];
     const patch = (flag && b) ? placedAnswer(flag, { profileId: flag.profiles[0]?.id ?? null, pick: { uuid: b.uuid, name: b.name }, count: 1, sceneId: canvas.scene.id,
-      creatureType: (flag.creatureTypes ?? []).includes(type) ? type : (flag.creatureTypes?.[0] ?? null), intoPocket, placements }, SUMMON_CHOICES) : null;
+      creatureType: (flag.creatureTypes ?? []).includes(type) ? type : (flag.creatureTypes?.[0] ?? null), intoPocket, placements,
+      ...(petName === undefined ? {} : { petName }) }, SUMMON_CHOICES) : null;
     if (!patch) throw new Error(`the answer for ${name} was refused (beast=${!!b})`);
     await message.setFlag(MOD, 'summon', { ...flag, ...patch });
     const landed = await until(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, { timeout: 20000 });
@@ -158,6 +171,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (game.combat) await game.combat.delete();
     // ---- fixtures: the PHB's Find Familiar, prepared; a familiar standing from an earlier run cleared
     for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name) || e.getFlag(MOD, 'companion'))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { /* gone */ } }
+    if (caster.getFlag(MOD, 'petNames') !== undefined) await caster.unsetFlag(MOD, 'petNames');
     const pack = game.packs.get('dnd-players-handbook.spells');
     const hit = (await pack.getIndex()).find(e => e.name === 'Find Familiar');
     const src = (await pack.getDocument(hit._id)).toObject();
@@ -174,6 +188,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       current = message;
       ok('§1 the Owl landed as a companion', landed?.outcome === 'landed' && !!landed.companion, JSON.stringify({ outcome: landed?.outcome, failure: landed?.failure, companion: landed?.companion?.state }));
       await invariant(1, { named: 'Owl', pocket: false });
+      const tok = canvas.scene.tokens.get(landed?.landed?.[0]?.tokenId) ?? null;
+      ok('§1 its token sees: sight on, the Owl\'s Darkvision 120 ft', seesWith(tok, 120), JSON.stringify(eyes(tok)));
     });
 
     // ---- 2. a new form replaces the old
@@ -192,6 +208,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await invariant('3a', { tokens: 0, named: 'Bat', pocket: true });
       await ask(current, 'recall', home());
       await invariant('3b', { named: 'Bat', pocket: false });
+      const back = canvas.scene.tokens.get(current.getFlag(MOD, 'summon')?.landed?.[0]?.tokenId) ?? null;
+      ok('§3b called back, it sees', eyes(back).on, JSON.stringify(eyes(back)));
     });
 
     // ---- 4. a new form into the pocket
@@ -246,6 +264,50 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       current = message;
       ok('§8 the next landing swept the orphan', landed?.outcome === 'landed' && !caster.effects.get(orphan.id), JSON.stringify({ outcome: landed?.outcome, orphan: !!caster.effects.get(orphan.id) }));
       await invariant(8, { named: 'Owl', pocket: false });
+      await dismiss(current);
+      current = null;
+    });
+
+    // ---- 10. the name, and its memory on the caster
+    if (want(10)) await section(10, async () => {
+      if (current) { await dismiss(current); current = null; }
+      ok('§10 no name remembered at the start: the field opens blank', remembered() === null, JSON.stringify(caster.getFlag(MOD, 'petNames') ?? null));
+      const first = await summonFamiliar('Owl', { petName: '  Pip ' });
+      current = first.message;
+      const tok = canvas.scene.tokens.get(first.landed?.landed?.[0]?.tokenId) ?? null;
+      const world = game.actors.get(tok?.actorId ?? '') ?? null;
+      ok('§10a the Owl lands as Pip: its token and its creature, the world Owl keeps its own name', (first.landed?.petName === 'Pip') && (first.landed?.summonName === 'Owl')
+          && (tok?.name === 'Pip') && (tok?.actor?.name === 'Pip') && (world?.name === 'Owl'),
+        JSON.stringify({ petName: first.landed?.petName, summonName: first.landed?.summonName, token: tok?.name, actor: tok?.actor?.name, world: world?.name }));
+      await invariant('10a', { named: 'Familiar: Pip (Fey)', pocket: false });
+      const rowNow = () => document.querySelector(`[data-message-id="${first.message.id}"] .bythebooks-summon`);
+      const row = await until(() => (/Pip — summoned/.test(rowNow()?.textContent ?? '') ? rowNow() : null), { timeout: 6000, label: 'the card row says "Pip — summoned"' }).catch(() => rowNow());
+      ok('§10b the card says "Pip — summoned", the Owl beside it', /Pip — summoned/.test(row?.textContent ?? '') && /Owl/.test(row?.textContent ?? ''), (row?.textContent ?? '').trim().slice(0, 120));
+      const kept = await until(() => remembered() === 'Pip' ? true : null, { timeout: 8000, label: 'the caster remembers Pip' }).catch(() => null);
+      ok('§10c the caster remembers Pip for the next summon\'s field', !!kept, JSON.stringify(caster.getFlag(MOD, 'petNames') ?? null));
+      // a new form: the field as the menu pre-fills it (the remembered name), untouched
+      const prefill = remembered() ?? '';
+      const second = await summonFamiliar('Cat', { petName: prefill });
+      current = second.message;
+      const cat = canvas.scene.tokens.get(second.landed?.landed?.[0]?.tokenId) ?? null;
+      ok('§10d cast again as a Cat with the field pre-filled: Pip, a Cat, in the Owl\'s square', (prefill === 'Pip') && (cat?.name === 'Pip') && (second.landed?.summonName === 'Cat')
+          && (cat?.x === tok?.x) && (cat?.y === tok?.y) && eyes(cat).on,
+        JSON.stringify({ prefill, token: cat?.name, form: second.landed?.summonName, at: [cat?.x, cat?.y], was: [tok?.x, tok?.y], eyes: eyes(cat) }));
+      await invariant('10d', { named: 'Familiar: Pip (Fey)', pocket: false });
+      // an answer with no field (a macro's): the creature's own name, the memory untouched
+      const third = await summonFamiliar('Bat');
+      current = third.message;
+      const bat = canvas.scene.tokens.get(third.landed?.landed?.[0]?.tokenId) ?? null;
+      ok('§10e an answer with no name field: the Bat lands as Bat, the caster still remembers Pip', (bat?.name === 'Bat') && !Object.hasOwn(third.landed ?? {}, 'petName') && (remembered() === 'Pip'),
+        JSON.stringify({ token: bat?.name, petName: third.landed?.petName, remembered: remembered() }));
+      // the field cleared: its own name, and the caster forgets
+      const fourth = await summonFamiliar('Rat', { petName: '' });
+      current = fourth.message;
+      const rat = canvas.scene.tokens.get(fourth.landed?.landed?.[0]?.tokenId) ?? null;
+      const forgot = await until(() => remembered() === null ? true : null, { timeout: 8000, label: 'the caster forgets the name' }).catch(() => null);
+      ok('§10f the field cleared: the Rat lands as Rat, the caster forgets', (rat?.name === 'Rat') && (fourth.landed?.petName === null) && !!forgot,
+        JSON.stringify({ token: rat?.name, petName: fourth.landed?.petName, remembered: remembered() }));
+      await invariant('10f', { named: 'Familiar: Rat (Fey)', pocket: false });
       await dismiss(current);
       current = null;
     });
