@@ -663,6 +663,23 @@ A customer raises the ask by writing its flag (`newAsk`, `raiseAsk`) and may reg
 ANSWER PART for what its answer writes (metamagic's record, its held card). The flag key stays
 `metamagicAsk`: it is stored on cards, and a rename is a migration for nothing.
 
+**Sleep is on this path, as it has been since the list's birth** (2026-10-21, read against the code after
+Echoes of Halruaa's session of 2026-10-20: Tychon's Sleep over two grimlocks and the intellect devourer, the
+table unsure the Sphere was "of your choice"; the user: *"follow the same pattern as other spells where you
+can choose allies/enemies"*). Sleep is a `CHOSEN_AREAS` row on Slow's path; nothing in the code leaves it out.
+
+- **No number:** its text says "each creature of your choice", so `choiceCapFrom` reads none and the ask
+  is "Who does Sleep affect?" with every hostile ticked and no cap; the clock keeps that default.
+- **Who is asked about:** the creatures standing in the placed Sphere, never the caster. A friend, a
+  neutral or a secret token among them asks; a Sphere of hostiles alone asks nobody (the ruling above), and
+  the card's line still names the chosen. A cast at targets with no area placed takes its targets as the choice.
+- **Only the chosen roll:** the unchosen get no row on the demand, no save and nothing lands on them.
+- **What the chosen meet is the spell's own, unchanged:** the Sleeping effect on the failure, the turn-end
+  repeat, Unconscious pressed on the second failure, damage ending it, the save that cannot fail against
+  magical sleep (Trance, Immunity to Exhaustion — *Session zero's combat*).
+- **Held by** `smoke-spells` §11, the first live run of Sleep's choice (§10 casts at a target and
+  `smoke-metamagic` §20–§22 place only Slow's Cube), and `tests/decide-area-ask.test.js`.
+
 ## Slice A — species and origin feats (2026-09-24)
 
 **The first slice of the sweep: every PHB species trait and origin feat, read against the tables

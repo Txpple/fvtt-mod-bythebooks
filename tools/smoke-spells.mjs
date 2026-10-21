@@ -2,10 +2,12 @@
 // Points, rolled again on the caster at each of the bearer's turn starts) and the repeating save (Hold
 // Person's Paralyzed demanded at the bearer's turn end; a success removes it through the cast card's
 // receipt and the card says so; a failure keeps it; damage raises Tasha's with Advantage; Otto's is offered
-// as the bearer's action; Flesh to Stone counts its failures to Petrified).
+// as the bearer's action; Flesh to Stone counts its failures to Petrified). §11: Sleep's Sphere asks its
+// caster who it affects (RULINGS *Spells that choose their targets*), the chosen meeting §10's consequences.
 //
 // Fixtures: BTB Test Cleric (tools/fixture-suite.mjs) is lent the PHB's spells; BTB Test Victim is the one
-// they land on, its own linked token placed on the test range. Settings, lent items, effects, hit points,
+// they land on, its own linked token placed on the test range; §11 stands an unlinked BTB Test Dummy below
+// it as the Cleric's friend. Settings, lent items, effects, hit points, tokens, areas,
 // the combat and messages are put back. The demanded saves ROLL THEMSELVES here (`saveRolls` auto), the
 // verdict steered by the Victim's Wisdom save bonus (±30).
 //
@@ -17,6 +19,9 @@ export const COVERS = [
   'turn-grants.js',         // §1 — Heroism's temp HP at the bearer's turn start, once per turn, receipted; §9 Regeneration — the feature row, the block read off the receipts
   'repeat-saves.js',        // §2–§5 — the repeat at the turn end, on damage, as the action; the count; §8 the indigo ray's named save; §10 Sleep's end on damage and the lifted Unconscious
   'saves/ask.js',           // §10 — the cast's save that cannot fail: Immunity to Exhaustion against a sleep
+  'saves/demand.js',        // §11 — Sleep's chosen area: the default written when nothing is to choose, the ask raised when a friend stands in it
+  'saves/areas.js',         // §11 — the area placed after a bare cast fills the waiting demand, filtered to the choice
+  'saves/views.js',         // §11 — the chosen area's card line
   'damage-shares.js',       // §6 — Warding Bond's share to the caster, the reach, the end at 0 HP
   'heal-on-hit.js',         // §7 — Vampiric Touch's heal to the caster from the damage that landed
   'prismatic.js'            // §8 — Prismatic Spray's die per creature, a demand per ray, the type forced, the indigo effect landed
@@ -32,6 +37,7 @@ const SECTIONS = {
   7: 'Vampiric Touch: a hit (AC 1) lands its necrotic damage on the Victim; the Cleric regains HALF of what landed — a card, a receipt, the Hit Points up; the dealing card carries the once-latch',
   9: 'REGENERATION (the GM\'s side, 2026-09-28): the Victim lent the Monster Manual trait (its copy naming Acid or Fire as the block, 10 HP) regains 10 at its turn start — a card, a receipt, the Hit Points up; fire dealt to it (a receipt) since its last turn blocks the next turn start with a card saying why and no receipt; the turn after pays again; at 0 HP nothing is paid',
   10: 'Sleep (2024): the cast fails the Victim — Sleeping (Incapacitated) lands; its turn END repeats: the failure locks it and presses Unconscious, the card says so; damage landing on it ENDS Sleeping outright and lifts the Unconscious with it, a settled card says why; with Immunity to Exhaustion on the sheet the cast\'s save cannot fail and nothing lands',
+  11: 'Sleep\'s Sphere is the caster\'s choice (RULINGS *Spells that choose their targets*): a bare cast waits for its area; the Sphere over the Victim and the Cleric asks nobody (the caster is never a candidate, every hostile the choice) and the card says so; with the Cleric\'s friend (an unlinked Dummy) in the Sphere it asks "Who does Sleep affect?" (no number, the spell\'s sentence) — the Victim ticked, the friend not, the demand waiting; OK → only the Victim saves and fails, Sleeping lands on it, the friend has no save and nothing lands; the card names both sides; the chosen sleeper\'s turn end repeats as §10 (Unconscious pressed)',
   8: 'Prismatic Spray: the cast\'s card is born with its demand CLOSED and the ray claim pending (no 12d6 at the cast); the cone placed over the Victim rolls a d8 (a 6: indigo) — a summary card and ONE demand against "Indigo Save (Con)", pinned; the cone region gone; the failed save lands Petrifying (Indigo) by the machine, receipted; the Victim\'s turn end repeats the INDIGO save (1 of 3 failures); a second cast with the d8 a 1 (red): the Cast\'s Dexterity demand with the 12d6 rolled as FIRE'
 };
 const DEPENDS = {};
@@ -62,6 +68,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const lent = [];
   const placed = [];
+  const areas = [];
   let combat = null;
   const priorActiveCombats = [];
   const priorHp = { value: victim.system._source.attributes.hp.value, max: victim.system._source.attributes.hp.max, temp: victim.system._source.attributes.hp.temp };
@@ -92,6 +99,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (live.length) await cleric.deleteEmbeddedDocuments('Item', live);
       const tokens = placed.filter(id => scene.tokens.get(id));
       if (tokens.length) await scene.deleteEmbeddedDocuments('Token', tokens);
+      const regions = areas.filter(id => scene.regions.get(id));
+      if (regions.length) await scene.deleteEmbeddedDocuments('Region', regions).catch(() => {});   // a spent area the module swept meanwhile
       await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.max': priorHp.max, 'system.attributes.hp.temp': priorHp.temp,
         'system.abilities.wis.save.roll.bonus': priorWis, 'system.abilities.con.save.roll.bonus': priorCon, ...priorVictimAc, 'system.traits.ci': priorVictimCi });
       await cleric.update({ 'system.attributes.hp.value': priorClericHp });
@@ -140,7 +149,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const g = scene.grid.size;
     const occupied = (x, y) => scene.tokens.some(t => (t.x < (x + 1) * g) && ((t.x + t.width * g) > x * g) && (t.y < (y + 1) * g) && ((t.y + t.height * g) > y * g));
     let spot = null;
-    for (let y = 2; (y < 18) && !spot; y++) for (let x = 2; (x < 18) && !spot; x++) if (!occupied(x, y) && !occupied(x + 1, y)) spot = { x, y };
+    // A free 2×2 block: the Victim and the Cleric on its top row, §11's Sphere over all four squares.
+    const free = (x, y) => !occupied(x, y) && !occupied(x + 1, y) && !occupied(x, y + 1) && !occupied(x + 1, y + 1);
+    for (let y = 2; (y < 18) && !spot; y++) for (let x = 2; (x < 18) && !spot; x++) if (free(x, y)) spot = { x, y };
     if (!spot) return { fatal: 'no free square on the test range for the tokens', results, log, skips };
     const place = async (actor, dx) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(actor.prototypeToken.toObject(),
@@ -336,6 +347,130 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `outcome=${t2?.outcome} sleeping=${!!effectNamed('Sleeping')} stray=${!!stray10e} entry=${JSON.stringify(t2 && { outcome: t2.outcome, sources: t2.sources })}`);
       await victim.update({ 'system.traits.ci': ciBefore });
       await clearVictim();
+    });
+
+    // ================================================== 11. Sleep's Sphere is the caster's choice
+    if (want(11)) await section(11, async () => {
+      stage('§11');
+      const dummy = game.actors.getName('BTB Test Dummy');
+      if (!dummy) throw new Error('missing fixture: BTB Test Dummy — run tools/fixture-suite.mjs');
+      const uiMod = await import(`/modules/${MOD}/scripts/ui.js`);
+      const sleepAct = actOf('Sleep', 'save');
+      const sleepAreas = () => scene.regions.filter(r => r.getFlag('dnd5e', 'activity') === sleepAct.uuid);
+      /** No Sleep standing: the Victim cleared, the concentration ended, every Sleep area gone (a later cast's area would read both). */
+      const freshen = async () => {
+        await clearVictim();
+        const old = sleepAreas().map(r => r.id);
+        if (old.length) await scene.deleteEmbeddedDocuments('Region', old).catch(() => {});   // a spent area the module swept meanwhile
+        await until(() => !sleepAreas().length, { timeout: 8000, label: 'no Sleep area left on the range' });
+        await healFull();
+      };
+      /** A bare cast — nobody targeted, no template: the card's demand waits for its area. */
+      const castBare = async () => {
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        const use = await sleepAct.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
+        const card = use?.message instanceof ChatMessage ? use.message : null;
+        if (!card) throw new Error('the bare Sleep made no card');
+        await until(() => card.getFlag(MOD, 'saves')?.awaitingTemplate === true, { timeout: 8000, label: 'the bare Sleep\'s demand waiting for its area' });
+        return card;
+      };
+      /** The Sphere as the placement writes it — a region carrying the cast's activity — over the four squares of the
+       * spot's 2×2 block, inset from their edges so no neighbour's edge lies inside (containment samples a token's edges). */
+      const placeSphere = async card => {
+        const [region] = await scene.createEmbeddedDocuments('Region', [{
+          name: 'Sleep [test]', color: game.user.color,
+          shapes: [{ type: 'rectangle', x: (spot.x * g) + 6, y: (spot.y * g) + 6, width: (2 * g) - 12, height: (2 * g) - 12 }],
+          flags: { dnd5e: { activity: sleepAct.uuid } } }], { dnd5e: { createActivityBehaviors: false } });
+        areas.push(region.id);
+        try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
+        return region;
+      };
+      const askPopup = card => {
+        const d = uiMod.livePopups.get(`${card.id}|metamagicAsk`);
+        return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask="choose"]')) ? d : null;
+      };
+      const askRows = el => [...(el?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked }));
+      const cardLine = card => document.querySelector(`[data-message-id="${card.id}"] .bf-area-choice`)?.textContent?.trim() ?? null;
+      let friend = null;
+      try {
+        await freshen();
+        await saveBonusFor('Sleep', '-30');
+        // The Victim's token is the suite's own (the teardown deletes it): HOSTILE to the Cleric whatever its prototype says.
+        if (victimToken.document.disposition !== CONST.TOKEN_DISPOSITIONS.HOSTILE) await victimToken.document.update({ disposition: CONST.TOKEN_DISPOSITIONS.HOSTILE });
+
+        // 11a. The Sphere over the Victim and the Cleric: the caster is never a candidate, every hostile is the choice.
+        const card1 = await castBare();
+        await placeSphere(card1);
+        const filled1 = await until(() => card1.getFlag(MOD, 'saves')?.targets?.length ? card1.getFlag(MOD, 'saves') : null, { timeout: 10000, label: 'the Sphere filled the waiting demand' });
+        const record1 = card1.getFlag(MOD, 'areaChoice');
+        const asked1 = !!card1.getFlag(MOD, 'metamagicAsk') || !!uiMod.livePopups.get(`${card1.id}|metamagicAsk`);
+        const line1 = await until(() => cardLine(card1), { timeout: 5000, label: 'the chosen area\'s card line' });
+        ok('11a. the Sphere over the Victim and its caster asks nobody: the Victim alone owes the save, the default rides the card (not asked) and the card says who',
+          !asked1 && (filled1.targets.length === 1) && (filled1.targets[0].uuid === victim.uuid) && (record1?.asked === false)
+            && (record1?.chosen?.length === 1) && !record1?.left?.length && (line1 === `Sleep — chosen: ${victimToken.document.name}`),
+          `asked=${asked1} targets=${(filled1.targets ?? []).map(t => t.name).join(',')} record=${JSON.stringify(record1 && { asked: record1.asked, chosen: record1.chosen?.map(c => c.name), left: record1.left?.map(c => c.name) })} line="${line1}"`);
+        await until(() => card1.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, { timeout: 15000, label: 'the Victim\'s verdict applied' });
+        await freshen();
+        await saveBonusFor('Sleep', '-30');
+
+        // The Cleric's friend below the Victim, inside the Sphere's block: an unlinked Dummy, FRIENDLY.
+        const [doc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(dummy.prototypeToken.toObject(),
+          { x: spot.x * g, y: (spot.y + 1) * g, actorId: dummy.id, actorLink: false, disposition: CONST.TOKEN_DISPOSITIONS.FRIENDLY }, { inplace: false })]);
+        placed.push(doc.id);
+        friend = await tokenOn(doc.id);
+        const friendActor = friend.actor;
+        const friendWears = () => friendActor.effects.some(e => e.name === 'Sleeping') || friendActor.statuses.has('incapacitated');
+
+        // 11b. The friend in the Sphere: the caster is asked who it affects.
+        const card = await castBare();
+        await placeSphere(card);
+        const ask = await until(() => askPopup(card), { timeout: 10000, label: 'the ask "Who does Sleep affect?"' });
+        const rows = askRows(ask.element);
+        const victimRow = rows.find(r => r.uuid === victim.uuid);
+        const friendRow = rows.find(r => r.uuid === friendActor.uuid);
+        const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
+        ok('11b. the friend in the Sphere asks the caster WHO IT AFFECTS: two rows — never the Cleric — the Victim ticked, the friend not, the demand waiting empty',
+          (rows.length === 2) && !rows.some(r => r.uuid === cleric.uuid) && !!victimRow?.checked && !!friendRow && !friendRow.checked && heldEmpty,
+          `rows=${rows.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty}`);
+        const text = ask.element?.textContent?.replace(/\s+/g, ' ') ?? '';
+        ok('11c. it asks in the spell\'s own words — "Who does Sleep affect?", no number, and the sentence that grants the choice',
+          /Who does Sleep affect\?/.test(text) && !/Up to/.test(text) && /Each creature of your choice in a 5-foot-radius Sphere/.test(text), text.slice(0, 200));
+        const pending = await until(() => document.querySelector(`[data-message-id="${card.id}"] .bf-metamagic-ask`)?.textContent?.trim() ?? null, { timeout: 5000, label: 'the card\'s pending line' });
+        ok('11d. the card says what it waits on', /Sleep — who does it affect\?/.test(pending ?? ''), pending);
+
+        // 11e. OK keeps the default: only the Victim saves; it fails and sleeps; the friend is untouched.
+        ask.element.querySelector('button[data-action="ok"]')?.click();
+        const filled = await until(() => card.getFlag(MOD, 'saves')?.targets?.length ? card.getFlag(MOD, 'saves') : null, { timeout: 10000, label: 'the answer filled the demand' });
+        const record = card.getFlag(MOD, 'areaChoice');
+        ok('11e. OK → the Victim alone owes the save; the choice rides the card, asked, no number, the friend left out',
+          (filled.targets.length === 1) && (filled.targets[0].uuid === victim.uuid) && (record?.asked === true) && (record?.cap === null)
+            && (record?.chosen?.length === 1) && (record?.left?.length === 1) && (record.left[0].uuid === friendActor.uuid),
+          `targets=${filled.targets.map(t => t.name).join(',')} record=${JSON.stringify(record && { asked: record.asked, cap: record.cap, chosen: record.chosen?.map(c => c.name), left: record.left?.map(c => c.name) })}`);
+        const line = await until(() => cardLine(card), { timeout: 5000, label: 'the chosen area\'s card line' });
+        ok('11f. the card line names the chosen and the not chosen', line === `Sleep — chosen: ${victimToken.document.name} · not chosen: ${friend.document.name}`, line);
+        const sleeping = await until(() => effectNamed('Sleeping'), { timeout: 10000, label: 'Sleeping on the Victim' });
+        await until(() => card.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, { timeout: 10000, label: 'the Victim\'s verdict applied' });
+        const stray11g = await watch(() => friendWears(), { ms: 600 });   // a window: nothing must land on the friend
+        ok('11g. the chosen Victim fails and Sleeping (Incapacitated) lands, receipted on the cast card; the friend has no save and nothing lands on it',
+          !!sleeping?.statuses?.has?.('incapacitated') && !!card.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.effects?.some(e => e.id === sleeping.id))
+            && !stray11g && !(card.getFlag(MOD, 'saves')?.targets ?? []).some(t => t.uuid === friendActor.uuid),
+          `sleeping=${!!sleeping} outcome=${card.getFlag(MOD, 'saves')?.targets?.[0]?.outcome} friend=${stray11g ? 'touched' : 'untouched'}`);
+
+        // 11h. The chosen sleeper keeps the spell's own course: its turn end repeats, the failure presses Unconscious.
+        await startCombat();
+        const n0 = repeatCards().length;
+        await combat.nextTurn();   // the Victim's turn
+        await combat.nextTurn();   // the Victim's turn ENDS
+        const first = await settledRepeat(n0 + 1);
+        await until(() => victim.statuses.has('unconscious') ? true : null, { timeout: 8000, label: 'Unconscious pressed on the Victim' });
+        ok('11h. the chosen sleeper\'s turn end repeats the save as §10: the failure presses Unconscious, the card says so',
+          (first?.getFlag(MOD, 'repeatSave')?.says === 'Sleeping holds — the first failure: Unconscious') && victim.statuses.has('unconscious') && !friendWears(),
+          `says="${first?.getFlag(MOD, 'repeatSave')?.says}" unconscious=${victim.statuses.has('unconscious')} friend=${friendWears() ? 'touched' : 'untouched'}`);
+      } finally {
+        await endCombat();
+        await freshen();
+        if (friend && scene.tokens.get(friend.id)) await scene.deleteEmbeddedDocuments('Token', [friend.id]).catch(() => {});
+      }
     });
 
     // ================================================== 3. Tasha's on damage

@@ -2426,9 +2426,11 @@ export const SPENT_AREAS = Object.freeze({
 
 /**
  * Area spells whose CASTER chooses who is affected: when the area holds anyone not hostile, or more
- * hostiles than allowed, the caster is asked (saves/demand.js, metamagic.js); Careful Spell greys.
+ * hostiles than allowed, the caster is asked (saves/demand.js raises it, area-ask.js asks); otherwise every
+ * hostile is the choice. Careful Spell greys. The caster is never a candidate; only the chosen owe the save.
  * ⚠ BY NAME, NOT BY FLAG (ARCHITECTURE §6): dnd5e's `target.affects.choice` is off on Slow, Sleep and both
- * Conjures. The number allowed is read off the text (decide/metamagic.js `choiceCapFrom`).
+ * Conjures. The number allowed is read off the text (decide/area-ask.js `choiceCapFrom`); a text with none
+ * (Sleep) allows every creature in the area.
  */
 export const CHOSEN_AREAS = Object.freeze({
   "Slow": Object.freeze({ data: "PHB, level 3 — “up to six creatures of your choice in a 40-foot Cube”; the pack's choose flag is off" }),

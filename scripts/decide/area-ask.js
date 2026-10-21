@@ -66,7 +66,8 @@ export function spellProse(html) {
     .replace(/\s+/g, " ").trim();
 }
 
-/** The spell's own "up to six creatures of your choice", or null (Sleep). Read, never copied (N1).
+/** The number the spell's own text allows ("up to six creatures of your choice"), or null when it sets none
+ * (Sleep's "each creature of your choice": every creature in the area). Read, never copied (N1).
  * @param {string} html */
 export function choiceCapFrom(html) {
   const word = spellProse(html).match(/\bup to (\w+) (?:creatures?|targets?) of (?:your|its|their) choice/i)?.[1] ?? "";

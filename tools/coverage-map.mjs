@@ -117,7 +117,7 @@ export const ORDER = [
   },
   // BTB Test Cleric is lent the PHB's Heroism and Hold Person; BTB Test Victim wears their effects.
   {
-    name: "smoke-spells", note: "the spells slice — Heroism's temp HP at the bearer's turn start; the repeating save: Hold Person's Paralyzed demanded at the bearer's turn end, a success removing it through the cast's receipt with the card line, a failure keeping it; a damaged trigger; the action offer",
+    name: "smoke-spells", note: "the spells slice — Heroism's temp HP at the bearer's turn start; the repeating save: Hold Person's Paralyzed demanded at the bearer's turn end, a success removing it through the cast's receipt with the card line, a failure keeping it; a damaged trigger; the action offer; Sleep's Sphere asking its caster who it affects, the unchosen untouched",
     needs: ["fixture-suite"]
   },
   // BTB Test Monster is lent the Monster Manual's traits by name; the Victim's own token beside it.
