@@ -238,15 +238,18 @@ export function placedAnswer(record, answer, table) {
 /**
  * Whether a summoned token sees, so its owner sees through it: a creature does — a creature type of the
  * book's own (any but `custom`) or a sense with a range — and a thing does not (an illusion, a spectral hand
- * or weapon, a light's stone, a typeless effect). Only `sight.enabled` is the landing's: the packs ship
- * every creature's token with it off, and dnd5e derives the range, the vision mode and the detection
- * modes from the senses but never switches sight on.
- * @param {{ type?: string|null, senses?: Record<string, unknown>|null, thing?: boolean }} facts
- *   `type` the creature type the creature lands with; `senses` its sense ranges, by sense; `thing` a light's object
+ * or weapon, a light's stone, a typeless effect), save a thing its row says the caster sees through (a
+ * SUMMON_LOOKS `sees`: the scrying sensor). Only `sight.enabled` is the landing's: the packs ship every
+ * creature's token with it off, and dnd5e derives the range, the vision mode and the detection modes from
+ * the senses but never switches sight on.
+ * @param {{ type?: string|null, senses?: Record<string, unknown>|null, thing?: boolean, sees?: boolean }} facts
+ *   `type` the creature type the creature lands with; `senses` its sense ranges, by sense; `thing` a light's
+ *   object (never sees); `sees` its row's word that the caster sees through it
  * @returns {boolean}
  */
-export function summonSees({ type = null, senses = null, thing = false }) {
+export function summonSees({ type = null, senses = null, thing = false, sees = false }) {
   if ( thing ) return false;
+  if ( sees ) return true;
   const t = String(type ?? "").trim().toLowerCase();
   if ( t && (t !== "custom") ) return true;
   return Object.values(senses ?? {}).some(v => (typeof v === "number") && (v > 0));

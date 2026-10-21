@@ -96,8 +96,10 @@ const lookOf = name => Object.entries(SUMMON_LOOKS).find(([k]) => lower(k) === l
 /** A creature's sense ranges by sense (the prepared `ranges`, else a stat block's flat senses), or null. */
 const sensesOf = actor => actor?.system?.attributes?.senses?.ranges ?? actor?.system?.attributes?.senses ?? null;
 
-/** Whether a summon's token sees (decide/summons.js `summonSees`): the type the record landed it with, else the creature's own, and its senses. */
-const seesOf = (actor, flag, thing = false) => summonSees({ type: flag?.creatureType ?? actor?.system?.details?.type?.value ?? null, senses: sensesOf(actor), thing });
+/** Whether a summon's token sees (decide/summons.js `summonSees`): the type the record landed it with, else the creature's own, its
+ * senses, and its SUMMON_LOOKS row's `sees` (a sensor the caster sees through); `thing` a light's object. */
+const seesOf = (actor, flag, { thing = false, look = null } = {}) => summonSees({ type: flag?.creatureType ?? actor?.system?.details?.type?.value ?? null,
+  senses: sensesOf(actor), thing, sees: !!look?.sees });
 
 /** The name the caster last gave its companion of this spell (COMPANIONS `names`), or null. */
 const petNameFor = (caster, itemName) => rememberedName(readFlag(caster, SUMMON_PET_NAME_FLAG)?.names ?? [], rulesName(itemName));
@@ -841,8 +843,8 @@ async function landSummon(message) {
     const boon = boonOf(caster, flag.itemName);
     // the name its owner gave it in the menu (COMPANIONS `names`), or null for its own
     const petName = companionOf(flag.itemName)?.names ? petNameOf(flag.petName) : null;
-    // a creature sees through its token, so its owner sees what it sees; a light's object does not
-    const sees = seesOf(actor, flag, !!lightRow);
+    // a creature sees through its token, so its owner sees what it sees; a light's object does not; a sensor its row names does
+    const sees = seesOf(actor, flag, { thing: !!lightRow, look });
     for ( const placement of flag.placements ?? [] ) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);

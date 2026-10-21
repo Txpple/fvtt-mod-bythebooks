@@ -3818,17 +3818,17 @@ the user's ask to name it).**
    for a creature and leaves a thing's as the pack ships it (`summonSees`): a creature is a creature type of the book's
    own, or any sense with a range (the Arcane Eye, the Faithful Hound, the Battle Familiar's forms); a thing is the rest —
    an illusion, Mage Hand, Spiritual Weapon, Bigby's Hand, the Floating Disk, the Unseen Servant, the conjures' spirits,
-   Clairvoyance's sensor, Invoke Duplicity's duplicate, a light's stone. Clairvoyance's sensor is the one thing whose text
-   lets the caster see through it; by this rule it stays as the pack ships it (open: the table's call). Only the switch is
+   Invoke Duplicity's duplicate, a light's stone — save the sensor Clairvoyance and Scrying place, the one thing whose
+   text lets the caster see through it (call 62). Only the switch is
    the module's: the range and the mode stay dnd5e's (with the sync off, the prototype's own range stands). The sight rides the companion through its
    pocket (one put away blind comes back seeing) and through Battle Familiar's empower and its revert: dnd5e's transform
    and revert both take the world actor's prototype sight, so the empower record carries the familiar's and puts it back
    (`empowerOne`, `repointEmpowered`). A familiar landed before this keeps its sight off until it is summoned again, or
-   put away and called back.
+   put away and called back (no sweep: call 62).
 61. **The familiar is named by its owner** (the user: "when a familiar is summoned, give a text box offering to change
    the name of the familiar, so people can name their pets. if one is previously named, next summon carries that forward
    and remembered"; and "the prompt ALWAYS appears on every summon, even when a name is remembered"). A `COMPANIONS` row's
-   `names` (Find Familiar, so Wild Companion's and Pact of the Chain's familiars too): the summon menu, still the ONE popup
+   `names` (Find Familiar, so Wild Companion's and Pact of the Chain's familiars too; the Vestige, call 62): the summon menu, still the ONE popup
    (call 2), asks "Its name" every time, a text line under the form and the type (the picker's `text` section kind,
    `gallery.js`), pre-filled with the name the caster last gave it; left blank, the picked creature's own name shows in the
    line as it follows the pick, and it lands so. **One name per caster, not per form:** the spell's text makes a new form
@@ -3841,17 +3841,26 @@ the user's ask to name it).**
    caster's and outlives the familiar, as the last form does (call 50). Never a block: the line as it opened is an answer
    (the remembered name, or the creature's own), cancelling the menu casts nothing as before, and an answer that carries no
    line (a macro's, the live suites' fold) lands the creature's own name and leaves the memory alone.
+62. **The user's four answers to the open questions** (the same day, through the coordinator): **the scrying sensor
+   sees** — Clairvoyance's and Scrying's Invisible Sensor (one creature, one row) carries `sees` on its `SUMMON_LOOKS` row,
+   the one thing whose token is switched on, since both spells' text has the caster see through it; **no sweep** — a
+   familiar already standing on a table keeps its sight as it landed (a new summon, or the pocket and back, gives it
+   eyes); **the Vestige is named as the familiar is** — `COMPANIONS["Vestige Companion"]` carries `names`, the same line,
+   pre-fill and memory, kept per spell beside the familiar's (Pip the familiar and Ash the vestige on one warlock); **no
+   rename for a companion already out** — the name is asked at the summon only.
 
 | Row | Where | What it does |
 | --- | --- | --- |
-| The eyes | decide/summons.js `summonSees`; summons.js `landSummon`, `actCompanion` (the recall); transforms.js `empowerOne`, `repointEmpowered` | sight on for a creature at the landing, the recall, the empower and its revert |
+| The eyes | decide/summons.js `summonSees`; summons.js `landSummon`, `actCompanion` (the recall); transforms.js `empowerOne`, `repointEmpowered`; registry `SUMMON_LOOKS` `sees` (the Invisible Sensor) | sight on for a creature, and for the sensor, at the landing, the recall, the empower and its revert |
 | The name | registry `COMPANIONS` `names`; summons.js `askSummon` (the "Its name" line), `landSummon`, `rememberPetName`; decide/summons.js `petNameOf`, `rememberedName`, `rememberName`; gallery.js the `text` section | asked, landed, remembered |
 
 **Suites:** `smoke-summons` §2, §7, §9 (the Land spirit, the Owl and the Brute land seeing, Darkvision off their senses)
-and §11 (Mage Hand lands blind); `smoke-companions` §1 and §3 (the Owl lands seeing and comes back from the pocket seeing)
-and §10 (Pip: the token, its creature, the effect, the card and the memory; a new form with the line pre-filled; an answer
-with no line; the line cleared); `smoke-familiar` §1, §9 and §11 (seeing through the empower and the revert). Unit:
-`decide-summons` (`summonSees`, the name folded into the answer, the memory). Written and NOT YET RUN on the sandbox.
+and §11 (Mage Hand lands blind), §12 (Clairvoyance's sensor lands seeing); `smoke-companions` §1 and §3 (the Owl lands
+seeing and comes back from the pocket seeing), §10 (Pip: the token, its creature, the effect, the card and the memory; a
+new form with the line pre-filled; an answer with no line; the line cleared) and §11 (the Fiendish vestige named Ash, its
+memory beside Pip's); `smoke-familiar` §1, §9 and §11 (seeing through the empower and the revert). Unit:
+`decide-summons` (`summonSees` and the sensor's row, the name folded into the answer, the memory, the Vestige's own).
+Written and NOT YET RUN on the sandbox.
 
 **The walk table:**
 
@@ -3864,6 +3873,8 @@ with no line; the line cleared); `smoke-familiar` §1, §9 and §11 (seeing thro
 | Put it away, call it back | it comes back named and seeing |
 | Battle Familiar, empower it | still Pip, still seeing; after the revert, the same |
 | Mage Hand, Spiritual Weapon, an illusion | they land as before: nothing to see through |
+| Clairvoyance (or Scrying) | the sensor lands half seen, and the caster's player sees what it sees |
+| Vestige Companion | "Its name" in its menu too, pre-filled with the vestige's own remembered name (never the familiar's) |
 
 ## Rests end the short effects (2026-10-12)
 

@@ -21,7 +21,7 @@ import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js'   // §1 the first landing (its token sees), §3 the recall (it comes back seeing), §10 the name and its memory, §2 a new form replaces the old, §3 the pocket and the recall, §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard)
+  'summons.js'   // §1 the first landing (its token sees), §2 a new form replaces the old, §3 the pocket and the recall (it comes back seeing), §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard), §10 the familiar's name and its memory, §11 the Vestige's name, its own memory
 ];
 
 // §9's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
@@ -37,7 +37,8 @@ const SECTIONS = {
   7: 'THE FALL: the familiar at 0 HP disappears — no effect, no token, the card says so',
   8: 'AN ORPHAN SWEPT: a companion effect left on the caster naming a card no longer in the log is removed by the next landing; one effect after it',
   9: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Find Familiar answered as the assistant client arrives lands once — one claim, one token, one companion effect, one moment, no extra card',
-  10: 'THE NAME: answered as an Owl named Pip — the token and its creature are Pip, the effect "Familiar: Pip (Fey)", the card "Pip — summoned" with "Owl", the world Owl keeps its name, the caster remembers Pip; cast again as a Cat with the field as the menu pre-fills it — Pip, a Cat, in the Owl\'s square; cast again with the field cleared — the Rat lands as Rat and the caster forgets; an answer with no field leaves the memory alone'
+  10: 'THE NAME: answered as an Owl named Pip — the token and its creature are Pip, the effect "Familiar: Pip (Fey)", the card "Pip — summoned" with "Owl", the world Owl keeps its name, the caster remembers Pip; cast again as a Cat with the field as the menu pre-fills it — Pip, a Cat, in the Owl\'s square; cast again with the field cleared — the Rat lands as Rat and the caster forgets; an answer with no field leaves the memory alone',
+  11: 'THE VESTIGE\'S NAME (Arcana Unleashed\'s Vestige Companion, lent to the Sorcerer): with the familiar remembered as Pip, the Fiendish vestige answered as Ash lands as Ash — its token and its creature, the effect "Vestige: Ash" — and seeing; the caster remembers Ash for the Vestige and still Pip for the familiar; Dismiss takes it'
 };
 const DEPENDS = { 2: [1], 3: [2], 4: [3], 5: [4], 7: [6] };
 
@@ -310,6 +311,43 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await invariant('10f', { named: 'Familiar: Rat (Fey)', pocket: false });
       await dismiss(current);
       current = null;
+    });
+
+    // ---- 11. the Vestige's name: its own memory beside the familiar's (RULINGS *Summons*, call 62)
+    if (want(11)) await section(11, async () => {
+      if (current) { await dismiss(current); current = null; }
+      // the familiar's name stands first, so the Vestige's is seen to be its own
+      const pip = await summonFamiliar('Owl', { petName: 'Pip' });
+      await until(() => remembered() === 'Pip' ? true : null, { timeout: 8000, label: 'the caster remembers Pip' }).catch(() => null);
+      await dismiss(pip.message);
+      const vpack = game.packs.get('dnd-arcana-unleashed.subclasses');
+      const vhit = vpack ? (await vpack.getIndex()).find(e => e.name === 'Vestige Companion') : null;
+      if (!vhit) { ok('§11 Arcana Unleashed\'s Vestige Companion is on this box', false, `pack=${!!vpack}`); return; }
+      const vsrc = (await vpack.getDocument(vhit._id)).toObject();
+      delete vsrc._id;
+      const [vitem] = await caster.createEmbeddedDocuments('Item', [vsrc]);
+      lent.push(vitem.id);
+      const vsummon = vitem.system.activities.getByType('summon')[0];
+      const used = await vsummon.use({ [MOD]: { toCard: true }, create: { measuredTemplate: false, summons: false }, consume: { spellSlot: false, resources: false } }, { configure: false }, { create: true });
+      const vmsg = used?.message instanceof ChatMessage ? used.message : null;
+      if (vmsg) madeMessages.push(vmsg);
+      const vflag = await until(() => vmsg?.getFlag(MOD, 'summon')?.status === 'asked' ? vmsg.getFlag(MOD, 'summon') : null, { timeout: 6000 }).catch(() => null);
+      const form = vflag?.profiles?.find(p => /Fiendish/.test(p.label || p.name || '')) ?? vflag?.profiles?.[0] ?? null;
+      const patch = (vflag && form) ? placedAnswer(vflag, { profileId: form.id, count: 1, sceneId: canvas.scene.id, petName: 'Ash',
+        placements: [{ x: casterToken.x + grid, y: casterToken.y + grid, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES) : null;
+      if (patch) await vmsg.setFlag(MOD, 'summon', { ...vflag, ...patch });
+      const vlanded = patch ? await until(() => vmsg.getFlag(MOD, 'summon')?.applied ? vmsg.getFlag(MOD, 'summon') : null, { timeout: 20000 }).catch(() => null) : null;
+      const vtok = canvas.scene.tokens.get(vlanded?.landed?.[0]?.tokenId) ?? null;
+      if (vtok) madeTokens.add(vtok.id);
+      for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && /Vestige/.test(a.name ?? ''))) if (!madeActors.includes(a)) madeActors.push(a);
+      const veffect = caster.effects.find(e => e.getFlag(MOD, 'companion') === vmsg?.id) ?? null;
+      ok('§11a the Fiendish vestige lands as Ash: its token, its creature, the effect "Vestige: Ash", and it sees',
+        (vlanded?.outcome === 'landed') && (vtok?.name === 'Ash') && (vtok?.actor?.name === 'Ash') && /^Vestige: Ash\b/.test(veffect?.name ?? '') && eyes(vtok).on,
+        JSON.stringify({ patch: !!patch, form: form?.label ?? form?.name, outcome: vlanded?.outcome, failure: vlanded?.failure, token: vtok?.name, actor: vtok?.actor?.name, effect: veffect?.name, eyes: eyes(vtok) }));
+      const ash = await until(() => rememberedName(caster.getFlag(MOD, 'petNames')?.names ?? [], 'Vestige Companion') === 'Ash' ? true : null, { timeout: 8000, label: 'the caster remembers Ash' }).catch(() => null);
+      ok('§11b the caster remembers Ash for the Vestige and still Pip for the familiar', !!ash && (remembered() === 'Pip'), JSON.stringify(caster.getFlag(MOD, 'petNames') ?? null));
+      if (vlanded) await dismiss(vmsg);
+      ok('§11c Dismiss takes the vestige', !!vmsg?.getFlag(MOD, 'summon')?.dismissed && !canvas.scene.tokens.get(vtok?.id ?? ''), JSON.stringify({ dismissed: !!vmsg?.getFlag(MOD, 'summon')?.dismissed, token: !!canvas.scene.tokens.get(vtok?.id ?? '') }));
     });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });

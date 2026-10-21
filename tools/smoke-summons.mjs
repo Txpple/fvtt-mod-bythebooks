@@ -19,7 +19,7 @@ import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js',   // §1 the intercept and the record, §2 the landing (its token sees), §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's), §9 Battle Familiar conjured: its own seat, one at a time, the fall at 0 HP, the caster's death, §10 a landing as a second GM client arrives (the claim, the snapshot guard), §11 a thing sees nothing
+  'summons.js',   // §1 the intercept and the record, §2 the landing (its token sees), §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's), §9 Battle Familiar conjured: its own seat, one at a time, the fall at 0 HP, the caster's death, §10 a landing as a second GM client arrives (the claim, the snapshot guard), §11 a thing sees nothing, §12 a sensor sees
   'summon-art.js' // §7 the Summon Art window lists the familiar's pool, and the table's art lands on the familiar; §8 Match files and Save
 ];
 
@@ -37,7 +37,8 @@ const SECTIONS = {
   8: 'MATCH AND SAVE: in the Summon Art window, Match files over a folder holding owl.webp, owl-portrait.webp and bat.webp fills the Owl and the Bat, keeps a Bat token set by hand, and Save stores the table by name',
   9: 'BATTLE FAMILIAR CONJURED (Arcana Unleashed): with no familiar standing the Brute lands seeing on the Sorcerer\'s 1-hour effect and rolls its own Initiative in the started combat; a second cast dismisses the first (one at a time); at 0 HP it disappears, the card saying so; a third cast disappears when the caster is marked dead',
   10: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Summon Beast answered as the assistant client arrives lands once — one claim, one token, no effect on the caster, one moment, no extra card',
-  11: 'A THING SEES NOTHING: Mage Hand (a Spectral Hand, no creature type of the book\'s, no senses) lands with its token\'s sight off, where every creature above lands seeing; Dismiss takes it'
+  11: 'A THING SEES NOTHING: Mage Hand (a Spectral Hand, no creature type of the book\'s, no senses) lands with its token\'s sight off, where every creature above lands seeing; Dismiss takes it',
+  12: 'A SENSOR SEES: Clairvoyance\'s Invisible Sensor (a thing, no senses) lands half seen and seeing, by its SUMMON_LOOKS row (Scrying\'s is the same creature); its Concentration\'s end takes it'
 };
 const DEPENDS = { 3: [1], 4: [2], 5: [2] };
 
@@ -79,7 +80,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       const tokens = madeTokens.filter(id => canvas.scene.tokens.get(id));
       if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
-      for (const e of caster.effects.filter(e => /Shared Resistance|Summon|Battle Familiar|Mage Hand/.test(e.name))) { try { await e.delete({ [MOD]: { summonEnd: true } }); } catch { /* gone */ } }
+      for (const e of caster.effects.filter(e => /Shared Resistance|Summon|Battle Familiar|Mage Hand|Clairvoyance/.test(e.name))) { try { await e.delete({ [MOD]: { summonEnd: true } }); } catch { /* gone */ } }
       for (const e of caster.effects.filter(e => e.statuses?.has?.('dead'))) { try { await e.delete(); } catch { /* gone */ } }
       if (artBefore !== undefined) await game.settings.set(MOD, 'summonArt', artBefore);
       const live = lent.filter(id => caster.items.get(id));
@@ -355,6 +356,26 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const gone = await until(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 });
         ok('§11c Dismiss takes it', !!gone && !canvas.scene.tokens.get(tok?.id), `dismissed=${!!gone} token=${!!canvas.scene.tokens.get(tok?.id)}`);
       }
+    });
+    if (want(12)) await section(12, async () => {
+      // the one thing that sees (RULINGS *Summons*, call 62): Clairvoyance's sensor, by its SUMMON_LOOKS row; no Concentration standing first
+      if (caster.concentration?.effects?.size) {
+        await caster.endConcentration().catch(() => {});
+        await until(() => !caster.concentration?.effects?.size, { label: 'the Sorcerer\'s Concentration ended' });
+      }
+      const spell = await lend('Clairvoyance');
+      const { message, flag } = await castSummon(spell);
+      const landed = flag ? await answer(message) : null;
+      const tok = landedToken(landed);
+      if (tok) madeTokens.push(tok.id);
+      for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && (a.name === 'Invisible Sensor'))) if (!madeActors.includes(a)) madeActors.push(a);
+      ok('§12a the sensor landed, drawn half seen', landed?.outcome === 'landed' && !!tok && (Number(tok.alpha) === 0.5), JSON.stringify({ outcome: landed?.outcome, failure: landed?.failure, alpha: tok?.alpha }));
+      ok('§12b its token sees, though it is a thing', eyes(tok).on, JSON.stringify({ ...eyes(tok), type: tok?.actor?.system?.details?.type?.value ?? null }));
+      const conc = caster.effects.get(message?.system?.concentration ?? '') ?? null;
+      if (conc) await conc.delete();
+      else if (landed) await api.askDismiss(message);
+      const gone = landed ? await until(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, { timeout: 15000 }).catch(() => null) : null;
+      ok('§12c ending the spell takes it', !!gone && !canvas.scene.tokens.get(tok?.id), `dismissed=${!!gone} token=${!!canvas.scene.tokens.get(tok?.id)} concentration=${!!conc}`);
     });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });

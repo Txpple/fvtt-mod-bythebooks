@@ -1000,6 +1000,21 @@ describe("a summoned token's eyes — a creature sees, a thing does not (call 60
   it("a light's object never sees, whatever its stat block says", () => {
     expect(s.summonSees({ type: "beast", senses: { darkvision: 60 }, thing: true })).toBe(false);
   });
+  it("a thing its row says the caster sees through sees: Clairvoyance's and Scrying's sensor (call 62)", () => {
+    const sensor = reg.SUMMON_LOOKS["Invisible Sensor"];
+    expect(sensor?.sees).toBe(true);
+    expect(
+      s.summonSees({ type: "custom", senses: { darkvision: null }, sees: !!sensor?.sees })
+    ).toBe(true);
+    // the row's word is the only way a thing sees: no other look carries it
+    expect(
+      Object.entries(reg.SUMMON_LOOKS)
+        .filter(([, row]) => row.sees)
+        .map(([k]) => k)
+    ).toEqual(["Invisible Sensor"]);
+    // a light's object stays blind even so
+    expect(s.summonSees({ type: "custom", sees: true, thing: true })).toBe(false);
+  });
 });
 
 describe("a familiar's name — asked every time, remembered per caster (call 61)", () => {
@@ -1064,8 +1079,19 @@ describe("a familiar's name — asked every time, remembered per caster (call 61
     expect(s.rememberedName(null, "Find Familiar")).toBe(null);
   });
 
-  it("the familiar is the named companion; the Vestige is not", () => {
+  it("the familiar and the Vestige are named companions (call 62), each remembered on its own", () => {
     expect(reg.COMPANIONS["Find Familiar"]?.names).toBe(true);
-    expect(reg.COMPANIONS["Vestige Companion"]?.names).toBeFalsy();
+    expect(reg.COMPANIONS["Vestige Companion"]?.names).toBe(true);
+    const both = s.rememberName(
+      s.rememberName([], "Find Familiar", "Pip"),
+      "Vestige Companion",
+      "Ash"
+    );
+    expect(s.rememberedName(both, "Find Familiar")).toBe("Pip");
+    expect(s.rememberedName(both, "Vestige Companion")).toBe("Ash");
+    // forgetting the Vestige's leaves the familiar's
+    expect(s.rememberedName(s.rememberName(both, "Vestige Companion", ""), "Find Familiar")).toBe(
+      "Pip"
+    );
   });
 });

@@ -57,7 +57,7 @@ export const ORDER = [
   { name: "smoke-sneak", note: "Sneak Attack as drawn — the tick, the menu, the dice, the crit, the chit, the effects" },
   { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
   // Beside smoke-sneak and smoke-clock: the same seam (preRollDamage) on the built fighter fixture.
-  { name: "smoke-summons", note: "summons — the system's placement switched off, the popup off the cast card, the placement recorded, the elect landing the creature with ownership and the seat, the dragon's breath narrowed and the shared resistance, Dismiss; a creature's token lands seeing, a thing's (Mage Hand) does not" },
+  { name: "smoke-summons", note: "summons — the system's placement switched off, the popup off the cast card, the placement recorded, the elect landing the creature with ownership and the seat, the dragon's breath narrowed and the shared resistance, Dismiss; a creature's token lands seeing, a thing's (Mage Hand) does not, the scrying sensor does" },
   { name: "smoke-gear-lights", note: "gear lights — the use opens only the toggle (sheet, hotbar, the Torch's attack, the picker), light / put out / the hood on one effect, the bullseye's cone, one light at a time, the Long Rest's put-out, the item gone" },
   { name: "smoke-transforms", note: "Wild Shape and the polymorph spells — the chooser switched off at the use, the record with the known forms, the pick folded, the elect transforming with the preset and clocking the form, the ends (Revert, 0 HP, the temp HP gone), the Long Rest's known-form swap" },
   { name: "smoke-mastery-record", note: "the mastery record — the fill from equipped weapons, the not-mastered line and Master it, the long-rest swap, the party view's door" },
@@ -84,7 +84,7 @@ export const ORDER = [
   { name: "smoke-familiar", note: "Familiar Friend — the free cast's use spent through the summon's cause, the boon's Hit Points off the feat's own change, Helpful Friend's box offered within 5 ft / greyed beyond or in the pocket / absent off a proficient skill, the player's cast with Allow Summoning off; Battle Familiar empowering the Owl in place (its sight kept through the form and the revert), the temp HP gone and the caster's effect as the ends, Dismiss while empowered",
     needs: ["fixture-suite"] },
   // The familiar's whole life on the Sorcerer: one companion effect, one token, one record after every step.
-  { name: "smoke-companions", note: "Find Familiar's lifecycle — a cast, a new form, the pocket and the recall, a new form into the pocket, Dismiss forever, two casts back to back, 0 HP, an orphan effect swept at the next landing; after every step exactly one companion effect on the caster, one token, one standing record; the familiar seeing, its name landed and remembered on the caster",
+  { name: "smoke-companions", note: "Find Familiar's lifecycle — a cast, a new form, the pocket and the recall, a new form into the pocket, Dismiss forever, two casts back to back, 0 HP, an orphan effect swept at the next landing; after every step exactly one companion effect on the caster, one token, one standing record; the familiar seeing, its name landed and remembered on the caster, the Vestige named beside it",
     needs: ["fixture-suite"] },
   // Both ride BTB Test Halfling (Lucky, Savage Attacker); the nearest seed above is theirs.
   {
