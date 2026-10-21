@@ -233,6 +233,9 @@ const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summar
  *   { head, pills, field, columns? }          pills: { value, label, checked?, locked? }; nothing pre-picked unless a pill says
  *                                             so; a `locked` pill is greyed and cannot be picked; `columns` lays them out
  *                                             as an even grid of that many, each the same width
+ *   { head?, text: { field, value?, placeholder?, max?, follows? } }   a line of text the player may type (a familiar's
+ *                                             name), `value` pre-filled; `follows` a pick field whose picked row's
+ *                                             name becomes the placeholder as the pick changes (blank says "its own")
  *   { note }                                  a quiet line
  *   { rule }                                  the book's rule line
  *   { tabs: [{ label, sections }] }           a strip of tabs, one panel of sections each, the first shown; a field
@@ -241,6 +244,10 @@ const poolRow = r => ({ value: r.uuid, label: r.name, img: r.img ?? null, summar
 function sectionHTML(sec) {
   if ( sec.tabs ) return tabsHTML(sec.tabs);
   if ( sec.note ) return `<div style="opacity:0.75;font-size:var(--font-size-11,11px);margin:0.2rem 0;">${esc(sec.note)}</div>`;
+  if ( sec.text ) {
+    const t = sec.text;
+    return `${headHTML(sec.head)}<input type="text" name="${esc(t.field)}" value="${esc(t.value ?? "")}" placeholder="${esc(t.placeholder ?? "")}"${t.max ? ` maxlength="${Number(t.max) || 0}"` : ""}${t.follows ? ` data-bf-follows="${esc(t.follows)}"` : ""} autocomplete="off" style="width:100%;margin:0.3rem 0;">`;
+  }
   if ( sec.rule ) return ruleLine(sec.rule);
   if ( sec.pills ) return `${headHTML(sec.head)}<div style="${sec.columns ? `display:grid;grid-template-columns:repeat(${Number(sec.columns) || 1},1fr);` : "display:flex;flex-wrap:wrap;"}gap:0.3rem;margin:0.3rem 0;">${sec.pills.map(o =>
     `<label style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;${sec.columns ? "justify-content:flex-start;" : ""}border:1px solid var(--color-border-dark,#0006);border-radius:12px;${o.locked ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}">${pickInputHTML({ kind: "radio", name: sec.field, value: o.value, checked: !!(o.checked && !o.locked), disabled: !!o.locked, style: "margin:0;" })}${esc(o.label)}</label>`).join("")}</div>`;
@@ -272,12 +279,23 @@ const tabStyle = open => open ? `background:${PICKED};font-weight:bold;opacity:1
 const flatSections = sections => sections.flatMap(s => s.tabs ? s.tabs.flatMap(t => flatSections(t.sections ?? [])) : [s]);
 
 /**
- * The answer read off the form: `one(field)` the picked value or null, `all(field)` every ticked value.
+ * The answer read off the form: `one(field)` the picked value or null, `all(field)` every ticked value,
+ * `text(field)` a text line as typed, or null when the form has no such line.
  * @param {HTMLFormElement|null} form
  */
 function readPicks(form) {
   const all = field => pickedAll(form, field);
-  return { one: field => all(field)[0] ?? null, all, form };
+  const text = field => {
+    const el = form?.elements?.namedItem?.(field) ?? null;
+    return (typeof el?.value === "string") ? el.value : null;
+  };
+  return { one: field => all(field)[0] ?? null, all, text, form };
+}
+
+/** The name on a picked row: what a text line that follows the pick shows as its placeholder. */
+function pickedRowName(root, field) {
+  const input = pickInputs(root, field).find(i => i.checked) ?? null;
+  return input?.closest?.("[data-bf-form]")?.querySelector?.("b")?.textContent?.trim() || null;
 }
 
 /** The live parts once the dialog stands: the search, the caps on the ticks, the picked row's tint. */
@@ -332,9 +350,17 @@ function wirePicker(root, sections) {
       if ( on && inputs.length && !inputs.some(i => i.checked) ) inputs[0].checked = true;
     }
   };
+  // a text line following a pick: the picked row's name as its placeholder, the line's own words while none is picked
+  const follow = () => {
+    for ( const line of root.querySelectorAll("[data-bf-follows]") ) {
+      line.dataset.bfPlaceholder ??= line.getAttribute("placeholder") ?? "";
+      line.setAttribute("placeholder", pickedRowName(root, line.dataset.bfFollows) ?? line.dataset.bfPlaceholder);
+    }
+  };
   gate();
   tint();
-  root.addEventListener("change", event => { cap(event); gate(); tint(); });
+  follow();
+  root.addEventListener("change", event => { cap(event); gate(); tint(); follow(); });
 }
 
 /**
@@ -354,9 +380,9 @@ function wirePicker(root, sections) {
  * @param {{ eyebrow: string, tone?: string, title: string, subtitle?: string }} spec.card
  * @param {Array<object>} spec.sections   see `sectionHTML`
  * @param {Array<{ field: string, why: string }>} [spec.needs]   in the order the popup reads
- * @param {(picks: { one: (field: string) => string|null, all: (field: string) => string[], form: HTMLFormElement|null }) => string|null} [spec.validate]
+ * @param {(picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => string|null} [spec.validate]
  *   a last word on a `checks` click, after the needs: why the answer cannot stand yet (the popup stays open), or null
- * @param {Array<{ action: string, label: string, default?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], form: HTMLFormElement|null }) => void }>} spec.buttons
+ * @param {Array<{ action: string, label: string, default?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => void }>} spec.buttons
  */
 export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], validate = null, buttons }) {
   if ( by && !answersHere(by, subject) ) return null;

@@ -4317,6 +4317,8 @@ export const SUMMON_COMMANDS = Object.freeze({
  * `scale` the art's scale in its square, for a thing smaller than its footprint (a 3-ft disk in a 5-ft square);
  * `seen` the creature's Invisible condition is switched off on the token, so the table can see it (the
  * faded token says what the condition said);
+ * `sees` its token sees though the creature is a thing (no creature type of the book's, no senses): a sensor
+ * the caster sees through;
  * `spell` the spell that summons it, when the creature's name is no pack item's.
  */
 export const SUMMON_LOOKS = Object.freeze({
@@ -4329,8 +4331,9 @@ export const SUMMON_LOOKS = Object.freeze({
   "Unseen Servant": Object.freeze({ alpha: 0.5, seen: true }),
   // "a circular, horizontal plane of force, 3 feet in diameter": 3 ft of a 5-ft square.
   "Floating Disk": Object.freeze({ spell: "Tenser's Floating Disk", scale: 0.6 }),
-  // Clairvoyance's sensor: the same, for the same reason.
-  "Invisible Sensor": Object.freeze({ spell: "Clairvoyance", alpha: 0.5, seen: true })
+  // Clairvoyance's sensor: the same, for the same reason; Scrying's is the same creature. The caster sees through it
+  // (both spells' text), so its token sees (RULINGS *Summons*, call 62).
+  "Invisible Sensor": Object.freeze({ spell: "Clairvoyance", alpha: 0.5, seen: true, sees: true })
 });
 
 /**
@@ -4342,19 +4345,21 @@ export const SUMMON_LOOKS = Object.freeze({
  * `recallFt` the reach of its return (an unoccupied space, no sight needed); `says` the book's sentence;
  * `brief` the cast menu's one line under the creature (the spell's full text is a click away on its card);
  * `rangeFt` where it first appears, when the use's own range says none (the Vestige's "Self": the familiar's 10 ft).
+ * `names`: its owner names it — the summon menu asks a name every time, pre-filled with the one the caster last
+ * gave it (one name per caster and spell, whatever the form: a new form is the same companion), and it lands so named.
  * Primal Companion and Find Steed join when their text is ruled.
  */
 export const COMPANIONS = Object.freeze({
   "Find Familiar": Object.freeze({
-    noun: "Familiar", pocket: true, recallFt: 30,
+    noun: "Familiar", pocket: true, recallFt: 30, names: true,
     brief: "A Magic action puts it away into its pocket dimension or calls it back within 30 ft; casting the spell again gives it a new form.",
     says: "As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
   }),
-  // the Vestige Patron's vestige: the familiar's pocket, its reach and its 10-ft arrival;
+  // the Vestige Patron's vestige: the familiar's pocket, its reach and its 10-ft arrival, and named as the familiar is;
   // it acts on the warlock's turn, so it is seated after the warlock (no SUMMON_OWN_INITIATIVE row)
   "Vestige Companion": Object.freeze({
-    noun: "Vestige", pocket: true, recallFt: 30, rangeFt: 10,
+    noun: "Vestige", pocket: true, recallFt: 30, rangeFt: 10, names: true,
     brief: "A Magic action puts it away into its pocket dimension or calls it back within 30 ft; the 1-minute rite again gives it a new form.",
     says: "As a Magic action, you can temporarily dismiss the vestige to a pocket dimension. As a Magic action while it is temporarily dismissed, you can cause the vestige to reappear in an unoccupied space within 30 feet of you.",
     rule: Object.freeze({ item: "Vestige Companion", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunVestigeCompan" })

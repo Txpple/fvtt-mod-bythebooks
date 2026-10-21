@@ -9,7 +9,7 @@
  * the activity offers more than one), takes the spaces (the range ring, the clicks; no permission
  * needed) and writes the record on its own card; the elect
  * fetches or imports the creature with its own permissions, applies dnd5e's own profile changes, narrows
- * the dragon's breath, creates the tokens, seats them right
+ * the dragon's breath, creates the tokens (a creature's seeing, a familiar under the name its owner gave it), seats them right
  * after the caster, grants the caster's players ownership, lands the shared resistance on the caster, and
  * stamps `applied`. With no GM online the card holds and says so (DESIGN §4). Dismiss deletes what the
  * elect made, and the concentration effect's end asks it.
@@ -21,7 +21,8 @@ import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, S
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
-  fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect } from "./decide/summons.js";
+  fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect, summonSees, petNameOf, rememberedName, rememberName,
+  PET_NAME_MAX } from "./decide/summons.js";
 import { transformRecord } from "./decide/transforms.js";
 import { bfCard, esc } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
@@ -39,6 +40,9 @@ const SUMMON_FLAG = "summon";
 const EMPOWER_RECORD_FLAG = "transform";
 /** The profile last taken through a summon spell, a flag on the caster's own item: marked on its row at the next cast. */
 const SUMMON_LAST_FLAG = "lastForm";
+/** The names a caster gave its companions (COMPANIONS `names`), a flag on the caster's actor: `{ names: [{ spell, name }] }`,
+ * one per spell, read into the menu's name field and written by the elect at the landing. */
+const SUMMON_PET_NAME_FLAG = "petNames";
 const listed = () => listedNames(summonChoiceEntries());
 
 /** The SUMMON_FALLS row a spell answers to, by name, or null. */
@@ -88,6 +92,17 @@ const squaresOf = size => (CONFIG.DND5E?.actorSizes?.[size] ? (Number(CONFIG.DND
 
 /** The SUMMON_LOOKS row a creature answers to, by name, or null. */
 const lookOf = name => Object.entries(SUMMON_LOOKS).find(([k]) => lower(k) === lower(name ?? ""))?.[1] ?? null;
+
+/** A creature's sense ranges by sense (the prepared `ranges`, else a stat block's flat senses), or null. */
+const sensesOf = actor => actor?.system?.attributes?.senses?.ranges ?? actor?.system?.attributes?.senses ?? null;
+
+/** Whether a summon's token sees (decide/summons.js `summonSees`): the type the record landed it with, else the creature's own, its
+ * senses, and its SUMMON_LOOKS row's `sees` (a sensor the caster sees through); `thing` a light's object. */
+const seesOf = (actor, flag, { thing = false, look = null } = {}) => summonSees({ type: flag?.creatureType ?? actor?.system?.details?.type?.value ?? null,
+  senses: sensesOf(actor), thing, sees: !!look?.sees });
+
+/** The name the caster last gave its companion of this spell (COMPANIONS `names`), or null. */
+const petNameFor = (caster, itemName) => rememberedName(readFlag(caster, SUMMON_PET_NAME_FLAG)?.names ?? [], rulesName(itemName));
 
 /** The activity on the actor's own item (a use's hook hands over the clone dnd5e works on). */
 const liveActivity = activity => activity?.actor?.items?.get(activity.item?.id)?.system?.activities?.get(activity.id) ?? null;
@@ -371,7 +386,9 @@ async function stampEmpower(activity, message, answer) {
   record.empower = { companionMessageId: companionMessage.id, level: Number(answer.level) || Number(activity.relevantLevel) || 0, tokenId: doc.id, name: doc.name,
     look: { texture: doc._source?.texture?.src ?? doc.texture?.src ?? null, img: doc.actor.img ?? null,
       // its own ring too: dnd5e's transform wears the form's (`tokenPropsFromSource` carries `ring`)
-      ring: doc._source?.ring ? foundry.utils.deepClone(doc._source.ring) : null } };
+      ring: doc._source?.ring ? foundry.utils.deepClone(doc._source.ring) : null,
+      // and its sight: dnd5e's transform and its revert take the world actor's prototype's, which the packs ship off
+      sight: !!doc._source?.sight?.enabled } };
   record.askedBy = game.user.id;
   await message.setFlag(MODULE_ID, EMPOWER_RECORD_FLAG, { ...record, ...statContext(actor.uuid) });
   const item = actor.items.get(activity.item.id);
@@ -656,6 +673,11 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
   } else if ( needs.pool ) sections.push({ field: "bf-summon-pick", pool });
   if ( typeSection ) sections.push(typeSection);
   if ( needs.size ) sections.push({ head: "Its size", field: "bf-summon-size", pills: sizes.map(s => ({ value: s, label: CONFIG.DND5E?.actorSizes?.[s]?.label ?? s })) });
+  // its name (COMPANIONS `names`): asked every time, pre-filled with the one the caster last gave it; blank, the
+  // picked creature's own name shows in the field and is the one it lands with
+  const naming = !light && !!companionOf(facts.itemName)?.names;
+  if ( naming ) sections.push({ head: "Its name", text: { field: "bf-summon-name", value: petNameFor(caster, facts.itemName) ?? "",
+    placeholder: "its own name", max: PET_NAME_MAX, follows: needs.pool ? "bf-summon-pick" : "bf-summon-profile" } });
   if ( choiceRow ) {
     sections.push({ head: choiceRow.ask, field: "bf-summon-choice", pills: choiceRow.options.map(o => ({ value: o, label: CONFIG.DND5E?.damageTypes?.[o]?.label ?? o })) });
     sections.push({ rule: choiceRow.rule });
@@ -682,6 +704,8 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
         const creatureType = picks.one("bf-summon-type");
         const creatureSize = picks.one("bf-summon-size");
         const lightOn = light ? (picks.one("bf-light-on") ?? "object") : null;
+        // the name field as typed, read while the dialog stands (blank: the creature's own name)
+        const petName = naming ? (picks.text("bf-summon-name") ?? "") : undefined;
         void (async () => {
           try {
             if ( lightOn === "token" ) { await onAnswer({ lightOn }); return; }
@@ -700,7 +724,7 @@ async function askSummon(key, facts, { light = null } = {}, onAnswer) {
               choice: picks.one("bf-summon-choice"), guise: picks.one("bf-summon-guise"), placements, count, intoPocket, lightOn,
               sceneId: (inPlace ? replacing.placement.sceneId : null) ?? canvas.scene?.id ?? facts.sceneId ?? null,
               creatureSize: light ? (sizes.includes(light.size) ? light.size : (sizes[0] ?? null)) : needs.size ? creatureSize : (sizes[0] ?? null),
-              creatureType: needs.type ? creatureType : (types[0] ?? null) });
+              creatureType: needs.type ? creatureType : (types[0] ?? null), petName });
           } catch(err) {
             log.error(`The summon could not be placed — place the creature by hand.`, err);
             ui.notifications?.error(`${TITLE}: the summon could not be placed (${err?.message ?? err}).`);
@@ -817,6 +841,10 @@ async function landSummon(message) {
     const lightRow = flag.light ? lightRowOf(flag.light) : null;
     const look = lookOf(creatureName);
     const boon = boonOf(caster, flag.itemName);
+    // the name its owner gave it in the menu (COMPANIONS `names`), or null for its own
+    const petName = companionOf(flag.itemName)?.names ? petNameOf(flag.petName) : null;
+    // a creature sees through its token, so its owner sees what it sees; a light's object does not; a sensor its row names does
+    const sees = seesOf(actor, flag, { thing: !!lightRow, look });
     for ( const placement of flag.placements ?? [] ) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
@@ -875,6 +903,10 @@ async function landSummon(message) {
       // a Summon spell's form is named form-then-type ("Tricksy Fey", "Putrid Undead"; the dragon by its picked type)
       const formed = formName(flag.itemName, creatureName, flag.picked ? (CONFIG.DND5E?.damageTypes?.[flag.picked]?.label ?? flag.picked) : null);
       if ( formed ) { changes.tokenUpdates.name = formed; changes.actorUpdates.name = formed; }
+      // the familiar's own name on its token and its creature (an unlinked token's delta: the world actor keeps the book's)
+      if ( petName ) { changes.tokenUpdates.name = petName; changes.actorUpdates.name = petName; }
+      // sight on (the packs ship it off); its range, vision mode and detection modes stay dnd5e's, read off the senses
+      if ( sees ) foundry.utils.setProperty(changes.tokenUpdates, "sight.enabled", true);
       const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
       if ( narrowed ) {
         // ⚠ A token delta's item entry is merged as nested data; a dotted key would be stored as a literal key.
@@ -923,7 +955,7 @@ async function landSummon(message) {
     // A companion: the effect on its owner for as long as it stands, and its stat block (what it carries is the rest).
     const crow = companionOf(flag.itemName);
     if ( crow ) {
-      const name = flag.summonName || actor.name;
+      const name = petName || flag.summonName || actor.name;
       const type = flag.creatureType ? (CONFIG.DND5E?.creatureTypes?.[flag.creatureType]?.label ?? flag.creatureType) : null;
       const pocket = !!flag.intoPocket;
       const snapshot = pocket ? foundry.utils.deepClone(tokensData[0] ?? null) : null;
@@ -939,6 +971,9 @@ async function landSummon(message) {
         baseItems: actor.items.contents.map(i => i.id), snapshot, events: [] };
       // its arrival floats over its owner (the landing's own moment plays the FX, so it is not a companion beat)
       if ( !pocket && created.length ) events.push(ownerEvent("appear", created[0], caster, companionEffectName({ noun: crow.noun, name, type })));
+      // the name the menu answered, kept on the caster for the next summon's field; a failure to keep it never fails the landing
+      if ( crow.names && Object.hasOwn(flag, "petName") ) await rememberPetName(caster, flag.itemName, petName)
+        .catch(err => log.warn(`Could not remember the ${lower(crow.noun)}'s name — it lands named all the same.`, err));
     }
     // Without Concentration, the summon stands on an effect of its caster's: removing it dismisses the summon
     // (the user). A Concentration summon needs none: Concentration's end dismisses it.
@@ -1012,6 +1047,18 @@ async function sweepDeadLanding(message, flag) {
   const mine = e => [readFlag(e, SUMMON_CARD_FLAG), readFlag(e, "summonEffect"), readFlag(e, "companion")].includes(message.id);
   const effects = (caster?.effects?.contents ?? []).filter(mine).map(e => e.id);
   if ( effects.length ) await caster.deleteEmbeddedDocuments("ActiveEffect", effects, { [MODULE_ID]: { summonEnd: true, companionEnd: true } });
+}
+
+/**
+ * The elect keeps the name a companion landed with on its caster (decide/summons.js `rememberName`): one per spell,
+ * the next summon's name field pre-filled with it; a field left blank forgets it.
+ */
+async function rememberPetName(caster, itemName, name) {
+  await queueFlagWrite(caster, SUMMON_PET_NAME_FLAG, current => {
+    const next = rememberName(current.names ?? [], rulesName(itemName), name);
+    if ( !next ) return false;
+    current.names = next;
+  }, { initial: { names: [] } });
 }
 
 /** The SUMMON_BOONS row the caster holds for this spell, with the formula read off the feature's own enchantment change; null for none. */
@@ -1329,7 +1376,10 @@ async function actCompanion(message) {
       const at = companion.ask.placement;
       const scene = game.scenes.get(at.sceneId);
       if ( !scene || !companion.snapshot ) throw new Error("nothing to call back, or the scene is gone");
-      const [doc] = await scene.createEmbeddedDocuments("Token", [{ ...companion.snapshot, x: at.x, y: at.y, elevation: at.elevation ?? 0 }]);
+      const data = { ...companion.snapshot, x: at.x, y: at.y, elevation: at.elevation ?? 0 };
+      // it comes back seeing, whatever the snapshot kept (one put away with its sight off)
+      if ( seesOf(game.actors.get(companion.snapshot.actorId), flag) ) foundry.utils.setProperty(data, "sight.enabled", true);
+      const [doc] = await scene.createEmbeddedDocuments("Token", [data]);
       patch.state = "present";
       patch.snapshot = null;
       patch.events = [...(companion.events ?? []), companionEvent("appear", doc, companion, caster)];
@@ -1489,7 +1539,9 @@ function drawSummon(message, html, flag) {
     return;
   }
   const names = (flag.landed ?? []).map(l => l.name);
-  const what = `${flag.count > 1 ? `${flag.count} × ` : ""}${flag.summonName || flag.profileName || "the creature"}`;
+  const what = `${flag.count > 1 ? `${flag.count} × ` : ""}${flag.petName || flag.summonName || flag.profileName || "the creature"}`;
+  // a named familiar's form beside its name ("Pip — summoned", "Owl · Fey")
+  const form = (flag.petName && flag.summonName && (flag.petName !== flag.summonName)) ? flag.summonName : null;
   if ( !flag.applied ) {
     const gm = !!game.users.activeGM;
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "pending", title: `${what} — placed`,
@@ -1501,7 +1553,7 @@ function drawSummon(message, html, flag) {
   } else {
     const kind = flag.creatureType ? (CONFIG.DND5E?.creatureTypes?.[flag.creatureType]?.label ?? flag.creatureType) : null;
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "good", title: `${names.join(", ") || what} — summoned`,
-      subtitle: [kind, flag.picked, flag.boon ? `+${flag.boon.hp} HP (${flag.boon.benefit}${flag.boon.bySystem ? ", the sheet's own" : ""})` : null, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
+      subtitle: [form, kind, flag.picked, flag.boon ? `+${flag.boon.hp} HP (${flag.boon.benefit}${flag.boon.bySystem ? ", the sheet's own" : ""})` : null, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null,
         (flag.companion?.state === "pocket") ? "in its pocket dimension" : null,
         flag.replaced ? "the earlier one is dismissed" : null].filter(Boolean).join(" · ") });
     if ( (mine || game.user.isGM) && !flag.dismissAsked ) row.appendChild(momentButton("Dismiss", () => { void askDismiss(message); }, { margin: "0.25rem 0 0" }));

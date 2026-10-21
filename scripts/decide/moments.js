@@ -904,6 +904,7 @@ export const STATE_KEYS = Object.freeze({
   form: "an ActiveEffect field — the form effect's tie to its transform record (the card, the original creature, the row); its removal ends the form",
   knownForms: "an Item field — the Known Forms a Wild Shape item holds (uuid, name, art); the transform record (a form learned at the use) and the formSwap record (the Long Rest's change) are the resolves",
   lastForm: "an Item field — the form last taken through the item (transforms.js; a summon spell's profile, summons.js), marked on its row at the next use; presentation",
+  petNames: "an Actor field on a caster — the name it last gave its companion of each COMPANIONS `names` spell (summons.js), the next summon menu's name field pre-filled with it; the summon record's landing is the resolve",
   empowerEffect: "an ActiveEffect flag on the caster of a SUMMON_EMPOWERS spell — the message id of the transform card its empowered companion stands on; removing the effect asks the revert, the transform record's `ended` is the resolve (summons.js, transforms.js)",
   empowerEnd: "a delete option, not a flag — the elect's own removal of the empower effect as the form ends, which asks no second revert (transforms.js, summons.js)",
   formEnd: "the card a form's end posts (transforms.js) — the clock, Concentration, Incapacitated, 0 Hit Points, the Temporary Hit Points gone, or a revert; the `ended` stamp on the transform record is the resolve",

@@ -3094,16 +3094,18 @@
       "schema": {
         "type": "string",
         "examples": [
+          "CK26bHBPOceaUhOj",
+          "DplSytcdZhG40kik",
           "IRd4ezevs6pczuLy",
+          "Iux429bpn6Bkq3Hw",
+          "M6g0o24dbUumdhEp",
+          "MJSQJpedj8NnrVsn",
           "MPdJmSiaHN05sVG3",
           "QfcaKe3Fk1RLBwZ9",
+          "R0AQqoPvGtxjzEJh",
+          "Th3slDfKiPhPbTqw",
           "aDdQNU8m9GHJTgJA",
-          "aMuQ0NZV70GRyavV",
-          "acjGn2Vy0oml5NS0",
-          "gQCF5a2q6rFKM0Ag",
-          "neytuFY3hnNuyExc",
-          "nomessage000000",
-          "yRuz8GIPrRsdHjHd"
+          "aMuQ0NZV70GRyavV"
         ]
       }
     },
@@ -12530,6 +12532,52 @@
         "type": "string"
       }
     },
+    "petNames": {
+      "class": "state",
+      "family": "state",
+      "means": "an Actor field on a caster — the name it last gave its companion of each COMPANIONS `names` spell (summons.js), the next summon menu's name field pre-filled with it; the summon record's landing is the resolve",
+      "writers": [
+        "summons.js"
+      ],
+      "on": [
+        "Actor"
+      ],
+      "stamp": null,
+      "readBy": [],
+      "recorded": true,
+      "fields": [
+        "names",
+        "names[]",
+        "names[].name",
+        "names[].spell"
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "spell": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "spell"
+              ]
+            }
+          }
+        },
+        "required": [
+          "names"
+        ]
+      }
+    },
     "poleStrike": {
       "class": "state",
       "family": "state",
@@ -16826,6 +16874,7 @@
         "level",
         "mode",
         "outcome",
+        "petName",
         "picked",
         "placedAt",
         "placements",
@@ -17648,7 +17697,10 @@
                 "type": "string"
               },
               "type": {
-                "type": "string"
+                "type": [
+                  "null",
+                  "string"
+                ]
               }
             },
             "required": [
@@ -17809,6 +17861,12 @@
             "type": "string",
             "examples": [
               "landed"
+            ]
+          },
+          "petName": {
+            "type": [
+              "null",
+              "string"
             ]
           },
           "picked": {
@@ -18083,7 +18141,6 @@
               }
             },
             "required": [
-              "baseItems",
               "effectId",
               "name"
             ]
@@ -19159,6 +19216,7 @@
         "empower.look.ring.subject",
         "empower.look.ring.subject.scale",
         "empower.look.ring.subject.texture",
+        "empower.look.sight",
         "empower.look.texture",
         "empower.name",
         "empower.tokenId",
@@ -19322,6 +19380,9 @@
                       "enabled",
                       "subject"
                     ]
+                  },
+                  "sight": {
+                    "type": "boolean"
                   },
                   "texture": {
                     "type": "string"

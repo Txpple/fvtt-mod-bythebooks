@@ -332,7 +332,7 @@ function settingClass() {
  * the cast level as Temporary Hit Points; then the summon activity's own changes on top (the level stamped, the
  * attack and Proficiency matched, the AC bonus), the type and Hit Points the system would set aside; dnd5e's
  * transform Proficiency override removed (it carries the form's own, blank for a creature with no CR); the
- * companion's name back on the creature and its token; the caster's effect for the spell's life, and the form
+ * companion's name back on the creature and its token, its art, ring and sight on the token; the caster's effect for the spell's life, and the form
  * effect dependent on it. Returns the landed facts (RULINGS *Summons*, the Battle Familiar pass).
  */
 async function empowerOne(subject, source, { activity, flag, message }) {
@@ -352,7 +352,9 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   // its own look, read before the transform: dnd5e's transform wears the form's token art and portrait
   // read off the STORED token (the prepared texture can lag behind the store on this platform)
   const look = { texture: flag.empower?.look?.texture ?? token?._source?.texture?.src ?? token?.texture?.src ?? null, img: flag.empower?.look?.img ?? subject.img ?? null,
-    ring: flag.empower?.look?.ring ?? (token?._source?.ring ? foundry.utils.deepClone(token._source.ring) : null) };
+    ring: flag.empower?.look?.ring ?? (token?._source?.ring ? foundry.utils.deepClone(token._source.ring) : null),
+    // its sight: dnd5e's transform takes the world actor's prototype's, which the packs ship off
+    sight: flag.empower?.look?.sight ?? !!token?._source?.sight?.enabled };
   await subject.transformInto(source, new Setting(empowerSetting(row, tempHp)), { renderSheet: false });
   const landed = token?.actor ?? subject;
   if ( !landed?.isPolymorphed ) throw new Error(`${name} was not transformed`);
@@ -377,7 +379,7 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   // its own ring back as well: the form's prototype brought its own, a ring the familiar never wore (RULINGS *Summons* call 59)
   if ( token ) await token.update({ name, lockRotation: false, width: 1, height: 1, ...origin,
     ...(look.texture ? { "texture.src": look.texture } : {}), "texture.scaleX": 1, "texture.scaleY": 1,
-    ...(look.ring ? foundry.utils.flattenObject({ ring: look.ring }) : {}) });
+    ...(look.ring ? foundry.utils.flattenObject({ ring: look.ring }) : {}), ...(look.sight ? { "sight.enabled": true } : {}) });
   const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
   delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height; delete tokenUpdates.ring;
   if ( token && Object.keys(tokenUpdates).length ) await token.update(tokenUpdates);
@@ -540,15 +542,17 @@ async function revertForm(actor, ended, formFlag = null) {
 }
 
 /**
- * After an empowered companion reverts: every combatant of the old token re-pointed at the new one (dnd5e's
- * `delete({ replacements })` re-points nothing, measured), the companion's record naming the new token, and
- * the caster's empower effect removed as the elect's own.
+ * After an empowered companion reverts: the new token's sight as the companion's was, every combatant of the old
+ * token re-pointed at the new one (dnd5e's `delete({ replacements })` re-points nothing, measured), the companion's
+ * record naming the new token, and the caster's empower effect removed as the elect's own.
  */
 async function repointEmpowered(flag, oldToken, back) {
   const token = (back instanceof TokenDocument) ? back : null;
   const caster = resolveUuid(flag.sourceUuid);
   const companionMessage = game.messages.get(flag.empower?.companionMessageId);
   if ( token ) {
+    // its sight back: dnd5e's revert takes the world actor's prototype's, which the packs ship off
+    if ( flag.empower?.look?.sight && !token._source?.sight?.enabled ) await token.update({ "sight.enabled": true });
     for ( const combat of game.combats ) {
       for ( const c of combat.combatants.filter(x => (x.tokenId === oldToken.id) && (x.sceneId === oldToken.sceneId)) ) {
         try { await c.update({ tokenId: token.id, actorId: token.actorId, name: token.name }); }
