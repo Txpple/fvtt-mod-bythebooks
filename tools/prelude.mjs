@@ -25,6 +25,9 @@
  *   faces([[n, of], …]) · unrig()   the dice rigging: each roll draws the next face (the last repeats);
  *                                   `unrig` puts the platform's generator back
  *   stage(name)                     the step the harness heartbeat names (`window.__suiteStage`)
+ *   dialogsWith(text)               the open windows (`.application`) whose markup carries `text`, a window
+ *                                   CLOSING left out: its element stays in the page through its fade, so a
+ *                                   search by text right after an answer finds the window just answered
  */
 
 /** The page side, installed by `installPrelude` as `window.__btb`. Self-contained: it is serialized. */
@@ -63,6 +66,15 @@ export const prelude = () => {
   };
 
   const stage = name => { window.__suiteStage = name; };
+
+  // ⚠ ApplicationV2 keeps a closing window's element in the page until its fade ends (state CLOSING), and an answered
+  // popup closes over ~200 ms: a section that searches the page by text right after an answer must not find it.
+  const dialogsWith = text => [...document.querySelectorAll(".application")].filter(el => {
+    const apps = globalThis.foundry?.applications;
+    const app = apps?.instances?.get?.(el.id);
+    const RENDERED = apps?.api?.ApplicationV2?.RENDER_STATES?.RENDERED ?? 2;
+    return (!app || (app.state === RENDERED)) && (el.innerHTML ?? "").includes(text);
+  });
 
   /**
    * The run's ledger: `ok` records an assertion, `want(id)` says whether a section runs (and lists
@@ -115,7 +127,7 @@ export const prelude = () => {
   const unrig = () => { CONFIG.Dice.randomUniform = realPRNG; };
 
   window.__btb = {
-    MOD, sleep, until, watch, canvasReady, tokenOn, viewScene, stage, begin, snapshotSettings, faces, unrig, realPRNG
+    MOD, sleep, until, watch, canvasReady, tokenOn, viewScene, stage, begin, snapshotSettings, faces, unrig, realPRNG, dialogsWith
   };
   return "installed";
 };

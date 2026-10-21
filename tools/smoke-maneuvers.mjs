@@ -52,7 +52,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
   const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
   const reactionChip = a => !!a?.effects?.some(e => e.getFlag(MOD, 'mastery') === 'reaction');
-  const { until, watch, tokenOn, snapshotSettings } = window.__btb;
+  const { until, watch, tokenOn, snapshotSettings, dialogsWith } = window.__btb;
   const { results, log, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   // The page-side section gate (tools/harness.mjs); the plan arrives as data.
   const suiteStart = Date.now();
@@ -234,8 +234,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }, { timeout: 6300, label: 'the card rendered with its rule text filled' });
       return el.textContent ?? '';
     };
-    const dialogsWith = text => [...document.querySelectorAll('.application')]
-      .filter(el => (el.innerHTML ?? '').includes(text));
     /**
      * The merged rescue window: one row per rescue, the control is `[data-bf-rescue-action]` on a
      * div (no `Use <item>` button). `Pass` stays a footer button, sent to every pending source.
@@ -722,6 +720,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await bashFeat.update({
         'system.activities.bfbash0000000000.effects': [{ _id: proneEffect.id, onSave: false }] });
       const bashAct = () => pc.items.get(bashFeat.id)?.system.activities.get('bfbash0000000000');
+      // Off the sheet however the section ends: every table row is live, so a weapon hit beside the victim in §T would bash.
+      try {
 
       /* B1 — the failed save opens the choice; the verdict line is source-first, saver-spoken. */
       {
@@ -909,8 +909,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await acFlat(victim, 25);
         await closeDialogs('BTB Shield Master');
       }
-      // Off the sheet: every table row is live, so a weapon hit beside the victim in §T would bash.
-      await pc.deleteEmbeddedDocuments('Item', [bashFeat.id]).catch(() => {});
+      } finally {
+        await pc.deleteEmbeddedDocuments('Item', [bashFeat.id]).catch(() => {});
+      }
     });
 
     /* ==== T — Tavern Brawler's push (the `shove` kind) */

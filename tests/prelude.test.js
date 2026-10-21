@@ -146,6 +146,53 @@ describe("snapshotSettings and the dice", () => {
   });
 });
 
+describe("dialogsWith — the open windows by their text, a closing one left out", () => {
+  const RENDERED = 2;
+  const CLOSING = -2;
+  const el = (id, html) => ({ id, innerHTML: html });
+  let pageEls;
+  let realDocument;
+  let realFoundry;
+  beforeEach(() => {
+    realDocument = globalThis.document;
+    realFoundry = globalThis.foundry;
+    pageEls = [];
+    globalThis.document = { querySelectorAll: sel => (sel === ".application" ? pageEls : []) };
+    globalThis.foundry = {
+      applications: {
+        instances: new Map(),
+        api: { ApplicationV2: { RENDER_STATES: { RENDERED, CLOSING } } }
+      }
+    };
+  });
+  afterEach(() => {
+    if (realDocument === undefined) delete globalThis.document;
+    else globalThis.document = realDocument;
+    if (realFoundry === undefined) delete globalThis.foundry;
+    else globalThis.foundry = realFoundry;
+  });
+  const btb = () => globalThis.__btb;
+
+  it("a window answered and fading out is not found; the one opened after it is", () => {
+    const answered = el("dialog-96", "BTB Shield Master — Hobgoblin failed: choose … Knock Prone");
+    const next = el("dialog-97", "BTB Shield Master — Hobgoblin failed: choose … Knock Prone");
+    pageEls.push(answered, next);
+    globalThis.foundry.applications.instances.set("dialog-96", { state: CLOSING });
+    globalThis.foundry.applications.instances.set("dialog-97", { state: RENDERED });
+    expect(btb().dialogsWith("Knock Prone")).toEqual([next]);
+  });
+
+  it("matches on the markup's text, and an element no application owns still counts", () => {
+    pageEls.push(el("a", "Push 5 feet"), el("b", "something else"));
+    expect(
+      btb()
+        .dialogsWith("Push 5 feet")
+        .map(e => e.id)
+    ).toEqual(["a"]);
+    expect(btb().dialogsWith("nothing")).toEqual([]);
+  });
+});
+
 describe("installPrelude", () => {
   it("evaluates the prelude on the page and refuses a page where it does not take", async () => {
     const page = { evaluate: async fn => fn() };
