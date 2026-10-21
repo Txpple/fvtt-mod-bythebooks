@@ -18873,6 +18873,9 @@
         "landed[].img",
         "landed[].name",
         "landed[].uuid",
+        "name",
+        "out",
+        "putOut",
         "skipped",
         "sourceUuid",
         "targets",
@@ -18931,6 +18934,15 @@
                 "uuid"
               ]
             }
+          },
+          "name": {
+            "type": "string"
+          },
+          "out": {
+            "type": "boolean"
+          },
+          "putOut": {
+            "type": "number"
           },
           "skipped": {
             "type": "array"
