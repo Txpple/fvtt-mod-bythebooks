@@ -271,7 +271,8 @@ export const MOMENT_RECORDS = Object.freeze({
     means: "a rest grant GIVEN to allies was answered and landed — Musician's Encouraging Song, Heroic Inspiration to the picked allies (rest-grants.js); resolved when `applied`",
     resolved: (r) => r?.applied ? [{
       marker: "message", events: ["choice"],
-      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+      // the item is the giver's own feature (every hand-out stores its id): a reader keys on it, never on the row's name
+      facts: { actor: r.actorUuid ?? null, item: itemUuid(r.actorUuid, r.itemId), ability: r.row ?? null,
         targets: (r.picks ?? []).map(p => p?.uuid ?? p).map(uuid => ({ uuid, name: (r.candidates ?? []).find(c => c.uuid === uuid)?.name ?? null })),
         details: { grant: r.grant ?? null, given: r.given ?? [] } }
     }] : []

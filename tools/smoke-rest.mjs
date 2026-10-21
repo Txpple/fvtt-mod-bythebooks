@@ -21,7 +21,7 @@ const SECTIONS = {
   4: 'Musician after a Long Rest: the card lists the allies within 30 ft (not the one at 40), the popup ticks the one without Heroic Inspiration and greys the one with it ("(has it)"); OK gives it, the card names who',
   5: 'Musician after a Short Rest: it asks too',
   6: 'every ally within 30 ft already has Heroic Inspiration: no card, no popup',
-  7: 'Musician\'s song lands on two allies: its own card ("Encouraging Song — Heroic Inspiration: <the Cleric>, <the Bard>", sung by the Halfling, the rule under a closed tick), "+Heroic Inspiration" floating in white over each recipient\'s token, and the restSong moment carrying the singer and both recipients as targets',
+  7: 'Musician\'s song lands on two allies: its own card ("Encouraging Song — Heroic Inspiration: <the Cleric>, <the Bard>", sung by the Halfling, the rule under a closed tick), "+Heroic Inspiration" floating in white over each recipient\'s token, and the restSong moment carrying the singer, its Musician feat as the item and both recipients as targets',
   8: 'Inspiring Leader (the PHB feats, group 5) after a Short Rest: the amount read off its activity (level + the higher of Wis/Cha on a copy with no ASI record), up to six, the owner too, within 30 ft; a creature holding more is greyed; OK gives the temp HP',
   9: 'Chef after a Long Rest: Bolstering Treats handed out as the Proficiency Bonus in temp HP, up to that many, every ally on the scene; no meal on a Long Rest',
   10: 'Chef after a Short Rest: Replenishing Meal — the Cleric rested first and spent Hit Dice (healed 1d8 now, its dice on a card), the Fighter spent none (greyed), the Bard still resting (carries the meal); every Short Rest card records its Hit Dice',
@@ -307,12 +307,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `floats=${JSON.stringify(songFloats)}`);
           const moment = await until(() => moments.find(p => (p.kind === 'restSong') && (p.messageId === card.id)) ?? null, { timeout: 4000, label: 'the restSong moment' }).catch(() => null);
           const tUuids = (moment?.targets ?? []).map(t => t.actorUuid);
-          ok('7c. the moment: bythebooks.moment "choice" (kind restSong) — the singer the actor, the Cleric and the Bard the targets by actor uuid and name, grant inspiration; once',
+          // The feat on the singer's sheet: the item a reader keys on (restSong is every hand-out's record).
+          const feat = actor.items.find(i => i.name === 'Musician');
+          ok('7c. the moment: bythebooks.moment "choice" (kind restSong) — the singer the actor, its Musician feat the item, the Cleric and the Bard the targets by actor uuid and name, grant inspiration; once',
             !!moment && (moment.event === 'choice') && (moment.actorUuid === actor.uuid) && (moment.ability === 'Musician')
+              && !!feat && (moment.itemUuid === feat.uuid) && (moment.itemUuid === `${actor.uuid}.Item.${landed?.itemId}`) && (moment.itemName === feat.name)
               && (tUuids.length === 2) && tUuids.includes(cleric.uuid) && tUuids.includes(bard.uuid)
               && moment.targets.every(t => t.name === nameOf(t.actorUuid === cleric.uuid ? cleric : bard))
               && (moment.details?.grant === 'inspiration') && (moments.filter(p => p.momentId === moment.momentId).length === 1),
-            `moment=${JSON.stringify(moment ? { event: moment.event, actor: moment.actorName, ability: moment.ability, targets: moment.targets, details: moment.details } : null)}`);
+            `moment=${JSON.stringify(moment ? { event: moment.event, actor: moment.actorName, item: moment.itemUuid, itemName: moment.itemName, ability: moment.ability, targets: moment.targets, details: moment.details } : null)} feat=${feat?.uuid ?? null}`);
         } finally {
           Hooks.off('bythebooks.moment', hook);
           if (canvas.interface && realFloat) canvas.interface.createScrollingText = realFloat;

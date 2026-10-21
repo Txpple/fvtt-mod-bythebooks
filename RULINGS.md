@@ -231,15 +231,20 @@ to "Heroic Inspiration — Ilka, Tychon". The machine is `scripts/rest-grants.js
   white over each recipient's token it can see (a hidden or secret token is skipped): display only,
   no write, once per card, live updates only (a client that loads later does not replay it), the
   initiative swap's float. `songFloat`.
-- **The effect is FX Studio's.** The moment is unchanged: `restSong` already publishes `choice` with
-  the singer as the actor and every pick as a target by uuid and name (the payload's `targets[]`,
-  `{ actorUuid, tokenUuid, name }`), `ability` the row ("Musician"), `details` `{ grant: "inspiration",
-  given }`. What plays on each recipient is FX Studio's call (ARCHITECTURE *The moment events*).
+- **The effect is FX Studio's.** `restSong` publishes `choice` with the singer as the actor and every
+  pick as a target by uuid and name (the payload's `targets[]`, `{ actorUuid, tokenUuid, name }`),
+  `ability` the row ("Musician"), `details` `{ grant: "inspiration", given }`. **It names the item**:
+  the giver's own feature, `<actorUuid>.Item.<itemId>` (the payload's `itemUuid` and `itemName`),
+  because FX Studio keys an effect to the feat, never to a name, and `restSong` is every hand-out's
+  record (Inspiring Leader, Chef's two, Life-Giving Force, Inspiring Smite, the heal-on-hit picks
+  such as Improved Blessed Strikes); every writer stores both ids, so each names its own feature. Additive in
+  `contracts/moment.json` (the pair's `itemUuid` and `itemName` widened to a string; version 2
+  stands). What plays on each recipient is FX Studio's call (ARCHITECTURE *The moment events*).
 - **Heroic Inspiration only** (`SHOWN_GRANTS`): a temp-HP grant (Inspiring Leader, Bolstering
   Treats, the turn's and the cast's hand-outs) shows on the token's Hit Point bar, and Chef's meal
   posts its own card.
 - Pinned by `tests/decide-rest-grants.test.js` (`songCard`, `songFloat`, the `restSong` moment's
-  targets) and `smoke-rest` §7.
+  targets and item, every writer's record) and `smoke-rest` §7.
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 

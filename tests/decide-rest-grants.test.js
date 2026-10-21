@@ -148,6 +148,7 @@ describe("the restSong moment — the singer and every recipient, for FX Studio"
     expect(moment.marker).toBe("message");
     expect(moment.events).toEqual(["choice"]);
     expect(moment.facts.actor).toBe("Actor.cecil");
+    expect(moment.facts.item).toBe("Actor.cecil.Item.feat");
     expect(moment.facts.ability).toBe("Musician");
     expect(moment.facts.targets).toEqual([
       { uuid: "Actor.ilka", name: "Ilka" },
@@ -157,5 +158,90 @@ describe("the restSong moment — the singer and every recipient, for FX Studio"
   });
   it("nothing before the landing", () => {
     expect(m.resolvedMoments("restSong", song, ctx)).toEqual([]);
+  });
+  it("every hand-out on the record names the giver's own feature as its item, not Musician alone", () => {
+    const landed = {
+      status: "resolved",
+      applied: true,
+      actorUuid: "Actor.giver",
+      actorName: "Giver",
+      candidates: []
+    };
+    /** Each writer's record, as rest-grants.js stores it (`askHandOut` for a turn's and a cast's). */
+    const records = {
+      "the song (Musician)": {
+        row: "Musician",
+        grant: "inspiration",
+        itemId: "music",
+        picks: ["Actor.a"]
+      },
+      "a rest's temp HP (Inspiring Leader)": {
+        row: "Inspiring Leader",
+        grant: "temphp",
+        itemId: "lead",
+        amount: 6,
+        picks: ["Actor.a"]
+      },
+      "a rest's treats (Chef)": {
+        row: "Bolstering Treats",
+        grant: "temphp",
+        itemId: "chef",
+        amount: 2,
+        picks: ["Actor.a"]
+      },
+      "the meal (Chef)": {
+        row: "Replenishing Meal",
+        grant: "meal",
+        itemId: "chef",
+        formula: "1d8",
+        picks: ["Actor.a"]
+      },
+      "a turn's hand-out (Life-Giving Force)": {
+        row: "Life-Giving Force",
+        table: "turn",
+        grant: "temphp",
+        itemId: "life",
+        amount: 7,
+        picks: ["Actor.a"]
+      },
+      "a cast's divided hand-out (Inspiring Smite)": {
+        row: "Inspiring Smite",
+        table: "cast",
+        grant: "temphp",
+        itemId: "smite",
+        distribute: true,
+        amount: 12,
+        picks: [{ uuid: "Actor.a", n: 12 }]
+      },
+      "a cast's hand-out (Improved Blessed Strikes)": {
+        row: "Improved Blessed Strikes",
+        table: "cast",
+        grant: "temphp",
+        itemId: "bless",
+        amount: 8,
+        picks: ["Actor.a"]
+      }
+    };
+    for (const [what, r] of Object.entries(records)) {
+      const [moment] = m.resolvedMoments("restSong", { ...landed, ...r }, ctx);
+      expect(moment?.facts.item, what).toBe(`Actor.giver.Item.${r.itemId}`);
+      expect(moment?.facts.targets, what).toEqual([{ uuid: "Actor.a", name: null }]);
+    }
+    // a token's own actor (an unlinked giver) keeps its own path
+    const [token] = m.resolvedMoments(
+      "restSong",
+      { ...landed, ...records["the song (Musician)"], actorUuid: "Scene.s.Token.t.Actor.x" },
+      ctx
+    );
+    expect(token.facts.item).toBe("Scene.s.Token.t.Actor.x.Item.music");
+  });
+  it("a record with no item id or no giver names no item", () => {
+    const base = { ...song, applied: true, given: ["Ilka", "Tychon"] };
+    expect(
+      m.resolvedMoments("restSong", { ...base, itemId: undefined }, ctx)[0].facts.item
+    ).toBeNull();
+    expect(
+      m.resolvedMoments("restSong", { ...base, actorUuid: null }, ctx)[0].facts.item
+    ).toBeNull();
   });
 });

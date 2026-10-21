@@ -5009,10 +5009,16 @@
             ]
           },
           "itemName": {
-            "type": "null"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "itemUuid": {
-            "type": "null"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "kind": {
             "type": "string",
