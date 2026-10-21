@@ -7,14 +7,14 @@
 import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync, log, claimLanding, claimHolds } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML, ruleLine } from "./decide/present.js";
 import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
 import { distribution } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { holdsTemp, mealStanding, restEnds } from "./decide/rest-grants.js";
+import { holdsTemp, mealStanding, restEnds, songCard, songFloat } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
-import { nearestFeet, tokenOf } from "./geometry.js";
+import { nearestFeet, tokenOf, tokensOf } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
 import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, postCard, postAnswer, pickInputs, pickedAll, pickInputAt } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -192,7 +192,8 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 /*
  * THE SONG — a grant GIVEN to allies after the rest (`to: "allies"`), Careful Spell's picker shape:
  * the resting client posts the ask (no card when nobody could take it); the popup has no clock (a
- * rest is nobody's wait); the write to other actors is the elect's. Chef's meal heals eaters who
+ * rest is nobody's wait); the write to other actors is the elect's. Heroic Inspiration's landing posts
+ * the song's own card and floats over each recipient on every client. Chef's meal heals eaters who
  * spent Hit Dice that Short Rest (RULINGS *Where the table bends the rule*) — one still resting
  * carries `mealFed` and heals as its rest ends.
  */
@@ -484,6 +485,22 @@ async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
   return served;
 }
 
+/**
+ * The song's own card as it lands (a grant the table sees nowhere else: Heroic Inspiration) — who sang, who
+ * received it, the rule under its tick — spoken by the singer. Nothing when nobody was given it.
+ */
+async function postSongCard(flag, given) {
+  const row = songRowOf(flag);
+  const words = songCard({ grant: flag.grant, benefit: row?.rule?.benefit ?? null, row: flag.row,
+    label: GRANT_LABEL[flag.grant] ?? flag.grant, singer: flag.actorName, given });
+  if ( !words ) return;
+  const singer = resolveUuid(flag.actorUuid);
+  await postCard({
+    ...(singer ? { actor: singer } : { alias: flag.actorName }),
+    card: bfCard({ img: singer?.items?.get(flag.itemId)?.img ?? null, tone: "good", ...words, lines: [ruleLine(row?.rule)] })
+  });
+}
+
 /** The elect lands the picks: each sheet written (or, for a meal still waiting, marked), the names written back for the card. */
 async function landSong(message) {
   if ( !(await claimLanding(message, SONG_FLAG, current => current.status === "resolved")) ) return;
@@ -532,6 +549,8 @@ async function landSong(message) {
         // Temp HP names only those who gained them (a pool that grew since the ask keeps its own).
         if ( write || (flag.grant !== "temphp") ) given.push(flag.candidates.find(c => c.uuid === target.uuid)?.name ?? target.name);
       }
+      await postSongCard(flag, given)
+        .catch(err => log.warn(`${flag.row}'s card could not be posted — the sheets are written.`, err));
     }
   } catch(err) {
     log.error(`${flag.row}'s grant failed part-way — check the sheets.`, err);
@@ -715,11 +734,40 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   } catch(err) { log.warn(`The rest song line could not render.`, err); }
 });
 
-// An answer anywhere closes the popup everywhere (law 4).
+// An answer anywhere closes the popup everywhere (law 4); a landed grant floats over its recipients.
 listen("updateChatMessage", "rest-grants", message => {
   const flag = readFlag(message, SONG_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armSongTimer(message); return; }
   disarmAskTimer(songTimers, message.id);
   void closePopup(message, SONG_FLAG);
+  floatSong(message, flag);
+});
+
+/* --- the float: "+Heroic Inspiration" over each recipient, every client, once --------------------------- */
+
+const floated = new Set();
+
+/** Display only: each client raises the text over the recipients' tokens it can see. Live updates only. */
+function floatSong(message, flag) {
+  try {
+    const float = songFloat(flag, GRANT_LABEL[flag.grant] ?? flag.grant);
+    if ( !float || floated.has(message.id) ) return;
+    floated.add(message.id);
+    if ( !canvas?.interface?.createScrollingText ) return;
+    for ( const uuid of float.uuids ) {
+      for ( const token of tokensOf(resolveUuid(uuid)) ) {
+        if ( !token.visible || token.document.isSecret ) continue;
+        canvas.interface.createScrollingText(token.center, float.text, {
+          anchor: CONST.TEXT_ANCHOR_POINTS.CENTER, direction: CONST.TEXT_ANCHOR_POINTS.TOP,
+          distance: 2 * token.h, fontSize: 28, fill: "#ffffff", stroke: 0x000000, strokeThickness: 4, jitter: 0.25
+        });
+      }
+    }
+  } catch(err) { log.warn(`The song's float could not draw.`, err); }
+}
+
+// What landed before this client loaded has already floated.
+listenOnce("ready", "rest-grants", () => {
+  for ( const m of game.messages ?? [] ) if ( readFlag(m, SONG_FLAG)?.applied ) floated.add(m.id);
 });

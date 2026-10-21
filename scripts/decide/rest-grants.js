@@ -30,6 +30,38 @@ export function mealStanding({ rest = null, chef, windowMs = 2 * 60 * 60 * 1000 
   return (Number(rest.hitDice) > 0) ? "spent" : "none";
 }
 
+/* --- the song lands (RULINGS *Musician's song lands*) ------------------------------------------------- */
+
+/**
+ * The grants nothing at the table shows as they land, so the landing says them: Heroic Inspiration is a box
+ * on the sheet. A temp-HP grant shows on the token's bar; the meal posts its own card.
+ */
+const SHOWN_GRANTS = new Set(["inspiration"]);
+
+/**
+ * THE SONG'S CARD: who sang and who received it, in one line — "Encouraging Song — Heroic Inspiration:
+ * Ilka, Tychon", sung by the singer — or null when nobody was given it or the grant shows itself.
+ * @param {{ grant?: string|null, benefit?: string|null, row: string, label: string, singer: string, given?: string[]|null }} facts
+ * @returns {{ eyebrow: string, title: string, subtitle: string }|null}
+ */
+export function songCard({ grant, benefit, row, label, singer, given }) {
+  if ( !SHOWN_GRANTS.has(String(grant)) || !given?.length ) return null;
+  return { eyebrow: row, title: `${benefit || row} — ${label}: ${given.join(", ")}`, subtitle: `sung by ${singer}` };
+}
+
+/**
+ * THE SONG'S FLOAT: the text every client raises over each recipient's token once the grant has landed
+ * ("+Heroic Inspiration"), and whom it rises over (the picks' actor uuids) — or null.
+ * @param {{ grant?: string|null, applied?: boolean, picks?: Array<string|{ uuid?: string|null }>|null }|null|undefined} flag
+ * @param {string} label
+ * @returns {{ text: string, uuids: string[] }|null}
+ */
+export function songFloat(flag, label) {
+  if ( !flag?.applied || !SHOWN_GRANTS.has(String(flag.grant)) ) return null;
+  const uuids = [...new Set((flag.picks ?? []).map(p => (typeof p === "string") ? p : (p?.uuid ?? null)).filter(u => !!u))];
+  return uuids.length ? { text: `+${label}`, uuids: /** @type {string[]} */ (uuids) } : null;
+}
+
 /* --- what a rest ends (RULINGS *Rests end the short effects*) ------------------------------------------ */
 
 /** A rest's reach: the longest duration it ends, in seconds (a Short Rest 1 hour, a Long Rest 8). */

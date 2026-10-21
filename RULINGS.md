@@ -213,6 +213,34 @@ light by hand.
 - Pinned by `tests/decide-token-lights.test.js` (the row, `lightOutKey`, the changes, `lightLasts`)
   and `smoke-aasimar` §8.
 
+## Musician's song lands (2026-10-21)
+
+**The song says itself as it lands** (the user, 2026-10-21: *"when cecil gives a musician's
+inspiration to someone, can you give a bardic song variant vfx on those who receive it. also make a
+card and like a floating white text so ppl know."*). Heroic Inspiration is a box on the sheet, so
+nothing at the table showed it land: the elect wrote the boxes and the ask card's small line turned
+to "Heroic Inspiration — Ilka, Tychon". The machine is `scripts/rest-grants.js`, the pure half
+`scripts/decide/rest-grants.js`.
+
+- **Its own card.** As the elect lands the picks (`landSong`), it posts the song's card, spoken by
+  the singer, in the house shape (DESIGN *Cards*): the feat as the eyebrow, one line of what
+  happened, "Encouraging Song — Heroic Inspiration: Ilka, Tychon" (the row's `rule.benefit`, the
+  grant, every recipient), "sung by Cecil" under it, and the feat's text under the closed rule tick.
+  Nobody given it, no card. The ask card keeps its line. `songCard`.
+- **The float.** Every client, as the record's `applied` lands, raises "+Heroic Inspiration" in
+  white over each recipient's token it can see (a hidden or secret token is skipped): display only,
+  no write, once per card, live updates only (a client that loads later does not replay it), the
+  initiative swap's float. `songFloat`.
+- **The effect is FX Studio's.** The moment is unchanged: `restSong` already publishes `choice` with
+  the singer as the actor and every pick as a target by uuid and name (the payload's `targets[]`,
+  `{ actorUuid, tokenUuid, name }`), `ability` the row ("Musician"), `details` `{ grant: "inspiration",
+  given }`. What plays on each recipient is FX Studio's call (ARCHITECTURE *The moment events*).
+- **Heroic Inspiration only** (`SHOWN_GRANTS`): a temp-HP grant (Inspiring Leader, Bolstering
+  Treats, the turn's and the cast's hand-outs) shows on the token's Hit Point bar, and Chef's meal
+  posts its own card.
+- Pinned by `tests/decide-rest-grants.test.js` (`songCard`, `songFloat`, the `restSong` moment's
+  targets) and `smoke-rest` §7.
+
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
 **Buffs and debuffs, visible on demand, never actions.** A creature carries more effects than
@@ -950,7 +978,7 @@ Crafter and Skilled are native or out of combat. Proved by the full battery, 202
 - **Musician's Encouraging Song** (user, the Rest Grants shape): a `to: "allies"` row on
   `REST_GRANTS` — after a Short or Long Rest a popup lists the allies within 30 ft, those without
   Heroic Inspiration ticked up to the Proficiency Bonus, those with it greyed "(has it)"; OK ticks
-  their boxes.
+  their boxes. Its landing posts its own card and floats over each recipient (*Musician's song lands*).
 
 ## The fighting styles (2026-09-26, off `prototypes/damage-rules.html`)
 

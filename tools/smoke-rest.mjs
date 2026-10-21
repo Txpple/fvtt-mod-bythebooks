@@ -1,7 +1,8 @@
 // By the Books rest smoke test: the rest grants. Resourceful's Heroic Inspiration on a Long Rest
 // (§1–2); Musician's popup after a rest listing allies within 30 ft, those already inspired greyed
-// (§4–6); Inspiring Leader, Chef's Bolstering Treats and Replenishing Meal (§8–11). Every rest-grant
-// row is always on: a section isolates its row by the Halfling holding only the feat under test.
+// (§4–6), its landing's own card, float and moment (§7); Inspiring Leader, Chef's Bolstering Treats and
+// Replenishing Meal (§8–11). Every rest-grant row is always on: a section isolates its row by the
+// Halfling holding only the feat under test.
 // Fixture: BTB Test Halfling is lent the PHB feats for the run. The song's sections place TEMPORARY
 // linked tokens (the Halfling; BTB Test Cleric 10 ft, Bard 15 ft and already inspired, Fighter 40 ft)
 // in a strip found empty at run time.
@@ -11,7 +12,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // The coverage map (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'rest-grants.js'          // §1–§2 — the grant on the rest's own update, the card's line; §4–§11 the song to allies
+  'rest-grants.js'          // §1–§2 — the grant on the rest's own update, the card's line; §4–§11 the song to allies (§7 its card, float and moment)
 ];
 
 const SECTIONS = {
@@ -20,6 +21,7 @@ const SECTIONS = {
   4: 'Musician after a Long Rest: the card lists the allies within 30 ft (not the one at 40), the popup ticks the one without Heroic Inspiration and greys the one with it ("(has it)"); OK gives it, the card names who',
   5: 'Musician after a Short Rest: it asks too',
   6: 'every ally within 30 ft already has Heroic Inspiration: no card, no popup',
+  7: 'Musician\'s song lands on two allies: its own card ("Encouraging Song — Heroic Inspiration: <the Cleric>, <the Bard>", sung by the Halfling, the rule under a closed tick), "+Heroic Inspiration" floating in white over each recipient\'s token, and the restSong moment carrying the singer and both recipients as targets',
   8: 'Inspiring Leader (the PHB feats, group 5) after a Short Rest: the amount read off its activity (level + the higher of Wis/Cha on a copy with no ASI record), up to six, the owner too, within 30 ft; a creature holding more is greyed; OK gives the temp HP',
   9: 'Chef after a Long Rest: Bolstering Treats handed out as the Proficiency Bonus in temp HP, up to that many, every ally on the scene; no meal on a Long Rest',
   10: 'Chef after a Short Rest: Replenishing Meal — the Cleric rested first and spent Hit Dice (healed 1d8 now, its dice on a card), the Fighter spent none (greyed), the Bard still resting (carries the meal); every Short Rest card records its Hit Dice',
@@ -126,7 +128,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const id of ids) lent.splice(lent.indexOf(id), 1);
     };
 
-    if (['4', '5', '6', '8', '9', '10', '11'].some(id => !sections || sections.includes(id))) {
+    if (['4', '5', '6', '7', '8', '9', '10', '11'].some(id => !sections || sections.includes(id))) {
       await unlend('Resourceful');   // the Halfling's own box stays out of the song
       let musician = null;
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -262,6 +264,60 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           snapshots.push({ actor: a, whole, inspiration: a.system.attributes.inspiration });
         }
       }
+
+      if (want(7)) await section(7, async () => {
+        await prime();
+        await bard.update({ 'system.attributes.inspiration': false });   // two recipients: the Cleric and the Bard
+        const realFloat = canvas.interface?.createScrollingText?.bind(canvas.interface);
+        const floats = [];
+        if (canvas.interface) canvas.interface.createScrollingText = (origin, text, opts) => {
+          floats.push({ x: origin?.x, y: origin?.y, text: String(text), fill: opts?.fill ?? null });
+          return realFloat?.(origin, text, opts);
+        };
+        const moments = [];
+        const hook = Hooks.on('bythebooks.moment', p => moments.push(p));
+        try {
+          const t0 = Date.now();
+          await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
+          const card = await until(() => songCard(t0), { timeout: 6000 });
+          const app = await until(songPopup, { timeout: 6000 });
+          tickOnly(app, [cleric, bard]);
+          app?.element?.querySelector('button[data-action="ok"]')?.click();
+          const landed = await until(() => card?.getFlag(MOD, 'restSong')?.applied ? card.getFlag(MOD, 'restSong') : null, { timeout: 8000 });
+          const nameOf = a => landed?.candidates?.find(c => c.uuid === a.uuid)?.name ?? a.name;
+          const given = landed?.given ?? [];
+          const title = `Encouraging Song — Heroic Inspiration: ${given.join(', ')}`;
+          // The card as the chat log draws it: its text and its fold.
+          const settle = await until(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.id !== card.id) && (m.content ?? '').includes(title)
+            && textOf(m.id).includes('sung by')) ?? null, { timeout: 6000, label: 'the song\'s own card' }).catch(() => null);
+          const fold = settle ? document.querySelector(`.message[data-message-id="${settle.id}"] details[data-bf-rule-fold]`) : null;
+          ok('7a. the song lands its own card: "Encouraging Song — Heroic Inspiration: <the Cleric>, <the Bard>", spoken by the singer, "sung by" it, the rule under a closed tick',
+            !!settle && given.includes(nameOf(cleric)) && given.includes(nameOf(bard)) && (given.length === 2)
+              && (settle.speaker?.actor === actor.id) && textOf(settle.id).includes(`sung by ${actor.name}`) && !!fold && !fold.open
+              && (cleric.system.attributes.inspiration === true) && (bard.system.attributes.inspiration === true),
+            `settle=${!!settle} given=${JSON.stringify(given)} speaker=${settle?.speaker?.alias ?? null} fold=${fold ? (fold.open ? 'open' : 'closed') : 'none'} text="${settle ? textOf(settle.id).slice(0, 160) : ''}"`);
+          // Every client floats its own copy off the landed record; this page is one of them.
+          const tokOf = a => placed.map(id => canvas.tokens.get(id)).find(t => t?.actor?.uuid === a.uuid) ?? null;
+          const over = (a, f) => { const t = tokOf(a); return !!t && (Math.abs(f.x - t.center.x) < 1) && (Math.abs(f.y - t.center.y) < 1); };
+          await until(() => [cleric, bard].every(a => floats.some(f => (f.text === '+Heroic Inspiration') && over(a, f))), { timeout: 4000, label: 'the floats over both recipients' }).catch(() => null);
+          const songFloats = floats.filter(f => f.text === '+Heroic Inspiration');
+          ok('7b. "+Heroic Inspiration" floats in white over the Cleric\'s and the Bard\'s tokens, and over nobody else\'s',
+            [cleric, bard].every(a => songFloats.some(f => over(a, f) && (String(f.fill).toLowerCase() === '#ffffff')))
+              && ![actor, fighter].some(a => songFloats.some(f => over(a, f))),
+            `floats=${JSON.stringify(songFloats)}`);
+          const moment = await until(() => moments.find(p => (p.kind === 'restSong') && (p.messageId === card.id)) ?? null, { timeout: 4000, label: 'the restSong moment' }).catch(() => null);
+          const tUuids = (moment?.targets ?? []).map(t => t.actorUuid);
+          ok('7c. the moment: bythebooks.moment "choice" (kind restSong) — the singer the actor, the Cleric and the Bard the targets by actor uuid and name, grant inspiration; once',
+            !!moment && (moment.event === 'choice') && (moment.actorUuid === actor.uuid) && (moment.ability === 'Musician')
+              && (tUuids.length === 2) && tUuids.includes(cleric.uuid) && tUuids.includes(bard.uuid)
+              && moment.targets.every(t => t.name === nameOf(t.actorUuid === cleric.uuid ? cleric : bard))
+              && (moment.details?.grant === 'inspiration') && (moments.filter(p => p.momentId === moment.momentId).length === 1),
+            `moment=${JSON.stringify(moment ? { event: moment.event, actor: moment.actorName, ability: moment.ability, targets: moment.targets, details: moment.details } : null)}`);
+        } finally {
+          Hooks.off('bythebooks.moment', hook);
+          if (canvas.interface && realFloat) canvas.interface.createScrollingText = realFloat;
+        }
+      });
 
       if (want(8)) await section(8, async () => {
         await unlend('Musician');
