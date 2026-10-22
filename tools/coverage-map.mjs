@@ -107,7 +107,7 @@ export const ORDER = [
   },
   // BTB Test Halfling is lent Relentless Endurance (and Death Ward's effect).
   {
-    name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed",
+    name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed; the Death Saving Throw asked at the dying Halfling's turn start, the 20, the 1, Stable, damage at 0, the buzzer",
     needs: ["fixture-suite"]
   },
   // BTB Test Halfling is lent the PHB's Alert; its own combats and tokens.

@@ -92,6 +92,13 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   target repeat the save (Hold Person, Tasha's Hideous Laughter, Slow, Fear, Flesh to Stone and
   their kin) asks again at the end of its turn, or when it takes damage, and ends the effect on a
   success with a line on the card.
+- **Death saves roll themselves.** A player character at 0 Hit Points is asked for its Death Saving Throw at the
+  start of each of its turns: a card for the table and the system's own roll dialog for the player, the timer
+  rolling for anyone away. The roll is the sheet's, so the tally, the 1 Hit Point on a natural 20 and Dead at the
+  third failure are dnd5e's own; the third success marks the character Stable (dnd5e's status, which it never
+  applies itself), damage at 0 Hit Points is a failure (two from a Critical Hit, death when it meets the maximum),
+  and every screen hears a 1, a 20, Stable and death. Combat Plus's *Auto-Defeated: PCs* must be off: it
+  stamps Dead at 0 Hit Points, and a Dead character is asked nothing.
 - **Your abilities are already accounted for.** Before a roll, the dialog lists everything the
   module can read that changes it: a condition, a feat, a fighting style, cover, an ally beside
   the target. Riders like Sneak Attack, Hunter's Mark and weapon masteries ride the damage as

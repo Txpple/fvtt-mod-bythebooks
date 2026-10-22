@@ -265,6 +265,56 @@ to "Heroic Inspiration — Ilka, Tychon". The machine is `scripts/rest-grants.js
 - Pinned by `tests/decide-rest-grants.test.js` (`songCard`, `songFloat`, the `restSong` moment's
   targets and item, every writer's record) and `smoke-rest` §7.
 
+## Death saves run themselves (2026-10-22)
+
+**A dying creature's turn start asks for its Death Saving Throw, and the sheet keeps the tally** (the user,
+2026-10-22: *"if a person is dead/unconc, a pc, i want the death saving throws to be automated and tracked. so
+every time its their turn, do a popup for the roll, give results. wire it to the death saves on the main api/char
+sheet … do notifications if they roll a 1 or 20 and anything else needful"*). The machine is
+`scripts/death-saves.js`, the pure half `scripts/decide/death-saves.js`. The roll is the system's own
+(`Actor5e#rollDeathSave`, the skull on the sheet), which dnd5e 6.0.6 never asks for at a turn start.
+
+- **Who.** A player character, and an NPC the GM marked important — the system's own death-save population
+  (`Actor5e#updateDowned`, the sheet's death tray). Any other NPC dies at 0, as the system has it. `makesDeathSaves`.
+- **When.** The creature's turn starts (`updateCombat`, the combat started, not a step back) at 0 Hit Points, not
+  Dead, not Stable, with no third success or failure on the sheet, and no earlier ask of its still waiting; once per
+  turn by place (`combat|round|turn|actor`, the log the durable copy). The driver is the creature's
+  (`drivesMomentFor`: the active GM, else its own player). `deathSaveOwed`, `deathSaveDue`.
+- **The ask.** A public card spoken by the creature ("Ilka is dying — a Death Saving Throw", the tally, the rule tick
+  off `CONFIG.DND5E.rules.deathsaves`) with the Decision Timer's bar; for whoever owns the creature
+  (`canAnswerFor`), the system's own roll dialog with the ask above its configuration, adopted as the moment's popup
+  so an answer anywhere closes it (law 4) and "Roll" on the card calls it back. Players Roll Their Own Saves at
+  "Roll automatically": no dialog, the dice land at once on the roller's client. The clock is the creature's driver's
+  (`subjectOwns`); expiry ROLLS (a mandatory roll), marked "(timer)".
+- **The sheet is the truth.** The roll goes through `rollDeathSave`, so the system writes the tally, the 1 Hit Point
+  on a 20, the deltas and the outcome on its card, and Dead at the third failure in combat (its Apply Downed
+  Conditions). The ask's keeper folds the system's card onto it (`deathSaveRoll` on the roll's card names the ask;
+  a roll made from the sheet while the ask stands answers it too, by the creature). Nothing of the roll's is the
+  module's to revert.
+- **Stable.** The third success presses the system's own `stable` status (dnd5e defines it and never applies it),
+  flagged `autoDowned` as its downed statuses are, so the heal removes it; a Stable creature's turn asks nothing.
+  Pressed on the rolling client (`dnd5e.postRollDeathSave`).
+- **Damage at 0 Hit Points** (the PHB's "Damage at 0 Hit Points"): on the applying client, Stable ends and a
+  failure is written — two from a Critical Hit (the damage card's own roll), three (death) when the damage meets the
+  Hit Point maximum; a card says it, with Revert (the tally back, Dead off if the tick pressed it; Stable is not put
+  back). Temporary Hit Points that take it all count nothing. `damageAtZero`.
+- **Out of combat** the system presses no status at a third failure; the module presses dnd5e's own mapping under
+  its own setting with its flag, as drop-to-one.js does at the drop (*Session zero's combat*, call 2).
+- **Every screen hears it**, once per card, live only (a client loading later replays nothing): a notice for a
+  natural 20, a natural 1, Stable and death (a plain step is the card's alone), and a float over the creature's
+  token for every result — gold for the 20, red for the 1 and death, green for Stable, white for a step — once
+  Dice So Nice has landed. `deathSaveToast`, `deathSaveFloat`.
+- **Moot.** A heal, a death or Stable landing while the ask stands settles it ("nothing to roll: above 0 Hit
+  Points") on the keeper, and the dialog closes.
+- **Dead means dead, whoever wrote it.** A creature wearing the Dead status is asked nothing. Combat Plus's
+  *Auto-Defeated: PCs* (on by default) stamps Dead on a character at 0 Hit Points, so with it on no player character
+  is ever asked: the switch goes off at a table that plays death saves (the suite contract
+  `contracts/dead.md` says the same; `smoke-drop` turns it off for its walk and puts it back).
+- **Not done, on purpose.** Instant death at the drop (damage past 0 meeting the maximum) is the drop's rule, not
+  the death save's; a second ask is not raised while one still waits (the standing one is the owed roll).
+- Pinned by `tests/decide-death-saves.test.js` and `smoke-drop` §10–§15.
+
+
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
 **Buffs and debuffs, visible on demand, never actions.** A creature carries more effects than

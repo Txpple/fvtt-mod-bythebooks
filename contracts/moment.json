@@ -1299,6 +1299,14 @@
         "shield|damageShield"
       ]
     },
+    "deathSave": {
+      "events": [
+        "save"
+      ],
+      "means": "a Death Saving Throw settled (death-saves.js): the roll the ask at a dying creature's turn start got — or any roll of the sheet's while the ask stood — read off the system's card and the sheet's tally (`result`, a `natural` 20 or 1, the terminal `outcome` revive, stable or death); or damage at 0 Hit Points (`cause: \"damage\"`), a failure written on the applying client",
+      "recorded": false,
+      "pairs": []
+    },
     "deathSaveOffer": {
       "events": [
         "use"

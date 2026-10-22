@@ -76,6 +76,7 @@ import "./prismatic.js";
 import "./emanations.js";
 import "./repeat-saves.js";
 import "./turn-grants.js";
+import "./death-saves.js";
 import "./token-lights.js";
 import "./gear-lights.js";
 import "./receipts.js";

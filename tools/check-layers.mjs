@@ -95,6 +95,7 @@ export const LAYER_OF = {
   "emanations.js": "machines",
   "repeat-saves.js": "machines",   // a landed effect's save repeated — the bearer's turn end, damage, its own action
   "turn-grants.js": "machines",    // a landed effect's turn-start grant rolled again — Heroism's temp HP
+  "death-saves.js": "machines",    // the Death Saving Throw asked at a dying creature's turn start; damage at 0 Hit Points a failure
   "wards.js": "machines",          // a standing ward makes whoever targets its bearer save first — Sanctuary
   "gear-lights.js": "machines",    // using a light-source item toggles its light on the bearer — Torch, Lantern
   "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light
@@ -156,6 +157,7 @@ export const LAYER_OF = {
   "decide/emanations.js": "decision",
   "decide/repeat-saves.js": "decision",   // the repeating save: the row an effect answers, the verdict's tally, the words
   "decide/turn-grants.js": "decision",    // the turn-start grant: the row, once per turn, the words; the feature rows and the damage-since judge (Regeneration)
+  "decide/death-saves.js": "decision",   // the death save: who makes one, when it is owed, the result read off the system's card, damage at 0, the words
   "decide/drop-to-one.js": "decision",    // the drop-to-1 save facet: the DC from the damage, the exemptions, the words (Undead Fortitude, Death Throes)
   "decide/wards.js": "decision",          // the wards: which use is gated, what ends one, the words
   "decide/duplicates.js": "decision",     // the duplicates: the dice, the face that redirects, who sees through, the chips

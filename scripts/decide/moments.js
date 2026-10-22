@@ -201,6 +201,21 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  deathSave: {
+    events: ["save"],
+    means: "a Death Saving Throw settled (death-saves.js): the roll the ask at a dying creature's turn start got — or any roll of the sheet's while the ask stood — read off the system's card and the sheet's tally (`result`, a `natural` 20 or 1, the terminal `outcome` revive, stable or death); or damage at 0 Hit Points (`cause: \"damage\"`), a failure written on the applying client",
+    resolved: (r) => ((r?.status === "resolved") && r.result) ? [{
+      marker: "message", events: ["save"],
+      facts: { actor: r.actorUuid ?? null, ability: "Death Saving Throw",
+        targets: r.actorUuid ? [{ uuid: r.actorUuid, name: r.actorName ?? null }] : [],
+        details: { cause: r.cause ?? "turn", result: r.result, natural: r.natural ?? null, outcome: r.outcome ?? null,
+          success: r.after?.success ?? null, failure: r.after?.failure ?? null, face: r.face ?? null, total: r.total ?? null,
+          amount: r.amount ?? null, critical: !!r.critical, massive: !!r.massive, wasStable: !!r.wasStable,
+          timedOut: !!r.timedOut, rollMessageId: r.rollMessageId ?? null, round: r.round ?? null } }
+    }] : []
+  },
+
+
   initiativeSwap: {
     events: ["choice"],
     means: "an Initiative swap was answered — Alert's pick of an ally, swapped in the tracker by the elect, or no swap (initiative-swap.js, the origin feats 2026-09-25); resolved at No, or when the swap is applied",
@@ -956,6 +971,7 @@ export const STATE_KEYS = Object.freeze({
   // the PHB classes, C1
   concentrationExempt: "presentation — the card for a Concentration save the ask machine did not demand (Relentless Hunter: damage never breaks Hunter's Mark; concentration.js); nothing was rolled, nothing to resolve",
   deathSaveOfferAnswer: "an envelope — a keeper's answer to the death save's offer (Searing Vengeance); the fold onto deathSaveOffer is the resolve",
+  deathSaveRoll: "provenance on the system's death save card (death-saves.js): the ask card it answers and whether the buzzer rolled it; the fold onto that card is the resolve",
   duplicatesSave: "provenance — the attacker's save a `save` duplicate demanded inside the hold (Unbreakable Majesty, hold/continue.js); the hold's verdict is the resolve",
   recoiled: "an ActiveEffect field — which attacker the Majestic Presence has already turned aside this turn, by combat turn (Unbreakable Majesty's once per turn per attacker)",
   auraRider: "presentation — the aura rider's line on the usage card (Smite of Protection's members); the effect receipts on the same card are the resolve",

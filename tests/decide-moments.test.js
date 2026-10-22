@@ -123,6 +123,24 @@ describe("the moment registry — shape", () => {
         amount: 30,
         answer: "use"
       },
+
+      deathSave: {
+        status: "resolved",
+        cause: "turn",
+        actorUuid: "Actor.h",
+        actorName: "Ilka",
+        result: "failure",
+        natural: 1,
+        outcome: null,
+        face: 1,
+        total: 1,
+        after: { success: 0, failure: 2 },
+        rollMessageId: "roll1",
+        round: 2,
+        combat: "c:2:0",
+        sourceUuid: "Actor.h"
+      },
+
       deathSaveOffer: {
         status: "resolved",
         row: "Searing Vengeance",
@@ -1045,5 +1063,84 @@ describe("the latch arithmetic", () => {
     expect(Object.isFrozen(MOMENT_WORDS)).toBe(true);
     expect(isMomentWord("maneuver")).toBe(true);
     expect(isMomentWord("smite")).toBe(false);
+  });
+});
+
+describe("the death save record", () => {
+  it("a settled ask publishes save with the creature as actor and target, the result, the natural face and the tally", () => {
+    const out = resolves("deathSave", {
+      status: "resolved",
+      cause: "turn",
+      actorUuid: "Actor.h",
+      actorName: "Ilka",
+      result: "success",
+      natural: 20,
+      outcome: "revive",
+      face: 20,
+      total: 20,
+      after: { success: 0, failure: 0 },
+      rollMessageId: "roll1",
+      timedOut: true,
+      round: 3
+    });
+    expect(
+      markers(
+        "deathSave",
+        out.length ? { status: "resolved", result: "success", actorUuid: "Actor.h" } : {}
+      )
+    ).toEqual([["message", ["save"]]]);
+    expect(out).toHaveLength(1);
+    expect(out[0].facts).toMatchObject({
+      actor: "Actor.h",
+      ability: "Death Saving Throw",
+      targets: [{ uuid: "Actor.h", name: "Ilka" }],
+      details: {
+        cause: "turn",
+        result: "success",
+        natural: 20,
+        outcome: "revive",
+        success: 0,
+        failure: 0,
+        face: 20,
+        total: 20,
+        timedOut: true,
+        rollMessageId: "roll1",
+        round: 3,
+        amount: null,
+        critical: false,
+        massive: false,
+        wasStable: false
+      }
+    });
+  });
+
+  it("damage at 0 Hit Points publishes the same word with its cause and amount; a waiting or moot ask publishes nothing", () => {
+    const out = resolves("deathSave", {
+      status: "resolved",
+      cause: "damage",
+      actorUuid: "Actor.h",
+      actorName: "Ilka",
+      result: "failure",
+      outcome: "death",
+      amount: 40,
+      critical: false,
+      massive: true,
+      wasStable: true,
+      after: { success: 0, failure: 3 }
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].facts.details).toMatchObject({
+      cause: "damage",
+      amount: 40,
+      massive: true,
+      wasStable: true,
+      outcome: "death",
+      failure: 3,
+      natural: null
+    });
+    expect(resolves("deathSave", { status: "pending", actorUuid: "Actor.h" })).toEqual([]);
+    expect(
+      resolves("deathSave", { status: "moot", why: "above 0 Hit Points", actorUuid: "Actor.h" })
+    ).toEqual([]);
   });
 });

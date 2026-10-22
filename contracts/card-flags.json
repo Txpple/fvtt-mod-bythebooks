@@ -3094,18 +3094,18 @@
       "schema": {
         "type": "string",
         "examples": [
+          "7hfPtz9lrAnMk2ev",
+          "7jRNkhcwXA7MVDEK",
           "BuWWUyv2JryZ4JeC",
           "C5GCIuqK2jLtUec3",
           "CK26bHBPOceaUhOj",
+          "CvBltus29v1GPg5Y",
           "DplSytcdZhG40kik",
           "FyCfQ75cXX4R9sh3",
+          "I9x4eNWvGBGlF0I1",
           "IRd4ezevs6pczuLy",
-          "Iux429bpn6Bkq3Hw",
-          "KpaiRp1JzIm4GlyT",
-          "M6g0o24dbUumdhEp",
-          "MJSQJpedj8NnrVsn",
-          "MPdJmSiaHN05sVG3",
-          "NWWIXhOtoEd6zOsc"
+          "IYnA1opwtZxw2C6I",
+          "Iux429bpn6Bkq3Hw"
         ]
       }
     },
@@ -5099,6 +5099,19 @@
         ]
       }
     },
+    "deathSave": {
+      "class": "record",
+      "family": "save",
+      "means": "a Death Saving Throw settled (death-saves.js): the roll the ask at a dying creature's turn start got — or any roll of the sheet's while the ask stood — read off the system's card and the sheet's tally (`result`, a `natural` 20 or 1, the terminal `outcome` revive, stable or death); or damage at 0 Hit Points (`cause: \"damage\"`), a failure written on the applying client",
+      "writers": [
+        "death-saves.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
     "deathSaveOffer": {
       "class": "record",
       "family": "use",
@@ -5256,6 +5269,19 @@
       "means": "an envelope — a keeper's answer to the death save's offer (Searing Vengeance); the fold onto deathSaveOffer is the resolve",
       "writers": [
         "drop-to-one.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "deathSaveRoll": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance on the system's death save card (death-saves.js): the ask card it answers and whether the buzzer rolled it; the fold onto that card is the resolve",
+      "writers": [
+        "death-saves.js"
       ],
       "on": [],
       "stamp": null,
@@ -10579,10 +10605,16 @@
         "KLZkyYPSbhpANvoF",
         "KxUVJGFBgDDQrdtP",
         "MATHlOMyOpMzvRRx",
+        "MHdLSzyZFtmWDqdg",
         "McpANsULfZHtVTXK",
+        "NkFdcmYoXGvmcuVi",
+        "RaZWufpsJQqNhUUX",
+        "RbfrLBesTVjIyZPv",
         "VALfnsDfWrxzBPbm",
         "WjzpZAQYxHYxSPAz",
         "XDUwGZwWnrEdCIke",
+        "czaHEhVYfIhlUSTq",
+        "dzMilARHvevzWvxk",
         "ecCcoxQGEsOlkvHg",
         "fCbvKoMiripKgOdF",
         "hDtlByYAhJmQjGER",
@@ -10590,10 +10622,12 @@
         "iOKQkIvyCfjQfgqc",
         "kKOWTqpnqlbvjUpk",
         "lXVsDiryJjiOExgi",
+        "nNRkMtMMniEAmlIc",
         "ngFGdzgTmsGTjuWm",
         "ovymbfxlNRJaptnH",
         "ptUFHELpMtwibWaW",
         "qCpAfxRjQZTtxfyk",
+        "qJEozgFoiHsrSfOZ",
         "tTVCOmqxScXumsOf",
         "tgyuEuJPzflxrKVs",
         "vZsRNSHpyjzQuzIs",
@@ -10627,7 +10661,19 @@
           "MATHlOMyOpMzvRRx": {
             "type": "boolean"
           },
+          "MHdLSzyZFtmWDqdg": {
+            "type": "boolean"
+          },
           "McpANsULfZHtVTXK": {
+            "type": "boolean"
+          },
+          "NkFdcmYoXGvmcuVi": {
+            "type": "boolean"
+          },
+          "RaZWufpsJQqNhUUX": {
+            "type": "boolean"
+          },
+          "RbfrLBesTVjIyZPv": {
             "type": "boolean"
           },
           "VALfnsDfWrxzBPbm": {
@@ -10637,6 +10683,12 @@
             "type": "boolean"
           },
           "XDUwGZwWnrEdCIke": {
+            "type": "boolean"
+          },
+          "czaHEhVYfIhlUSTq": {
+            "type": "boolean"
+          },
+          "dzMilARHvevzWvxk": {
             "type": "boolean"
           },
           "ecCcoxQGEsOlkvHg": {
@@ -10660,6 +10712,9 @@
           "lXVsDiryJjiOExgi": {
             "type": "boolean"
           },
+          "nNRkMtMMniEAmlIc": {
+            "type": "boolean"
+          },
           "ngFGdzgTmsGTjuWm": {
             "type": "boolean"
           },
@@ -10670,6 +10725,9 @@
             "type": "boolean"
           },
           "qCpAfxRjQZTtxfyk": {
+            "type": "boolean"
+          },
+          "qJEozgFoiHsrSfOZ": {
             "type": "boolean"
           },
           "tTVCOmqxScXumsOf": {
@@ -10952,12 +11010,16 @@
       "fields": [
         "<id>",
         "MATHlOMyOpMzvRRx",
+        "RaZWufpsJQqNhUUX",
         "iOKQkIvyCfjQfgqc"
       ],
       "schema": {
         "type": "object",
         "properties": {
           "MATHlOMyOpMzvRRx": {
+            "type": "boolean"
+          },
+          "RaZWufpsJQqNhUUX": {
             "type": "boolean"
           },
           "iOKQkIvyCfjQfgqc": {
@@ -12257,7 +12319,10 @@
               "examples": [
                 "Actor.1of7ytmp95RmP3dY",
                 "Actor.3ZLcT690RkC2x2x5",
+                "Actor.8JBqV79dWyDi5KBf",
                 "Actor.J89prVUQbY6D5G5T",
+                "Actor.RomIZh8ck3jxsVj8",
+                "Actor.TnXE7jxRNBLPq85H",
                 "Actor.g9Trxwz18XE3BUKr",
                 "Actor.l60y19TiF8lH8NAJ",
                 "Actor.p98Od6zhxNGnHJyX"
@@ -13739,7 +13804,8 @@
       "recorded": true,
       "fields": [
         "Actor|GrKk2ZBcPGcqlvvC",
-        "Actor|ywJGhYXTXyVY5S03"
+        "Actor|ywJGhYXTXyVY5S03",
+        "Actor|zNVjnP9Pn5CIdgLL"
       ],
       "schema": {
         "type": "object",
@@ -13748,6 +13814,9 @@
             "type": "string"
           },
           "Actor|ywJGhYXTXyVY5S03": {
+            "type": "string"
+          },
+          "Actor|zNVjnP9Pn5CIdgLL": {
             "type": "string"
           }
         }

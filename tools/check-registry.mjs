@@ -105,7 +105,7 @@ const rows = KIND_SETS.map(set => {
 
 // ⚠ The count of every module under scripts/, recursively, quoted by name in ARCHITECTURE.md and
 // check-comments' output. Bump it deliberately when a file is added — the refusal is the feature.
-const EXPECTED_SOURCE_FILES = 146;
+const EXPECTED_SOURCE_FILES = 148;
 const walk = (dir, prefix = "") => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(d =>
   d.isDirectory() ? walk(`${dir}/${d.name}`, `${prefix}${d.name}/`)
     : (d.name.endsWith(".js") ? [`${prefix}${d.name}`] : []));

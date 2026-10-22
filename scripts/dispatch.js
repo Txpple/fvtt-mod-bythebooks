@@ -88,6 +88,7 @@ export const ORDER = Object.freeze([
   "emanations",         // its trigger card carries a saves demand
   "repeat-saves",       // its demand card carries a saves demand too; its line beneath the verdicts
   "turn-grants",
+  "death-saves",       // the ask at the turn start, its own card; the roll is the system's
   "token-lights",       // its row beneath the use's own rows
   "receipts",           // the receipt rows below every workflow row
   "resources",          // the spend line, the usage card's footer
