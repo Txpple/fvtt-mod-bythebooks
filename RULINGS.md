@@ -307,9 +307,9 @@ sheet … do notifications if they roll a 1 or 20 and anything else needful"*). 
 - **Moot.** A heal, a death or Stable landing while the ask stands settles it ("nothing to roll: above 0 Hit
   Points") on the keeper, and the dialog closes.
 - **Dead means dead, whoever wrote it.** A creature wearing the Dead status is asked nothing. Combat Plus's
-  *Auto-Defeated: PCs* (on by default) stamps Dead on a character at 0 Hit Points, so with it on no player character
-  is ever asked: the switch goes off at a table that plays death saves (the suite contract
-  `contracts/dead.md` says the same; `smoke-drop` turns it off for its walk and puts it back).
+  *Auto-Defeated: PCs* stamped Dead on a character at 0 Hit Points and silenced every ask on the sandbox; the user
+  called that switch a mistake and it was removed the same day (Combat Plus writes no status on a character; the
+  suite contract `contracts/dead.md` records who writes Dead).
 - **Not done, on purpose.** Instant death at the drop (damage past 0 meeting the maximum) is the drop's rule, not
   the death save's; a second ask is not raised while one still waits (the standing one is the owed roll).
 - Pinned by `tests/decide-death-saves.test.js` and `smoke-drop` §10–§15.

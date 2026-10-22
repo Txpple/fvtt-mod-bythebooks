@@ -64,7 +64,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const placedTokens = [];
   let restored = false;
   let combat = null;
-  let cpRestore = null;
   const teardown = async () => {
     if (restored) return;
     restored = true;
@@ -82,7 +81,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const downedFx = actor.effects.filter(e => ['dead', 'unconscious', 'stable', 'prone'].some(s => e.statuses?.has(s))).map(e => e.id);
       if (downedFx.length) await actor.deleteEmbeddedDocuments('ActiveEffect', downedFx);
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
-      try { if (cpRestore) await cpRestore(); } catch { /* the setting stands */ }
       try { unrig(); } catch { /* the platform's dice stand */ }
       for (const app of foundry.applications.instances.values()) {
         if (app.element?.querySelector?.('[data-bf-death-save]')) { try { await app.close(); } catch { /* gone */ } }
@@ -384,14 +382,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const card = await until(() => dsCardAfter(t0), { timeout: 8000, label: 'the death save card' });
         return { card, t0 };
       };
-      // Combat Plus's Auto-Defeated: PCs stamps Dead on a character at 0 Hit Points, and a Dead creature is asked nothing
-      // (contracts/dead.md, the open contradiction): off for the walk, put back at teardown.
-      const CP = 'fvtt-mod-combatplus';
-      if (game.modules.get(CP)?.active && game.settings.settings.has(`${CP}.autoDefeatedPCs`) && game.settings.get(CP, 'autoDefeatedPCs')) {
-        cpRestore = () => game.settings.set(CP, 'autoDefeatedPCs', true);
-        await game.settings.set(CP, 'autoDefeatedPCs', false);
-        log.push('Combat Plus Auto-Defeated: PCs was on — off for §10–§15');
-      }
       const pressNormal = app => { const b = app?.element?.querySelector('button[data-action="normal"]'); b?.click(); return !!b; };
       const downed = game.settings.get('dnd5e', 'autoApplyDowned');
 
