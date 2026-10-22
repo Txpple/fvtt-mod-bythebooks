@@ -1372,7 +1372,11 @@ the run's, as `node tools/battery-status.mjs --line` prints it and pasted in,
 `Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`, or `Battery: none (pre-release)`.
 `build-release.mjs --tag` refuses a body with neither, with two, or with a RED or PARTIAL run
 ([tools/battery-line.mjs](tools/battery-line.mjs) is the rule, and the one reading of a run
-directory). **The floor**: a patch names at least a `battery.mjs --changed v<the previous release>`
+directory). **The two-run rule** (the user, 2026-10-22, after four full runs each red on a different
+suite): a run red by one to three suites is run again whole; a second run red on different suites, every
+red suite green alone in a one-offs run, is the pair's line (`--line <A> --and <B> --one-offs <C>`), and
+the pair releases; a suite red in both runs is a defect. The rule is `judgeTwoRuns`, and the builder
+checks a pair line against its three runs as it checks a run line against its one. **The floor**: a patch names at least a `battery.mjs --changed v<the previous release>`
 run, everything the release changes; a minor names the full battery. A hand walk is not a battery:
 the battery before 3.4.7 found three bugs of 3.4.5, which had shipped on one.
 

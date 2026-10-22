@@ -5,10 +5,12 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   checkTagBody,
   FORMS,
+  judgeTwoRuns,
   lineOf,
   NONE_LINE,
   parseLine,
-  readRun
+  readRun,
+  twoRunLine
 } from "../tools/battery-line.mjs";
 
 /*
@@ -225,5 +227,148 @@ describe("checkTagBody — the line against its run", () => {
     const r = checkTagBody(notes(elsewhere), { runOf });
     expect(r).toMatchObject({ ok: true, prerelease: false });
     expect(r.note).toMatch(/not under dist\/battery\/ on this machine.*form alone/);
+  });
+});
+
+/*
+ * THE TWO-RUN RULE (RULINGS *The two-run rule*): two full runs of one plan, each red by one to three
+ * suites, no suite red in both, every red suite green alone in a third run — the pair releases.
+ */
+describe("the two-run rule — judgeTwoRuns, twoRunLine, the pair form", () => {
+  const A_ID = "2026-10-22T16-04-11";
+  const B_ID = "2026-10-22T16-54-46";
+  const C_ID = "2026-10-22T18-02-10";
+  const redAlert = {
+    ...GREEN_FILES,
+    "smoke-alert": "[alert] swept\n  PASS a\n  FAIL b\n[alert] 9/10 passed\n"
+  };
+  const redHold = { ...GREEN_FILES, "smoke-hold": "[hold] 50/51 passed\n" };
+  const runA = readRun(fakeRun(A_ID, PLAN, redAlert));
+  const runB = readRun(fakeRun(B_ID, PLAN, redHold));
+  const runC = readRun(
+    fakeRun(C_ID, ["setup-fixtures", "smoke-alert", "smoke-hold"], {
+      "setup-fixtures": GREEN_FILES["setup-fixtures"],
+      "smoke-alert": GREEN_FILES["smoke-alert"],
+      "smoke-hold": GREEN_FILES["smoke-hold"]
+    })
+  );
+  const PAIR_LINE = `Battery: ${A_ID} + ${B_ID} — 3/4 + 3/4 suites, 62/63 + 62/63 checks, GREEN by the two-run rule; one-offs ${C_ID}: smoke-alert, smoke-hold`;
+  const three = { [A_ID]: runA, [B_ID]: runB, [C_ID]: runC };
+  const runOf3 = id => three[id] ?? null;
+
+  it("two runs red on different suites, each green alone: the pair line, read back", () => {
+    expect(judgeTwoRuns(runA, runB, runC)).toEqual({
+      ok: true,
+      reds: ["smoke-alert", "smoke-hold"]
+    });
+    expect(twoRunLine(runA, runB, runC)).toEqual({
+      line: PAIR_LINE,
+      reds: ["smoke-alert", "smoke-hold"]
+    });
+    expect(parseLine(PAIR_LINE)).toEqual({
+      pair: {
+        a: { id: A_ID, green: 3, total: 4, pass: 62, all: 63 },
+        b: { id: B_ID, green: 3, total: 4, pass: 62, all: 63 },
+        c: C_ID,
+        names: ["smoke-alert", "smoke-hold"]
+      }
+    });
+  });
+
+  it("the same suite red in both runs is a defect, not a flake", () => {
+    const again = readRun(fakeRun("2026-10-22T17-00-00", PLAN, redAlert));
+    expect(judgeTwoRuns(runA, again, runC)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/smoke-alert red in both/)
+    });
+  });
+
+  it("a run red by more than three suites, a GREEN run, or a PARTIAL run is not the rule's", () => {
+    const four = readRun(
+      fakeRun("2026-10-22T17-01-00", PLAN, {
+        "setup-fixtures": "[fixtures] FATAL\n",
+        "smoke-alert": "[alert] 9/10 passed\n",
+        "smoke-hold": "[hold] 50/51 passed\n",
+        "check-popup-routing": "  FAIL one\n[topo] 1 FAILURE(S)\n"
+      })
+    );
+    expect(judgeTwoRuns(four, runB, runC)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/red by 4 suites/)
+    });
+    expect(judgeTwoRuns(readRun(greenDir), runB, runC)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/GREEN on its own/)
+    });
+    expect(judgeTwoRuns(readRun(partialDir), runB, runC)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/PARTIAL/)
+    });
+  });
+
+  it("the one-offs must run every red suite and be green", () => {
+    const short = readRun(
+      fakeRun("2026-10-22T17-02-00", ["smoke-alert"], { "smoke-alert": GREEN_FILES["smoke-alert"] })
+    );
+    expect(judgeTwoRuns(runA, runB, short)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/smoke-hold not green alone/)
+    });
+    const red = readRun(
+      fakeRun("2026-10-22T17-03-00", ["smoke-alert", "smoke-hold"], {
+        "smoke-alert": GREEN_FILES["smoke-alert"],
+        "smoke-hold": "[hold] 50/51 passed\n"
+      })
+    );
+    expect(judgeTwoRuns(runA, runB, red)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/one-offs run .* is red: smoke-hold/)
+    });
+  });
+
+  it("two runs of different plans are not a pair", () => {
+    const other = readRun(
+      fakeRun("2026-10-22T17-04-00", ["setup-fixtures", "smoke-hold"], {
+        "setup-fixtures": GREEN_FILES["setup-fixtures"],
+        "smoke-hold": "[hold] 50/51 passed\n"
+      })
+    );
+    expect(judgeTwoRuns(runA, other, runC)).toMatchObject({
+      ok: false,
+      why: expect.stringMatching(/not runs of one plan/)
+    });
+  });
+
+  it("checkTagBody: the pair line releases, the runs here bearing it out; the form alone on CI", () => {
+    const here = checkTagBody(notes(PAIR_LINE), { runOf: runOf3 });
+    expect(here).toMatchObject({ ok: true, prerelease: false, line: PAIR_LINE });
+    expect(here.note).toMatch(/bear the two-run rule out/);
+    const ci = checkTagBody(notes(PAIR_LINE));
+    expect(ci).toMatchObject({ ok: true, prerelease: false, line: PAIR_LINE });
+    expect(ci.note).toMatch(/form alone/);
+  });
+
+  it("checkTagBody refuses a pair line its runs do not bear out, and a malformed one", () => {
+    const wrongNames = PAIR_LINE.replace("smoke-alert, smoke-hold", "smoke-alert");
+    expect(checkTagBody(notes(wrongNames), { runOf: runOf3 })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/disagrees with the runs/)
+    });
+    const wrongCount = PAIR_LINE.replace("3/4 + 3/4", "4/4 + 3/4");
+    expect(checkTagBody(notes(wrongCount))).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/counts every suite green/)
+    });
+    const tooRed = PAIR_LINE.replace("3/4 + 3/4", "0/4 + 3/4");
+    expect(checkTagBody(notes(tooRed))).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/short by 4 suites/)
+    });
+    const twice = PAIR_LINE.replace(B_ID, A_ID);
+    expect(checkTagBody(notes(twice))).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/three different runs/)
+    });
+    for (const form of FORMS) expect(checkTagBody(notes("nothing")).error).toContain(form);
   });
 });

@@ -5,6 +5,7 @@
 //   node tools/battery-status.mjs --watch 60  redraw in place every 60 s until the run is done
 //   node tools/battery-status.mjs --watch 60 --follow   ...and keep going across runs (Ctrl-C to stop)
 //   node tools/battery-status.mjs --line [runDir]   the run in one line, for a release tag's body
+//   node tools/battery-status.mjs --line <A> --and <B> --one-offs <C>   the two-run line (RULINGS *The two-run rule*)
 //
 // A run is named by its directory or by its bare run id (`2026-10-15T13-55-32`).
 // Reads nothing live: the battery writes one <suite>.txt per FINISHED entry into its run directory
@@ -16,7 +17,7 @@
 // 0 only for GREEN; the release tag's body carries that line (NOTES §5 *Release*).
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { BATTERY_DIR, lineOf, readRun, RUN_ID } from "./battery-line.mjs";
+import { BATTERY_DIR, lineOf, readRun, RUN_ID, twoRunLine } from "./battery-line.mjs";
 
 const args = process.argv.slice(2);
 const w = args.indexOf("--watch");
@@ -26,6 +27,10 @@ const follow = args.includes("--follow");
 if ( follow ) args.splice(args.indexOf("--follow"), 1);
 const asLine = args.includes("--line");
 if ( asLine ) args.splice(args.indexOf("--line"), 1);
+/** A flag with its one value taken off the args, or null. */
+const take = flag => { const i = args.indexOf(flag); if ( i < 0 ) return null; const v = args[i + 1] ?? null; args.splice(i, v === null ? 1 : 2); return v; };
+const andRun = take("--and"), oneOffs = take("--one-offs");
+if ( (andRun !== null || oneOffs !== null) && (!asLine || andRun === null || oneOffs === null) ) { console.error("battery-status: the two-run line is --line <A> --and <B> --one-offs <C>"); process.exit(2); }
 const unknown = args.filter(a => a.startsWith("--"));
 if ( unknown.length ) { console.error(`battery-status: unknown flag ${unknown.join(", ")}`); process.exit(2); }
 if ( asLine && (watchSecs || follow) ) { console.error("battery-status: --line prints once; drop --watch and --follow"); process.exit(2); }
@@ -33,6 +38,19 @@ if ( asLine && (watchSecs || follow) ) { console.error("battery-status: --line p
 const named = (args[0] === undefined) ? null
   : (!existsSync(args[0]) && RUN_ID.test(args[0])) ? join(BATTERY_DIR, args[0]) : args[0];
 
+/** A run named by its directory or its bare id, under dist/battery; exits when it is not there. */
+const runAt = name => {
+  const dir = (!existsSync(name) && RUN_ID.test(name)) ? join(BATTERY_DIR, name) : name;
+  if ( !existsSync(dir) || !RUN_ID.test(basename(dir)) ) { console.error(`battery-status: ${name} is not a battery run (dist/battery/<run id>)`); process.exit(2); }
+  return readRun(dir);
+};
+if ( asLine && andRun !== null && oneOffs !== null ) {
+  if ( !named ) { console.error("battery-status: the two-run line names run A first: --line <A> --and <B> --one-offs <C>"); process.exit(2); }
+  const out = twoRunLine(runAt(named), runAt(andRun), runAt(oneOffs));
+  if ( "why" in out ) { console.error(`battery-status: the two-run rule does not hold: ${out.why}`); process.exit(1); }
+  console.log(out.line);
+  process.exit(0);
+}
 if ( asLine ) {
   const runDir = named ?? newestRun();
   if ( !runDir || !existsSync(runDir) ) { console.error("battery-status: no battery run under dist/battery yet"); process.exit(1); }

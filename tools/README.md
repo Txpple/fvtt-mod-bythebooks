@@ -299,6 +299,16 @@ node tools/battery-status.mjs --line 2026-10-15T13-55-32
 Battery: 2026-10-15T13-55-32 — 45/45 suites, 1691/1691 checks, GREEN
 ```
 
+**The two-run line** (`--line <A> --and <B> --one-offs <C>`; RULINGS *The two-run rule*): a full run red by one to
+three suites is run again whole; when the second run is red on *different* suites (none red in both) and every red
+suite is green when run alone (`node tools/battery.mjs <suite> <suite>`, the one-offs run C), the reds were flakes
+and the pair releases. A suite red in both runs is a defect, and no line is printed. Exit 0 only when the rule holds.
+
+```
+node tools/battery-status.mjs --line 2026-10-22T16-04-11 --and 2026-10-22T16-54-46 --one-offs 2026-10-22T18-02-10
+Battery: 2026-10-22T16-04-11 + 2026-10-22T16-54-46 — 66/67 + 66/67 suites, 2328/2329 + 2335/2336 checks, GREEN by the two-run rule; one-offs 2026-10-22T18-02-10: smoke-effects, smoke-monsters
+```
+
 **`needs`** is a field on an ORDER row: the rows that suite cannot run without, each resolved to
 the **nearest row of that name above it** — which is how the three `fixture-suite` seeds each serve
 the suites below them. `smoke-hold` needs `smoke-bythebooks` (adjacent in ORDER, so nothing can
@@ -417,7 +427,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BTB Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
 | `build-release.mjs` | the release zip: the gate, then the archive, then the archive read back. CI runs it on a pushed tag and publishes; run by hand it is the dry run. With `--tag` it first reads the annotated tag's body and refuses one without its battery line (the chain, below). **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
-| `battery-line.mjs` | **the battery line**: one run in one line (`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`), the one reading of a run directory `battery-status.mjs` draws from, and the release rule over a tag's body that `build-release.mjs --tag` runs. Not run directly; `tests/battery-line.test.js`. |
+| `battery-line.mjs` | **the battery line**: one run in one line (`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`), the two-run line (`judgeTwoRuns`, `twoRunLine`: two runs red on different suites, each green alone), the one reading of a run directory `battery-status.mjs` draws from, and the release rule over a tag's body that `build-release.mjs --tag` runs. Not run directly; `tests/battery-line.test.js`. |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `class-kit.mjs` | **the PHB classes' shared page setup**: the fixtures lent and placed, the settings pinned, every helper and the teardown, as one page function (`classKit`) that leaves them on `window.__btbClasses`; `runClassSuite` runs a `smoke-class-<class>.mjs` body between that setup and the teardown. The bands the classes plan runs between its rows are kit calls the bodies make in place (`KIT.leaveA3()`, `KIT.markA2()`, `KIT.dmgBand()`). A change here selects the thirteen class suites (`battery.mjs --changed`). |
 | `prelude.mjs` | **the one in-page helper set**: `connectSuite` installs it on the page as `window.__btb` before any suite body runs (a suite's second page calls `installPrelude`). `sleep` (a module clock only), `until(test, { timeout, every, label })` (returns the first truthy value, THROWS with the label or the predicate's text), `watch(test, { ms })` (a window for what must not happen), `canvasReady` · `tokenOn` · `viewScene`, `begin({ sections, titles })` (`results`, `log`, `skips`, `ok`, `want`, and `section(id, fn)`: a throw fails that section by name and the next one runs), `snapshotSettings(keys)`, the dice (`faces([[n, of], …])`, `unrig()`) and `stage`. `tests/prelude.test.js`. A change here is the full battery. |
@@ -459,7 +469,8 @@ only on the maintainer's word.
    (before the bump: a changed `module.json` selects the full battery), for a **minor** the full battery
    unattended (`node tools/battery.mjs --snapshot`). The battery checks the settings against its own
    before-the-run snapshot. Then `node tools/battery-status.mjs --line` prints the run's line for the tag's
-   body (step 5). A release with no run says `Battery: none (pre-release)` instead: it is published as a
+   body (step 5). A run red by one to three suites is run again whole, and when the second run's reds are
+   different suites, each green alone, the two-run line stands in (`--line <A> --and <B> --one-offs <C>`, above). A release with no run says `Battery: none (pre-release)` instead: it is published as a
    GitHub pre-release and never reaches prod through the installer (NOTES §5 *Release*).
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
    `--check` is part of `verify`. **The frame (2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
@@ -474,7 +485,7 @@ only on the maintainer's word.
 5. **The release.** An **annotated** tag on the release commit: its subject is the release title,
    its body the release notes (hand-written, never NOTES.md) carrying **exactly one battery line**,
    the one step 1 printed (`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`; an ASCII `-`
-   for the dash reads the same) or `Battery: none (pre-release)`. Before the push,
+   for the dash reads the same), the two-run line, or `Battery: none (pre-release)`. Before the push,
    `node tools/build-release.mjs --tag vX.Y.Z`: the tag against `module.json`, the line's form, and
    the line against its run under `dist/battery/`. That run is the only check that the line is true,
    since CI has no `dist/battery/`; until the tag is pushed, a refused one is rewritten in place

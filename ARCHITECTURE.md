@@ -1498,7 +1498,9 @@ an added die, a reaction that moves AC):
    [check-coverage-map.mjs](tools/check-coverage-map.mjs)) — an unclaimed machine fails, and
    there is no allowlist. ⚠ **A spine change is the full battery**, and so is a `decide/` file
    the spine imports: `shared.js` and `auto-apply.js` reach every machine. **The full battery is
-   the floor before a release**; nothing smaller is.
+   the floor before a release**; nothing smaller is. A full run red by one to three suites is run again, and
+   a second run red on different suites, each green alone, releases as a pair (RULINGS *The two-run rule*; the
+   line `battery-status.mjs --line <A> --and <B> --one-offs <C>` prints).
 6. **The battery ends with two readings, and somebody reads them** (§10 D11): which
    registrations FIRED ([hook-coverage.mjs](tools/hook-coverage.mjs), armed in
    [harness.mjs](tools/harness.mjs) `connectSuite`), and which `COVERS` claims the published

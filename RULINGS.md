@@ -315,6 +315,24 @@ sheet … do notifications if they roll a 1 or 20 and anything else needful"*). 
 - Pinned by `tests/decide-death-saves.test.js` and `smoke-drop` §10–§15.
 
 
+## The two-run rule (2026-10-22)
+
+**A full battery red by a few suites is run again, and a different red the second time is a flake, not a
+defect** (the user, 2026-10-22, after four full runs for 3.4.10 each red on a different suite: *"if we have 1 to
+3 fails, run it again, and if the fails are different than the first time, we scratch it to one offs. its not
+practical … to do batteries over and over, missing one, but that one is always different"*). The release rule in
+`tools/battery-line.mjs` (`judgeTwoRuns`), the line `battery-status.mjs --line <A> --and <B> --one-offs <C>`
+prints, checked by `build-release.mjs --tag` against the three runs on the machine that ran them.
+
+- **The pair.** Two full runs of one plan, A and B, each finished and red by one to three suites
+  (`TWO_RUN_MAX_REDS`). More than three reds is a red battery; a GREEN run is named alone.
+- **Different reds.** No suite red in both runs. A suite red twice is a defect: no line, no release, fix it.
+- **The one-offs.** Every suite red in either run is run alone — `node tools/battery.mjs <suite> <suite>`, one
+  run C in its own directory, the plan's needs pulled in — and green there. A one-off red is a defect too.
+- **The line names all three**, the counts of A and B and the suites scratched, and reads GREEN by the two-run
+  rule; the workflow publishes it as a full release, never a pre-release.
+- Pinned by `tests/battery-line.test.js`.
+
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
 **Buffs and debuffs, visible on demand, never actions.** A creature carries more effects than

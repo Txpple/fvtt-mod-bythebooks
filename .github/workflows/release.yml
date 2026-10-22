@@ -4,7 +4,8 @@
 # and its body the release notes.
 #
 # The body names the battery run behind the release (tools/battery-line.mjs): the line
-# `battery-status.mjs --line` prints, GREEN, or `Battery: none (pre-release)`. The builder refuses a
+# `battery-status.mjs --line` prints, GREEN, the two-run line (`--line <A> --and <B> --one-offs <C>`:
+# two runs red on different suites, each green alone), or `Battery: none (pre-release)`. The builder refuses a
 # body with neither; here, with no dist/battery/, it checks the line's form alone. A release with
 # no run is published as a GitHub pre-release, which is never the repo's latest release, so the
 # manifest URL every world installs from (releases/latest/download/module.json) never serves it.
