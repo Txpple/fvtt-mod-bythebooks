@@ -1448,7 +1448,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // 16b — all dead: NO saves flag, NO auto damage roll, fully native.
         await shielder.update({ 'system.attributes.hp.value': 0 });
-        // The Shielder is a CHARACTER, dead only by the status the platform lands after the HP write: wait for it.
+        // The Shielder is a CHARACTER: at 0 HP it is dying, not dead, and nothing in the family marks it Dead
+        // (Combat Plus writes no status on a character), so the section presses the status itself.
+        if (!shielder.statuses?.has?.('dead')) await shielder.toggleStatusEffect('dead', { active: true, overlay: true });
         await until(() => shielder.statuses?.has?.('dead') && victim.statuses?.has?.('dead'), { timeout: 4000, label: '16b both targets marked dead' });
         target(victimToken, shielderToken);
         const before16b = snap();
@@ -1498,6 +1500,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           skips.push('16c — no BTB Test PC Attacker fixture; run smoke-bythebooks first');
         }
       } finally {
+        // Dead goes before the Hit Points (the family's dead contract); the pressed status is not dnd5e's, so the heal leaves it.
+        const dead16 = shielder.effects.filter(e => e.statuses?.has?.('dead')).map(e => e.id);
+        if (dead16.length) await shielder.deleteEmbeddedDocuments('ActiveEffect', dead16).catch(() => {});
         await healFull(victim);
         await healFull(shielder);
       }
