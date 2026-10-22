@@ -162,8 +162,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const hpNow = () => Number(victim.system.attributes.hp.value);
     const effectNamed = name => victim.effects.find(e => e.name === name) ?? null;
     const clearVictim = async () => {
-      const strays = victim.effects.filter(e => !priorVictimEffects.has(e.id)).map(e => e.id);
-      if (strays.length) await victim.deleteEmbeddedDocuments('ActiveEffect', strays);
+      // ⚠ dnd5e takes its own Bloodied off as the Hit Points rise, so a sweep that races a heal deletes a document
+      // already gone ("does not exist"): Bloodied is left to the system, and a loser of the race is logged, not thrown.
+      const strays = victim.effects.filter(e => !priorVictimEffects.has(e.id) && !e.statuses?.has?.('bloodied')).map(e => e.id);
+      const live = strays.filter(id => victim.effects.has(id));
+      if (live.length) await victim.deleteEmbeddedDocuments('ActiveEffect', live).catch(err => log.push(`clearVictim: ${err?.message ?? err}`));
     };
     const cardsWith = flag => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, flag));
     const repeatCards = () => cardsWith('repeatSave');
