@@ -784,6 +784,7 @@
     "save": {
       "kinds": [
         "concentration",
+        "deathSave",
         "saves",
         "topple"
       ],
@@ -799,6 +800,7 @@
         "details.abilities",
         "details.abilities[]",
         "details.ability",
+        "details.amount",
         "details.applied",
         "details.attackerUuid",
         "details.autoFailed",
@@ -807,17 +809,26 @@
         "details.autoSucceededBy",
         "details.casterName",
         "details.casterUuid",
+        "details.cause",
+        "details.critical",
         "details.damage",
         "details.damageOnSave",
         "details.dc",
+        "details.face",
+        "details.failure",
+        "details.massive",
         "details.names",
         "details.names[]",
+        "details.natural",
         "details.outcome",
+        "details.result",
         "details.rollMessageId",
+        "details.round",
         "details.success",
         "details.timedOut",
         "details.total",
         "details.voided",
+        "details.wasStable",
         "event",
         "itemName",
         "itemUuid",
@@ -828,6 +839,10 @@
         "momentId",
         "spend",
         "targets",
+        "targets[]",
+        "targets[].actorUuid",
+        "targets[].name",
+        "targets[].tokenUuid",
         "tokenUuid",
         "version"
       ]
@@ -1304,8 +1319,10 @@
         "save"
       ],
       "means": "a Death Saving Throw settled (death-saves.js): the roll the ask at a dying creature's turn start got — or any roll of the sheet's while the ask stood — read off the system's card and the sheet's tally (`result`, a `natural` 20 or 1, the terminal `outcome` revive, stable or death); or damage at 0 Hit Points (`cause: \"damage\"`), a failure written on the applying client",
-      "recorded": false,
-      "pairs": []
+      "recorded": true,
+      "pairs": [
+        "save|deathSave"
+      ]
     },
     "deathSaveOffer": {
       "events": [
@@ -11745,6 +11762,298 @@
           "timedOut": false,
           "voided": false,
           "rollMessageId": "<id>"
+        },
+        "at": 0
+      }
+    },
+    "save|deathSave": {
+      "fields": [
+        "ability",
+        "activityUuid",
+        "actorName",
+        "actorUuid",
+        "at",
+        "attackId",
+        "details",
+        "details.amount",
+        "details.cause",
+        "details.critical",
+        "details.face",
+        "details.failure",
+        "details.massive",
+        "details.natural",
+        "details.outcome",
+        "details.result",
+        "details.rollMessageId",
+        "details.round",
+        "details.success",
+        "details.timedOut",
+        "details.total",
+        "details.wasStable",
+        "event",
+        "itemName",
+        "itemUuid",
+        "kind",
+        "marker",
+        "messageId",
+        "module",
+        "momentId",
+        "spend",
+        "targets",
+        "targets[]",
+        "targets[].actorUuid",
+        "targets[].name",
+        "targets[].tokenUuid",
+        "tokenUuid",
+        "version"
+      ],
+      "details": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "cause": {
+            "type": "string"
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "face": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "failure": {
+            "type": "number"
+          },
+          "massive": {
+            "type": "boolean"
+          },
+          "natural": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "examples": [
+              "death",
+              "revive",
+              "stable"
+            ]
+          },
+          "result": {
+            "type": "string"
+          },
+          "rollMessageId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "round": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "success": {
+            "type": "number"
+          },
+          "timedOut": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "wasStable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "amount",
+          "cause",
+          "critical",
+          "face",
+          "failure",
+          "massive",
+          "natural",
+          "outcome",
+          "result",
+          "rollMessageId",
+          "round",
+          "success",
+          "timedOut",
+          "total",
+          "wasStable"
+        ]
+      },
+      "envelope": {
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string"
+          },
+          "activityUuid": {
+            "type": "null"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "actorUuid": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          },
+          "attackId": {
+            "type": "null"
+          },
+          "details": {
+            "type": "object"
+          },
+          "event": {
+            "type": "string",
+            "examples": [
+              "save"
+            ]
+          },
+          "itemName": {
+            "type": "null"
+          },
+          "itemUuid": {
+            "type": "null"
+          },
+          "kind": {
+            "type": "string",
+            "examples": [
+              "deathSave"
+            ]
+          },
+          "marker": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "momentId": {
+            "type": "string"
+          },
+          "spend": {
+            "type": "null"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "actorUuid": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "tokenUuid": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "actorUuid",
+                "name",
+                "tokenUuid"
+              ]
+            }
+          },
+          "tokenUuid": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ability",
+          "activityUuid",
+          "actorName",
+          "actorUuid",
+          "at",
+          "attackId",
+          "details",
+          "event",
+          "itemName",
+          "itemUuid",
+          "kind",
+          "marker",
+          "messageId",
+          "module",
+          "momentId",
+          "spend",
+          "targets",
+          "tokenUuid",
+          "version"
+        ]
+      },
+      "sample": {
+        "event": "save",
+        "module": "fvtt-mod-bythebooks",
+        "version": 2,
+        "kind": "deathSave",
+        "marker": "message",
+        "momentId": "<id>|deathSave|message",
+        "actorUuid": "Actor.<id>",
+        "actorName": "BTB Test Halfling",
+        "tokenUuid": null,
+        "itemUuid": null,
+        "itemName": null,
+        "activityUuid": null,
+        "ability": "Death Saving Throw",
+        "messageId": "<id>",
+        "attackId": null,
+        "targets": [
+          {
+            "actorUuid": "Actor.<id>",
+            "tokenUuid": null,
+            "name": "BTB Test Halfling"
+          }
+        ],
+        "spend": null,
+        "details": {
+          "cause": "turn",
+          "result": "success",
+          "natural": null,
+          "outcome": null,
+          "success": 1,
+          "failure": 0,
+          "face": 15,
+          "total": 15,
+          "amount": null,
+          "critical": false,
+          "massive": false,
+          "wasStable": false,
+          "timedOut": false,
+          "rollMessageId": "<id>",
+          "round": 1
         },
         "at": 0
       }

@@ -3094,6 +3094,8 @@
       "schema": {
         "type": "string",
         "examples": [
+          "0FOYFdVZG2qknsAB",
+          "6hZQ3oEiSPQgg4lW",
           "7hfPtz9lrAnMk2ev",
           "7jRNkhcwXA7MVDEK",
           "BuWWUyv2JryZ4JeC",
@@ -3102,10 +3104,8 @@
           "CvBltus29v1GPg5Y",
           "DplSytcdZhG40kik",
           "FyCfQ75cXX4R9sh3",
-          "I9x4eNWvGBGlF0I1",
-          "IRd4ezevs6pczuLy",
-          "IYnA1opwtZxw2C6I",
-          "Iux429bpn6Bkq3Hw"
+          "GtKBT8PbxNpDNvpn",
+          "I9x4eNWvGBGlF0I1"
         ]
       }
     },
@@ -5106,11 +5106,198 @@
       "writers": [
         "death-saves.js"
       ],
-      "on": [],
-      "stamp": null,
+      "on": [
+        "ChatMessage"
+      ],
+      "stamp": "flag",
       "readBy": [],
-      "recorded": false,
-      "fields": []
+      "recorded": true,
+      "fields": [
+        "actorName",
+        "actorUuid",
+        "after",
+        "after.failure",
+        "after.success",
+        "amount",
+        "answeredAt",
+        "applied",
+        "before",
+        "before.failure",
+        "before.success",
+        "cause",
+        "combat",
+        "combatId",
+        "critical",
+        "deadline",
+        "face",
+        "massive",
+        "natural",
+        "outcome",
+        "place",
+        "result",
+        "reverted",
+        "rollMessageId",
+        "round",
+        "sourceUuid",
+        "status",
+        "steps",
+        "timedOut",
+        "total",
+        "turn",
+        "wasStable",
+        "why",
+        "window"
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "actorName": {
+            "type": "string"
+          },
+          "actorUuid": {
+            "type": "string"
+          },
+          "after": {
+            "type": "object",
+            "properties": {
+              "failure": {
+                "type": "number"
+              },
+              "success": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "failure",
+              "success"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "answeredAt": {
+            "type": "number"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "before": {
+            "type": "object",
+            "properties": {
+              "failure": {
+                "type": "number"
+              },
+              "success": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "failure",
+              "success"
+            ]
+          },
+          "cause": {
+            "type": "string"
+          },
+          "combat": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "combatId": {
+            "type": "string"
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "deadline": {
+            "type": "number"
+          },
+          "face": {
+            "type": "number"
+          },
+          "massive": {
+            "type": "boolean"
+          },
+          "natural": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "examples": [
+              "death",
+              "revive",
+              "stable"
+            ]
+          },
+          "place": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "reverted": {
+            "type": "boolean"
+          },
+          "rollMessageId": {
+            "type": "string"
+          },
+          "round": {
+            "type": "number"
+          },
+          "sourceUuid": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "examples": [
+              "moot",
+              "pending",
+              "resolved"
+            ]
+          },
+          "steps": {
+            "type": "number"
+          },
+          "timedOut": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": "number"
+          },
+          "turn": {
+            "type": "number"
+          },
+          "wasStable": {
+            "type": "boolean"
+          },
+          "why": {
+            "type": "string"
+          },
+          "window": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "actorName",
+          "actorUuid",
+          "before",
+          "cause",
+          "combat",
+          "sourceUuid",
+          "status"
+        ]
+      }
     },
     "deathSaveOffer": {
       "class": "record",
@@ -5283,11 +5470,30 @@
       "writers": [
         "death-saves.js"
       ],
-      "on": [],
+      "on": [
+        "ChatMessage"
+      ],
       "stamp": null,
       "readBy": [],
-      "recorded": false,
-      "fields": []
+      "recorded": true,
+      "fields": [
+        "cardId",
+        "timedOut"
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "cardId": {
+            "type": "string"
+          },
+          "timedOut": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cardId"
+        ]
+      }
     },
     "deathThroes": {
       "class": "state",
@@ -10598,6 +10804,8 @@
       "fields": [
         "<id>",
         "AmYcHJjfunVynBAk",
+        "ChhZTizUEEswEhcT",
+        "DHVNlHRbQUsVsZND",
         "GHFGCLQiRcRkZLDw",
         "HXfYRaFbuUcYPUIK",
         "IkMQzPGINTsUzZhh",
@@ -10607,37 +10815,55 @@
         "MATHlOMyOpMzvRRx",
         "MHdLSzyZFtmWDqdg",
         "McpANsULfZHtVTXK",
+        "NVzysNcySTRhJMha",
         "NkFdcmYoXGvmcuVi",
+        "OPeveBcwhYsCDBGd",
         "RaZWufpsJQqNhUUX",
         "RbfrLBesTVjIyZPv",
         "VALfnsDfWrxzBPbm",
+        "WAlnqZNcTfcleNYB",
         "WjzpZAQYxHYxSPAz",
         "XDUwGZwWnrEdCIke",
+        "YdLldjayBCwsJPjJ",
+        "ZuaRLfsuvAFqwnjS",
         "czaHEhVYfIhlUSTq",
         "dzMilARHvevzWvxk",
         "ecCcoxQGEsOlkvHg",
         "fCbvKoMiripKgOdF",
         "hDtlByYAhJmQjGER",
         "hMaYgyGXTqghXqSa",
+        "hSlvGiMnQVfxjSUC",
         "iOKQkIvyCfjQfgqc",
         "kKOWTqpnqlbvjUpk",
+        "lHRaIKzMqBMMZnPI",
         "lXVsDiryJjiOExgi",
         "nNRkMtMMniEAmlIc",
+        "nSYjcxyVvpxauYRz",
+        "nTNxRxPfAAzFajXm",
         "ngFGdzgTmsGTjuWm",
         "ovymbfxlNRJaptnH",
         "ptUFHELpMtwibWaW",
+        "pwWGFphkcvCbVSgJ",
         "qCpAfxRjQZTtxfyk",
         "qJEozgFoiHsrSfOZ",
+        "sohzcvRFUibOpscW",
         "tTVCOmqxScXumsOf",
         "tgyuEuJPzflxrKVs",
         "vZsRNSHpyjzQuzIs",
         "wMdcirRTynowxGkd",
-        "ydOJGLEzfwrEChfR"
+        "ydOJGLEzfwrEChfR",
+        "zCkjsMotxelPqefR"
       ],
       "schema": {
         "type": "object",
         "properties": {
           "AmYcHJjfunVynBAk": {
+            "type": "boolean"
+          },
+          "ChhZTizUEEswEhcT": {
+            "type": "boolean"
+          },
+          "DHVNlHRbQUsVsZND": {
             "type": "boolean"
           },
           "GHFGCLQiRcRkZLDw": {
@@ -10667,7 +10893,13 @@
           "McpANsULfZHtVTXK": {
             "type": "boolean"
           },
+          "NVzysNcySTRhJMha": {
+            "type": "boolean"
+          },
           "NkFdcmYoXGvmcuVi": {
+            "type": "boolean"
+          },
+          "OPeveBcwhYsCDBGd": {
             "type": "boolean"
           },
           "RaZWufpsJQqNhUUX": {
@@ -10679,10 +10911,19 @@
           "VALfnsDfWrxzBPbm": {
             "type": "boolean"
           },
+          "WAlnqZNcTfcleNYB": {
+            "type": "boolean"
+          },
           "WjzpZAQYxHYxSPAz": {
             "type": "boolean"
           },
           "XDUwGZwWnrEdCIke": {
+            "type": "boolean"
+          },
+          "YdLldjayBCwsJPjJ": {
+            "type": "boolean"
+          },
+          "ZuaRLfsuvAFqwnjS": {
             "type": "boolean"
           },
           "czaHEhVYfIhlUSTq": {
@@ -10703,16 +10944,28 @@
           "hMaYgyGXTqghXqSa": {
             "type": "boolean"
           },
+          "hSlvGiMnQVfxjSUC": {
+            "type": "boolean"
+          },
           "iOKQkIvyCfjQfgqc": {
             "type": "boolean"
           },
           "kKOWTqpnqlbvjUpk": {
             "type": "boolean"
           },
+          "lHRaIKzMqBMMZnPI": {
+            "type": "boolean"
+          },
           "lXVsDiryJjiOExgi": {
             "type": "boolean"
           },
           "nNRkMtMMniEAmlIc": {
+            "type": "boolean"
+          },
+          "nSYjcxyVvpxauYRz": {
+            "type": "boolean"
+          },
+          "nTNxRxPfAAzFajXm": {
             "type": "boolean"
           },
           "ngFGdzgTmsGTjuWm": {
@@ -10724,10 +10977,16 @@
           "ptUFHELpMtwibWaW": {
             "type": "boolean"
           },
+          "pwWGFphkcvCbVSgJ": {
+            "type": "boolean"
+          },
           "qCpAfxRjQZTtxfyk": {
             "type": "boolean"
           },
           "qJEozgFoiHsrSfOZ": {
+            "type": "boolean"
+          },
+          "sohzcvRFUibOpscW": {
             "type": "boolean"
           },
           "tTVCOmqxScXumsOf": {
@@ -10743,6 +11002,9 @@
             "type": "boolean"
           },
           "ydOJGLEzfwrEChfR": {
+            "type": "boolean"
+          },
+          "zCkjsMotxelPqefR": {
             "type": "boolean"
           }
         },
@@ -12320,7 +12582,10 @@
                 "Actor.1of7ytmp95RmP3dY",
                 "Actor.3ZLcT690RkC2x2x5",
                 "Actor.8JBqV79dWyDi5KBf",
+                "Actor.CiwcAAtM8HgZPRc9",
                 "Actor.J89prVUQbY6D5G5T",
+                "Actor.PDUDYW1pahZkOOmS",
+                "Actor.QPdVGhhL1FfpAfrC",
                 "Actor.RomIZh8ck3jxsVj8",
                 "Actor.TnXE7jxRNBLPq85H",
                 "Actor.g9Trxwz18XE3BUKr",
@@ -13804,6 +14069,7 @@
       "recorded": true,
       "fields": [
         "Actor|GrKk2ZBcPGcqlvvC",
+        "Actor|HXtBr36rdWNtsfhd",
         "Actor|ywJGhYXTXyVY5S03",
         "Actor|zNVjnP9Pn5CIdgLL"
       ],
@@ -13811,6 +14077,9 @@
         "type": "object",
         "properties": {
           "Actor|GrKk2ZBcPGcqlvvC": {
+            "type": "string"
+          },
+          "Actor|HXtBr36rdWNtsfhd": {
             "type": "string"
           },
           "Actor|ywJGhYXTXyVY5S03": {
