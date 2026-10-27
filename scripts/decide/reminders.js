@@ -149,9 +149,10 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
 /** The row's carriers: effects named as it, or one id-less carrier for a `match: "feature"` row (Brave).
  * @param {any} row
  * @param {string} key
- * @param {{id?: string|null, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[], member?: boolean}[]} [effects]
+ * @param {{id?: string|null, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[], member?: boolean,
+ *          lends?: string|null}[]} [effects]
  * @param {string[]} [features]
- * @returns {{id?: string|null, name?: string, sourceUuid?: string|null, sourceHas?: string[]}[]} */
+ * @returns {{id?: string|null, name?: string, sourceUuid?: string|null, sourceHas?: string[], lends?: string|null}[]} */
 function rowCarriers(row, key, effects = [], features = []) {
   // `named`: the carrier's own name when the row's key cannot be it (Mantle of Majesty's "Unearthly Appearance").
   const name = String(row?.named ?? key);
@@ -162,10 +163,25 @@ function rowCarriers(row, key, effects = [], features = []) {
   return (effects ?? []).filter(e => effectNamedAs(e?.name, name) && (!row?.member || !!e?.member));
 }
 
-/** Effect rows whose `checks` facet bends ability checks; `checksWhen` narrows to statuses/skills.
- * @param {{effects?: {id?: string|null, name: string}[], features?: string[], enabled: Iterable<string>,
- *          table: Readonly<Record<string, any>>, name?: string, statuses?: Iterable<string>, skill?: string|null}} facts */
-export function effectCheckSources({ effects = [], features = [], enabled, table, name = "You", statuses = [], skill = null }) {
+/** Does a lent proficiency answer this check (the Help action's "Assisted — <skill>", `checksWhen.lends`)? The effect's
+ * `lends` is "<kind>:<key>": a skill check by its key, a tool check by its key; a raw ability check, or another skill, never.
+ * @param {string|null|undefined} lends
+ * @param {{skill?: string|null, tool?: string|null}} roll */
+const lendAnswers = (lends, { skill = null, tool = null }) => {
+  const [kind, key] = String(lends ?? "").split(":");
+  if ( !kind || !key ) return false;
+  if ( kind === "skill" ) return !!skill && (skill === key);
+  if ( kind === "tool" ) return !!tool && (tool === key);
+  return false;
+};
+
+/** Effect rows whose `checks` facet bends ability checks; `checksWhen` narrows to statuses/skills, or (`lends`) to the
+ * skill or tool the CARRIER itself lends — the effect's own `lends` fact against the roll's key. A row with `spend`
+ * says so on the source, for the gate's record to use it up.
+ * @param {{effects?: {id?: string|null, name: string, lends?: string|null}[], features?: string[],
+ *          enabled: Iterable<string>, table: Readonly<Record<string, any>>, name?: string, statuses?: Iterable<string>,
+ *          skill?: string|null, tool?: string|null}} facts */
+export function effectCheckSources({ effects = [], features = [], enabled, table, name = "You", statuses = [], skill = null, tool = null }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   const mine = new Set(statuses ?? []);
   const out = [];
@@ -174,9 +190,12 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
     const when = row.checksWhen;
     if ( when?.statuses?.length && !when.statuses.some(s => mine.has(s)) ) continue;
     if ( when?.skills?.length && !when.skills.includes(skill) ) continue;
-    const carriers = rowCarriers(row, key, effects, features);
+    const carriers = rowCarriers(row, key, effects, features).filter(e => !when?.lends || lendAnswers(e?.lends, { skill, tool }));
     for ( const e of carriers ) {
-      out.push(Object.assign(reminderSource("effect", row.checks, `${name} — ${key}`, row.rule), e.id ? { effectId: e.id } : {}));
+      // An effect named after its lend (Assisted — Stealth) says its own name.
+      const label = `${name} — ${(when?.lends && e?.name) ? e.name : key}`;
+      out.push(Object.assign(reminderSource("effect", row.checks, label, row.rule), e.id ? { effectId: e.id } : {},
+        row.spend ? { spend: row.spend } : {}));
     }
   }
   return out;

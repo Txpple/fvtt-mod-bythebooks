@@ -81,7 +81,7 @@ const SERIALIZED_FLAGS = new Set(["hold", "receipt", "effectReceipt"]);
  * ⚠ A stale row (no such handler, or one that no longer reaches an ungated write) fails.
  */
 const ALLOW = new Map([
-  ["ui.js:1165", "the leading window: each GM window writes its OWN user's lead flag on load and focus (core.js leadsWindow) — the one write whose point is that every window makes it, the newest standing"]
+  ["ui.js:1167", "the leading window: each GM window writes its OWN user's lead flag on load and focus (core.js leadsWindow) — the one write whose point is that every window makes it, the newest standing"]
 ]);
 
 /* --- the program --------------------------------------------------------------------------- */

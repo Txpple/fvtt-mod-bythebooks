@@ -4270,6 +4270,44 @@ The suites: `smoke-classes` §2 and §3 (the damage half at the damage hold; the
 combat, the turn's sweep), §41g–i (Portent's ordinary hit asks; the banner; the dice rolled after the miss), §127 (the down guard ignores the mute);
 `tests/decide-rescue-hit.test.js` (`reductionKeepsUp`, the row's `verb`), `tests/decide-classes-a7.test.js` (the Portent row).
 
+## The Help action (2026-10-27)
+
+The user's ask: Tycon's owl flies in and takes the Help action every round, so the table wants a button — "an item called
+Help, then a popup asking with a radio button" for Assist an Ability Check or Assist an Attack Roll, "each with that folding
+rule tick", "if none or more than 1 is targeted when help is pressed, then give an error", and "for each create the buff
+according to the rules". Read off the 2024 glossary (the page dnd5e's `CONFIG.DND5E.rules.help` names while the Player's
+Handbook is installed; its two bold-lead paragraphs are the facets' folds) and the pack snapshots: the packs ship Help as a
+glossary page and no item, so the module makes one.
+
+1. **The item is the module's** (`decide/help.js` `helpItemData`): a feature named Help with one Utility activity, an Action,
+   one creature targeted, its description the page's text, fingerprinted `helpItem`. The elect keeps one in the world's Items
+   directory at `ready` (once; drag it onto any sheet), and every companion (COMPANIONS: Find Familiar, Pact of the Chain,
+   Wild Companion) lands with one on its token's delta (summons.js) — the world's book creature keeps its sheet.
+2. **One creature, and one only.** The use is refused before dnd5e's dialog (`dnd5e.preUseActivity`, a veto) with the error
+   the user asked for when no token, several, or the helper itself is targeted; the Action is not spent.
+3. **The question is the choice popup** (§5 *The pick*: radios and Apply, on the helper's own client): the attack row, then one
+   check row per proficiency the helper can lend (every skill at proficiency 1 or more, every tool on the sheet), each under
+   its own paragraph of the page, and "Pass just this time" (the Action went, nothing lent). The attack row is greyed with the
+   distance when the targeted token stands more than 5 ft from the helper (the book: "an enemy within 5 feet of you"); with
+   no token on this scene the distance is unmeasured and the table judges. The check facet with nothing to lend is one greyed
+   row with the reason. The record carries the question (`help`: the target, the feet, the lends, the rows as offered) and
+   the popup is answered on the record, so the card's "Choose…" recalls it and a reload loses nothing.
+4. **The one effect each facet writes, by the elect** (the resumable; `applyEffectsWithReceipt`, so the card's receipt carries
+   the revert): "Helped" on the enemy — EFFECT_BENDS `target: "advantage", spend: "attack", except: "source"` (the next attack
+   roll at it by anyone but the helper shows the Advantage and spends it; the helper's own never does) — and "Assisted —
+   <skill>" on the ally, carrying `lends` ("skill:prc", "tool:thief"), EFFECT_BENDS `checks: "advantage", checksWhen: { lends:
+   true }, spend: "check"`: the check gate reads the effect's lend against the roll's own skill or tool key, and the roll's
+   record spends it (`spendCheckEffects`, the save gate's shape). Both are clocked to the start of the helper's next turn —
+   Sap's window, pinned to the helper's place; out of combat the clock does not tick and the roll alone spends it.
+5. **No clock on the question.** The helper's own action asked on the helper's own client: a dismissed popup waits on the card
+   (the card chip's precedent), never a timer that passes an Action the player took on purpose.
+6. **Flyby needs nothing**: the module detects no opportunity attacks by design (README *What it will not do*).
+
+The suites: `smoke-familiar` §14 (the Owl's Help: seeded, the use refused with no target, the record's rows and lends, Assisted
+landed and spent by the Perception check, Helped landed with the Owl as its source, the attack row greyed at 15 ft);
+`tests/decide-help.test.js` (the item, the lends, the rows, the answer, the effects, the words), `tests/decide-reminders.test.js`
+(the `lends` facet against the roll's key, the spend on the source).
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code

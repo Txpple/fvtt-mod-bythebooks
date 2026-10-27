@@ -125,6 +125,13 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   those run out, when the hour passes, or when you end the spell from your effects bar.
   **Summon Art** (a button in the module's settings) gives each creature your own token and
   portrait, Find Familiar first; a folder of files named after the creatures fills it in one click.
+- **The Help action is a button.** The books ship Help as a glossary page and no item, so the module keeps
+  a **Help** feature in the Items directory (drag it onto any sheet) and every familiar lands with one. Target
+  one creature and use it: a popup asks which assist, each under its own paragraph of the book — Assist an
+  Attack Roll (the enemy within 5 feet, else greyed with the distance) or Assist an Ability Check with one of
+  your skill or tool proficiencies — and the one effect lands on the creature until the start of your next
+  turn. The next attack roll by an ally against a Helped enemy shows the Advantage in its dialog and spends it;
+  an Assisted ally's next check with that skill does the same. Nothing targeted, or two, refuses the use.
 - **Wild Shape and Polymorph without the compendium browser.** Using Wild Shape opens one popup
   with your four known forms as rows (art, AC, HP, speeds, attacks), the rest of the pool a line
   away; a Druid short of four learns a form at the use, and a Long Rest offers the one swap. The

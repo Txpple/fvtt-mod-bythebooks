@@ -21,7 +21,8 @@ import { Foundry } from 'fvtt-mcp-dnd5e/client';
 export const COVERS = [
   'summons.js',         // §1 the free cast's cause and spend, §2 a cancelled menu spends nothing, §3 the boon landed, §7 the pocket, §8 the player's cast; §9 Battle Familiar's empower record, §13 dismissed while empowered
   'advantage-buys.js',  // §4 the box offered and spent, §5 greyed beyond 5 ft, §6 absent on an unproficient skill and a raw check, §7 greyed in the pocket, §10 offered while empowered
-  'transforms.js'       // §9 the familiar empowered in place (its sight kept), §11 the temp HP gone reverts and re-points (the sight put back), §12 the caster's effect as the lever
+  'transforms.js',      // §9 the familiar empowered in place (its sight kept), §11 the temp HP gone reverts and re-points (the sight put back), §12 the caster's effect as the lever
+  'help.js'             // §14 the Owl's Help: seeded on the landed familiar, the use refused with no target, the assist answered on the record, Assisted spent by the check, Helped landed, the attack row greyed beyond 5 ft
 ];
 
 const SECTIONS = {
@@ -37,9 +38,10 @@ const SECTIONS = {
   10: 'HELPFUL FRIEND WHILE EMPOWERED: the box still offered one square from the empowered Owl',
   11: 'THE TEMP HP GONE: the Owl reverts — a new token, the Hit Points lost kept, no temp HP, its seat in the tracker and the companion record re-pointed, the new token seeing, the caster\'s effect gone, the record ended "noTemp"',
   12: 'THE LEVER: empowered again, the caster\'s "Battle Familiar: Owl" effect removed by hand — the Owl reverts, the record ended',
-  13: 'DISMISSED WHILE EMPOWERED: empowered again, Dismiss — the token goes, the caster\'s effect with it, the record ended "gone"'
+  13: 'DISMISSED WHILE EMPOWERED: empowered again, Dismiss — the token goes, the caster\'s effect with it, the record ended "gone"',
+  14: 'THE HELP ACTION (the Owl\'s button; runs before §7): the landed Owl carries Help; with nothing targeted the use is refused and posts no card; the Sorcerer targeted one square away, the card\'s record offers both assists with Perception and Stealth to lend; answered on the record as the check lending Perception, the elect lands "Assisted — Perception" on the Sorcerer, receipted; a Perception check\'s gate names it at Advantage and the press spends it, a second check meets no gate; answered as the attack, "Helped" lands stamped with the Owl as its source; three squares away the attack row is greyed with the distance'
 };
-const DEPENDS = { 3: [1], 4: [1], 5: [1], 7: [1], 9: [1], 10: [9], 11: [9], 12: [11], 13: [12] };
+const DEPENDS = { 3: [1], 4: [1], 5: [1], 7: [1], 9: [1], 10: [9], 11: [9], 12: [11], 13: [12], 14: [1] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const env = loadEnv();
@@ -140,6 +142,7 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
       const ours = /RollConfigurationDialog/.test(app.constructor?.name ?? '') || app.element?.querySelector?.('[data-bf-buy]')
+        || app.element?.querySelector?.('[data-bf-ticks="bf-help"]')
         || (/Find Familiar/.test(app.element?.textContent ?? '') && (app instanceof foundry.applications.api.DialogV2));
       if (ours) { try { await app.close(); } catch { /* gone */ } }
     }
@@ -487,6 +490,98 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
         JSON.stringify({ hp: hp2, deltaHp: now?.delta?.toObject?.()?.system?.attributes?.hp ?? null, tokenFlags: now?.flags?.dnd5e ?? null }));
       owlDoc = now;
       if (now && !madeTokens.includes(now.id)) madeTokens.push(now.id);
+    });
+
+    // ---- 14. the Help action: the Owl's button (before §7 puts the Owl away)
+    if (want(14) && owlDoc) await section(14, async () => {
+      await closeDialogs();
+      await set('reminderList', 'buy, effect');
+      const owl = owlDoc.actor ?? null;
+      const help = owl?.items?.find(i => i.name === 'Help') ?? null;
+      const activity = help ? [...help.system.activities][0] : null;
+      ok('§14a the landed Owl carries Help — a feature with one Utility activity, an Action',
+        !!help && (help.type === 'feat') && (activity?.type === 'utility') && (activity?.activation?.type === 'action'),
+        `help=${!!help} type=${help?.type} activity=${activity?.type}/${activity?.activation?.type}`);
+      if (!activity) return;
+      // nothing targeted: refused before the dialog, no card
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      const before = game.messages.size;
+      const refused = await activity.use({}, { configure: false }, { create: true }).catch(() => null);
+      // ⚠ A window: a card the veto failed to stop lands within it.
+      const stray = await watch(() => game.messages.size !== before, { ms: 600 });
+      ok('§14b with nothing targeted the use is refused — no card', !stray && (game.messages.size === before) && !(refused?.message instanceof ChatMessage),
+        `stray=${stray} messages ${before}→${game.messages.size}`);
+      // the Sorcerer targeted, one square away: the use posts its card with the question
+      await moveOwl(1);
+      const casterPlaceable = canvas.tokens.get(casterToken.id);
+      casterPlaceable.setTarget(true, { releaseOthers: true });
+      const useHelp = async label => {
+        const result = await activity.use({}, { configure: false }, { create: true });
+        const message = result?.message instanceof ChatMessage ? result.message : null;
+        if (message) madeMessages.push(message);
+        const flag = await until(() => message?.getFlag(MOD, 'help')?.status === 'pending' ? message.getFlag(MOD, 'help') : null, { timeout: 6000, label });
+        // the popup the latch opened on this client (the Owl's owner): the record is answered, never the popup
+        await closeDialogs();
+        return { message, flag };
+      };
+      const first = await useHelp('the Help card\'s record');
+      ok('§14c the card carries the question: the Sorcerer at 5 ft, both assists open, Perception and Stealth to lend',
+        (first.flag?.target?.uuid === caster.uuid) && (first.flag?.feet === 5) && (first.flag?.rows ?? []).every(r => !r.off)
+          && (first.flag?.lends ?? []).some(l => l.key === 'prc') && (first.flag?.lends ?? []).some(l => l.key === 'ste'),
+        JSON.stringify({ target: first.flag?.target, feet: first.flag?.feet, rows: first.flag?.rows, lends: (first.flag?.lends ?? []).map(l => l.key) }));
+      // answered on the record: the check, lending Perception — the elect lands Assisted on the Sorcerer
+      await first.message.setFlag(MOD, 'help', { ...first.flag, chosen: { facet: 'check', lend: { kind: 'skill', key: 'prc', label: 'Perception' } }, answeredAt: Date.now() });
+      const landed = await until(() => first.message.getFlag(MOD, 'help')?.resolved ? first.message.getFlag(MOD, 'help') : null, { timeout: 10000, label: 'the Help record resolved' });
+      const assisted = caster.effects.find(e => e.name === 'Assisted — Perception') ?? null;
+      const receipt = first.message.getFlag(MOD, 'effectReceipt');
+      ok('§14d "Assisted — Perception" lands on the Sorcerer, lending prc, stamped with the Owl as its source, receipted on the card',
+        (landed?.resolved?.facet === 'check') && !!assisted && (assisted.getFlag(MOD, 'lends') === 'skill:prc') && (assisted.getFlag(MOD, 'sourceUuid') === owl.uuid)
+          && (receipt?.targets ?? []).some(t => (t.uuid === caster.uuid) && (t.effects ?? []).some(e => e.id === assisted.id)),
+        JSON.stringify({ resolved: landed?.resolved, assisted: assisted?.name, lends: assisted?.getFlag(MOD, 'lends'), source: assisted?.getFlag(MOD, 'sourceUuid'),
+          receipt: (receipt?.targets ?? []).map(t => ({ uuid: t.uuid, effects: (t.effects ?? []).map(e => e.id) })) }));
+      // the Perception check: the gate names it at Advantage, the default moves there; pressed, the effect is spent
+      const beforeCheck = lastOf('check')?.id ?? null;
+      void caster.rollSkill({ skill: 'prc' });
+      const dlg = await until(rollDialog, { timeout: 6000, label: 'the Perception dialog' });
+      await until(() => dlg.element?.querySelector('[data-bf-reminder]') ? true : null, { timeout: 3000, label: 'the check gate drawn' });
+      const gateText = textOf(dlg.element?.querySelector('[data-bf-reminder]'));
+      ok('§14e the Perception check\'s gate names Assisted — Perception, net Advantage, the default moved there',
+        /Assisted — Perception/.test(gateText) && (netOf(dlg) === 'advantage') && (defaultOf(dlg) === 'advantage'),
+        `gate="${gateText.slice(0, 140)}" net=${netOf(dlg)} default=${defaultOf(dlg)}`);
+      press(dlg, 'advantage');
+      const msg = await until(() => { const m = lastOf('check'); return (m && (m.id !== beforeCheck)) ? m : null; }, { timeout: 8000, label: 'the Perception check posted' });
+      await until(() => assisted && caster.effects.get(assisted.id) ? null : true, { timeout: 6000, label: 'the Assisted effect spent' });
+      const rec = msg?.getFlag(MOD, 'reminder');
+      ok('§14f pressed: the check at Advantage, the record names the lend, the effect spent',
+        (Number(msg?.rolls?.[0]?.options?.advantageMode) === 1) && (rec?.sources ?? []).some(s => /Assisted — Perception/.test(s.label) && (s.bend === 'advantage')) && !(assisted && caster.effects.get(assisted.id)),
+        `mode=${msg?.rolls?.[0]?.options?.advantageMode} rec=${JSON.stringify(rec?.sources)} live=${!!(assisted && caster.effects.get(assisted.id))}`);
+      void caster.rollSkill({ skill: 'prc' });
+      const dlg2 = await until(rollDialog, { timeout: 6000, label: 'the second Perception dialog' });
+      // ⚠ A window: a gate drawn for a spent effect lands within it.
+      const gateAgain = await watch(() => !!dlg2.element?.querySelector('[data-bf-reminder]'), { ms: 600 });
+      ok('§14g spent, a second Perception check meets no gate', !gateAgain, `gate=${gateAgain}`);
+      await closeDialogs();
+      // the attack facet, the Sorcerer standing in for the enemy: Helped lands with the Owl as its source
+      casterPlaceable.setTarget(true, { releaseOthers: true });
+      const second = await useHelp('the second Help card\'s record');
+      await second.message.setFlag(MOD, 'help', { ...second.flag, chosen: { facet: 'attack', lend: null }, answeredAt: Date.now() });
+      const landed2 = await until(() => second.message.getFlag(MOD, 'help')?.resolved ? second.message.getFlag(MOD, 'help') : null, { timeout: 10000, label: 'the second Help record resolved' });
+      const helped = caster.effects.find(e => e.name === 'Helped') ?? null;
+      ok('§14h Assist an Attack Roll: "Helped" lands on the creature, stamped with the Owl as its source, no changes',
+        (landed2?.resolved?.facet === 'attack') && !!helped && (helped.getFlag(MOD, 'sourceUuid') === owl.uuid) && !(helped.changes?.length),
+        JSON.stringify({ resolved: landed2?.resolved, helped: helped?.name, source: helped?.getFlag(MOD, 'sourceUuid'), changes: helped?.changes?.length }));
+      // three squares away: the attack row greyed with the distance, the check row open
+      await moveOwl(3);
+      casterPlaceable.setTarget(true, { releaseOthers: true });
+      const third = await useHelp('the third Help card\'s record');
+      const attackRow = third.flag?.rows?.find(r => r.key === 'attack') ?? null;
+      ok('§14i three squares away: the attack row greyed "15 ft away — an enemy within 5 feet only", the check row open',
+        (third.flag?.feet === 15) && /15 ft away — an enemy within 5 feet only/.test(attackRow?.off ?? '') && (third.flag?.rows ?? []).filter(r => r.key.startsWith('check')).every(r => !r.off),
+        JSON.stringify({ feet: third.flag?.feet, rows: third.flag?.rows }));
+      if (helped) await helped.delete();
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      await set('reminderList', 'buy');
+      await moveOwl(1);
     });
 
     // ---- 7. in the pocket, then called back

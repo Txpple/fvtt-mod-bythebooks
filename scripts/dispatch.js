@@ -52,6 +52,7 @@ export const ORDER = Object.freeze([
   "hit-menu",           // a maneuver's die, before volleys' multiplier
   "superiority-uses",
   "use-chips",
+  "help",               // the Help action's veto at the use, its card row after the use chips'
   "area-ask",
   "metamagic",
   "dice-changers",      // after every rider's part: it reads none of them

@@ -8825,6 +8825,32 @@
         ]
       }
     },
+    "help": {
+      "class": "record",
+      "family": "use",
+      "means": "the Help action landed its assist — Helped on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
+      "writers": [
+        "help.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "helpItem": {
+      "class": "state",
+      "family": "state",
+      "means": "fingerprint — the world's own Help item the elect keeps at ready, and a familiar's seeded copy (decide/help.js); never a moment",
+      "writers": [
+        "decide/help.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
     "hewNotice": {
       "class": "state",
       "family": "state",
@@ -10806,6 +10832,7 @@
         "AmYcHJjfunVynBAk",
         "ChhZTizUEEswEhcT",
         "DHVNlHRbQUsVsZND",
+        "EgdXoAZrGtdnImYT",
         "GHFGCLQiRcRkZLDw",
         "HXfYRaFbuUcYPUIK",
         "IkMQzPGINTsUzZhh",
@@ -10864,6 +10891,9 @@
             "type": "boolean"
           },
           "DHVNlHRbQUsVsZND": {
+            "type": "boolean"
+          },
+          "EgdXoAZrGtdnImYT": {
             "type": "boolean"
           },
           "GHFGCLQiRcRkZLDw": {
@@ -11568,6 +11598,19 @@
       "schema": {
         "type": "string"
       }
+    },
+    "lends": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — on an Assisted effect, the skill or tool the helper lent, which the check gate reads against the roll's key (reminders.js)",
+      "writers": [
+        "decide/help.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
     },
     "lightOn": {
       "class": "state",

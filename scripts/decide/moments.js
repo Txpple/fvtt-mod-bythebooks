@@ -578,6 +578,16 @@ export const MOMENT_RECORDS = Object.freeze({
     })
   },
 
+  help: {
+    events: ["use"],
+    means: "the Help action landed its assist — Helped on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
+    resolved: (r, ctx) => (r?.resolved ? whole(["use"], {
+      actor: source(r) ?? ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, ability: "Help",
+      targets: r.target ? [row(r.target)] : [],
+      details: { facet: r.resolved.facet ?? null, lend: r.resolved.lend ?? null, effectName: r.resolved.effectName ?? null, feet: r.feet ?? null }
+    }) : [])
+  },
+
   coatUse: {
     events: ["spend"],
     means: "a coating was written at its use — the Poisoner's Apply Poison vetoed into the Poison Coating chip on the actor, a dose spent (use-chips.js COATINGS, 2026-09-26); on the card the use posts",
@@ -785,6 +795,9 @@ export const MOMENT_RECORDS = Object.freeze({
  * somebody will read — the checker refuses reasons under 20 characters.
  */
 export const STATE_KEYS = Object.freeze({
+  // the Help action's fingerprints (help.js, decide/help.js)
+  helpItem: "fingerprint — the world's own Help item the elect keeps at ready, and a familiar's seeded copy (decide/help.js); never a moment",
+  lends: "provenance — on an Assisted effect, the skill or tool the helper lent, which the check gate reads against the roll's key (reminders.js)",
   // the hold's lifecycle and provenance
   attackFor: "provenance — the attack a damage roll answers (auto-damage.js)",
   notApplied: "a damage card's line — dice rolled on an attack every judged target was missed on (a Portent face, a Shield, a plain miss): nothing applied, the card says why (auto-apply.js, receipts.js); presentation of the attack's resolve",

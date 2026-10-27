@@ -995,7 +995,40 @@ describe("effectCheckSources — an effect that bends ability checks by its text
     const facets = Object.entries(reg.EFFECT_BENDS)
       .filter(([, row]) => row.checks)
       .map(([k]) => k);
-    expect(facets).toEqual(["Heated Metal", "Averse", "Powerful Build", "Team Tactics"]); // Team Tactics: Heroes of Faerûn
+    expect(facets).toEqual([
+      "Heated Metal",
+      "Averse",
+      "Assisted",
+      "Powerful Build",
+      "Team Tactics"
+    ]); // Team Tactics: Heroes of Faerûn; Assisted: the Help action
+  });
+  it("Assisted (the Help action): Advantage on the check with the skill or tool the effect lends, spent by it; another check never", () => {
+    const facts = { table: reg.EFFECT_BENDS, name: "Tycon", enabled: reg.EFFECT_KEYS };
+    const lent = { id: "a1", name: "Assisted — Stealth", lends: "skill:ste" };
+    const on = r.effectCheckSources({ ...facts, effects: [lent], skill: "ste" });
+    expect(on).toHaveLength(1);
+    expect(on[0]).toMatchObject({
+      kind: "effect",
+      bend: "advantage",
+      label: "Tycon — Assisted — Stealth",
+      effectId: "a1",
+      spend: "check"
+    });
+    expect(on[0].detail).toEqual({ page: "rule", key: "help", benefit: "Assist an Ability Check" });
+    expect(r.effectCheckSources({ ...facts, effects: [lent], skill: "prc" })).toHaveLength(0);
+    expect(r.effectCheckSources({ ...facts, effects: [lent], skill: null })).toHaveLength(0);
+    const tool = {
+      id: "a2",
+      name: "Assisted — Thieves' Tools",
+      lends: "tool:thief"
+    };
+    expect(r.effectCheckSources({ ...facts, effects: [tool], tool: "thief" })).toHaveLength(1);
+    expect(r.effectCheckSources({ ...facts, effects: [tool], skill: "ste" })).toHaveLength(0);
+    // an Assisted with nothing lent (a hand-made effect) answers no check
+    expect(
+      r.effectCheckSources({ ...facts, effects: [{ id: "a3", name: "Assisted" }], skill: "ste" })
+    ).toHaveLength(0);
   });
   it("Powerful Build (the Goliath walk, 2026-09-25): Advantage on Athletics or Acrobatics while Grappled, and nowhere else", () => {
     const facts = {

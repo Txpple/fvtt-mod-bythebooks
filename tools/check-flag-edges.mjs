@@ -60,6 +60,8 @@ const OWNERS = {
   leadWindow: { readers: "core.js", why: "the spine claims the leading window on the User; the elect asks it (leadsWindow)" },
   diceRise: { readers: "dice-rise.js", why: "every machine whose rule changes a die stamps the record the one renderer plays" },
   respondsTo: { readers: "ui.js", why: "an envelope's machines write it; the relay's registry folds it" },
+  helpItem: { readers: "help.js", why: "the Help item's data is pure (decide/help.js); the elect that keeps the world's copy is its one reader" },
+  lends: { readers: "reminders.js", why: "the Assisted effect's data is pure (decide/help.js); the check gate is its one reader, against the roll's own key" },
   saveFor: { readers: "ui.js", why: "the demand registry reads which card a save the module rolled answers" },
   form: { owner: ["transforms.js", "decide/transforms.js"], why: "decide/transforms.js builds the form effect transforms.js lands" },
   migratedFrom: { owner: ["migrate.js", "decide/migrate.js"], why: "decide/migrate.js builds the recreated behaviour migrate.js lands" }

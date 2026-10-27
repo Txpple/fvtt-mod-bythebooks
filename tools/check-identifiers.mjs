@@ -23,7 +23,9 @@ const NOT_CONTENT = new Map([
   ["Power of the Wilds: Lion", "the module-MADE member effect of the Lion's ring (EMANATIONS `made`): the pack ships no effect for it"],
   ["Pack Damage", "embedded on the PHB's Conjured Animals actor (Conjure Animals' pack); the snapshot reads Item packs only"],
   ["Grant Save Advantage", "embedded on the PHB's Conjured Animals actor (Conjure Animals' pack); the snapshot reads Item packs only"],
-  ["Unerring Strike", "a BENEFIT of Living Legend (SAVE_SUCCEEDS `feature`): the D20_FOLDS entry names the row, the row names the item"]
+  ["Unerring Strike", "a BENEFIT of Living Legend (SAVE_SUCCEEDS `feature`): the D20_FOLDS entry names the row, the row names the item"],
+  ["Helped", "the Help action's effect on the enemy, module-MADE (help.js): the packs ship Help as a glossary page and no item"],
+  ["Assisted", "the Help action's effect on the ally, module-MADE (help.js): the packs ship Help as a glossary page and no item"]
 ]);
 
 /** The fields a row names its content in. */

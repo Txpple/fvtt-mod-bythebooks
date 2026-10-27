@@ -358,11 +358,12 @@ listen("dnd5e.preRollAbilityCheck", "reminders", (config, dialog, _message) => {
       const roll = { kind: "check", ability: config.ability ?? null, skill: config.skill ?? null, tool: config.tool ?? null };
       sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
       // …and the effect table's rows that bend checks by their text (Heated Metal).
+      // …and the effect table's rows that bend checks by their text (Heated Metal), or by what the effect lends (Assisted).
       sources.push(...effectCheckSources({
-        effects: actor.effects.filter(e => !e.disabled && !e.isSuppressed).map(e => ({ id: e.id, name: e.name })),
+        effects: actor.effects.filter(e => !e.disabled && !e.isSuppressed).map(e => ({ id: e.id, name: e.name, lends: readFlag(e, "lends") ?? null })),
         features: featuresOf(actor),
         enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, name: actor.name,
-        statuses: actor.statuses ?? [], skill: config.skill ?? null }));
+        statuses: actor.statuses ?? [], skill: config.skill ?? null, tool: config.tool ?? null }));
     }
     if ( !sources.length ) return;
     const gate = new DialogCarried({ ...checkGate(sources), actorUuid: actor.uuid,
@@ -403,10 +404,31 @@ listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, mess
       ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
       ...statContext(gate.actorUuid)
     });
+    void spendCheckEffects(gate);
   } catch(err) {
     log.error(`Check gate record failed.`, err);
   }
 });
+
+/** A `spend: "check"` row's effect (Assisted) is used up by the check it bent — the record above is the receipt. */
+async function spendCheckEffects(gate) {
+  try {
+    const ids = [...new Set((gate?.sources ?? []).filter(s => (s.spend === "check") && s.effectId).map(s => s.effectId))];
+    if ( !ids.length ) return;
+    const actor = resolveUuid(gate.actorUuid);
+    if ( !(actor instanceof Actor) ) return;
+    const live = ids.filter(id => actor.effects.get(id));
+    if ( !live.length ) return;
+    if ( !canApplyTo(actor) ) {
+      await whisperNoGM(`the spent ${actor.effects.get(live[0])?.name ?? "effect"} on ${actor.name}`,
+        "The check's record says it was spent; the effect stays until a GM is connected or its window closes.");
+      return;
+    }
+    await actor.deleteEmbeddedDocuments("ActiveEffect", live);
+  } catch(err) {
+    log.error(`The check's spent effect could not be removed — remove it by hand.`, err);
+  }
+}
 
 // The attack's record: what was shown, the net, what was pressed — only with rolls in hand.
 listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, message) => {

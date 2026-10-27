@@ -464,6 +464,15 @@ describe("the moment registry — shape", () => {
         ]
       },
       useChip: { sourceUuid: "Actor.rogue", effectId: "e", name: "Steady Aim", bend: "advantage" },
+      help: {
+        sourceUuid: "Actor.owl",
+        status: "pending",
+        helperName: "Owl",
+        target: { uuid: "Actor.goblin", name: "Goblin" },
+        feet: 5,
+        chosen: { facet: "attack", lend: null },
+        resolved: { facet: "attack", lend: null, effectName: "Helped", at: 1 }
+      },
       typePick: {
         sourceUuid: "Actor.aster",
         row: "Elemental Adept",

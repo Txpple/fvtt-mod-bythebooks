@@ -2570,7 +2570,8 @@ export const CHECK_BENDS = Object.freeze({
  *   only / except  "source" — the bend is for / against all but the creature that placed it (the module's
  *             stamp, else the origin); with no source `only` skips the row and `except` counts it
  *   member    only an emanation's MEMBER copy bends — the bearer's own effect of the same name never does
- *   checks / checksWhen  a bend on the bearer's ability checks, narrowed to { statuses, skills }
+ *   checks / checksWhen  a bend on the bearer's ability checks, narrowed to { statuses, skills }, or { lends } — to the skill
+ *             or tool the carrier effect itself lends (the Help action's Assisted; `spend: "check"` uses it up)
  *   saves     { bend, statuses?, spells?, abilities?, halfToNone? } scoped by the demand (`abilities`: the
  *             save's own ability, Irresistible Dance's Dexterity), or { succeeds, sleep } — the save
  *             cannot fail against magical sleep (a fourth button); B2's facets: `fails` (the save cannot
@@ -2600,7 +2601,7 @@ export const CHECK_BENDS = Object.freeze({
  *   itemOnly  D1 — the effect's own item must be the row's `item` (an unattributed effect of the same name never carries it)
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature"|"worn", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity"|"displaced"|"targetStatus", status?: string, spend?: "attack"|"save", attack?: string,
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity"|"displaced"|"targetStatus", status?: string, spend?: "attack"|"save"|"check", attack?: string,
  *   only?: "source", except?: "source", side?: "caster", named?: string, against?: boolean|"attacker", plus?: number, rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
@@ -2765,6 +2766,15 @@ export const EFFECT_BENDS = Object.freeze({
     caveat: "listed — Disadvantage only with a weapon other than the sword",
     rule: Object.freeze({ item: "Sword of Vengeance", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfVengea" }) }),
   // --- C. spent by the next attack roll — Vex and Sap's shape ---------------------------------
+  // The Help action's two effects (help.js; RULINGS *The Help action*): "Helped" on the ENEMY, spent by the next attack
+  // roll at it by anyone but the helper (`except: "source"`); "Assisted — <skill>" on the ALLY, Advantage on the next
+  // check with the skill or tool the effect lends (`checksWhen.lends`, the roll's own key), which spends it. The book's
+  // text is the glossary page, each facet its own paragraph.
+  "Helped": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "the Help action",
+    rule: Object.freeze({ page: "rule", key: "help", benefit: "Assist an Attack Roll" }) }),
+  "Assisted": Object.freeze({ attacker: null, target: null, scope: "any", checks: "advantage", checksWhen: Object.freeze({ lends: true }), spend: "check",
+    from: "the Help action",
+    rule: Object.freeze({ page: "rule", key: "help", benefit: "Assist an Ability Check" }) }),
   "Guiding Bolt": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", from: "Guiding Bolt",
     rule: Object.freeze({ item: "Guiding Bolt", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplGuidingBol" }) }),
   "Mocked": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Vicious Mockery",

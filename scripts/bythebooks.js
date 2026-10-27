@@ -43,6 +43,7 @@ import "./damage-casts.js";
 import "./hit-menu.js";
 import "./superiority-uses.js";
 import "./use-chips.js";
+import "./help.js";
 import "./metamagic.js";
 import "./dice-changers.js";
 import "./heal-rerolls.js";

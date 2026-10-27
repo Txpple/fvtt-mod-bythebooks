@@ -219,6 +219,7 @@ const WORLD_WRITERS = {
   "topple.js": ["topple", "effectReceipt"],
   "chip-spend.js": ["chipSpend"],
   "use-chips.js": ["useChip"],
+  "help.js": ["help", "effectReceipt"],   // effectReceipt: the assist's effect, receipted on the Help card
   "hit-menu.js": ["hitManeuver", "sweepCard", "receipt", "effectReceipt"],   // effectReceipt: Hill's Tumble's no-save press, receipted on the damage card
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],

@@ -765,7 +765,9 @@ registerRelay("momentAck", {
 // write of the kinds it names, until it answers or its time runs out. Nothing polls.
 
 /** The writes a wait can listen for; a message's create and update by default. */
-const WAIT_ON = Object.freeze(["createChatMessage", "updateChatMessage", "createActiveEffect", "updateActiveEffect", "updateActor"]);
+// `updateUser`: the leading window's claim lands as a User flag write (THE LEADING WINDOW, below), so a ready-time
+// elect job waits for the lead rather than reading a stale one in the same tick.
+const WAIT_ON = Object.freeze(["createChatMessage", "updateChatMessage", "createActiveEffect", "updateActiveEffect", "updateActor", "updateUser"]);
 
 /** @type {Set<{test: () => any, on: string[], resolve: (value: any) => void, timer: any}>} */
 const waiters = new Set();

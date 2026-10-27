@@ -90,6 +90,7 @@ export const LAYER_OF = {
   "sneak.js": "machines",
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
+  "help.js": "machines",        // the Help action: the item's use, the assist asked, the one effect landed
   "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card
   "dice-changers.js": "machines",   // the dice changers' one popup per damage roll — Empowered Spell, Savage Attacker, Piercer
   "emanations.js": "machines",
@@ -151,6 +152,7 @@ export const LAYER_OF = {
   "decide/receipt.js": "decision",
   "decide/present.js": "decision",
   "decide/chips.js": "decision",
+  "decide/help.js": "decision",
   "decide/reminders.js": "decision",
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
