@@ -887,6 +887,7 @@
       "kinds": [
         "bashOffer",
         "deathSaveOffer",
+        "help",
         "transform"
       ],
       "recorded": true,
@@ -900,14 +901,21 @@
         "details",
         "details.answer",
         "details.burst",
+        "details.effectName",
         "details.empowered",
         "details.ended",
+        "details.facet",
+        "details.feet",
         "details.form",
         "details.formUuid",
         "details.healed",
         "details.key",
         "details.kind",
         "details.learned",
+        "details.lend",
+        "details.lend.key",
+        "details.lend.kind",
+        "details.lend.label",
         "details.level",
         "details.outcome",
         "details.self",
@@ -1411,8 +1419,10 @@
         "use"
       ],
       "means": "the Help action landed its assist — Helped on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
-      "recorded": false,
-      "pairs": []
+      "recorded": true,
+      "pairs": [
+        "use|help"
+      ]
     },
     "hitManeuver": {
       "events": [
@@ -14642,6 +14652,229 @@
             "Hobgoblin"
           ],
           "timedOut": false
+        },
+        "at": 0
+      }
+    },
+    "use|help": {
+      "fields": [
+        "ability",
+        "activityUuid",
+        "actorName",
+        "actorUuid",
+        "at",
+        "attackId",
+        "details",
+        "details.effectName",
+        "details.facet",
+        "details.feet",
+        "details.lend",
+        "details.lend.key",
+        "details.lend.kind",
+        "details.lend.label",
+        "event",
+        "itemName",
+        "itemUuid",
+        "kind",
+        "marker",
+        "messageId",
+        "module",
+        "momentId",
+        "spend",
+        "targets",
+        "targets[]",
+        "targets[].actorUuid",
+        "targets[].name",
+        "targets[].tokenUuid",
+        "tokenUuid",
+        "version"
+      ],
+      "details": {
+        "type": "object",
+        "properties": {
+          "effectName": {
+            "type": "string"
+          },
+          "facet": {
+            "type": "string"
+          },
+          "feet": {
+            "type": "number"
+          },
+          "lend": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "examples": [
+                  "skill"
+                ]
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "kind",
+              "label"
+            ]
+          }
+        },
+        "required": [
+          "effectName",
+          "facet",
+          "feet",
+          "lend"
+        ]
+      },
+      "envelope": {
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string"
+          },
+          "activityUuid": {
+            "type": "null"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "actorUuid": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          },
+          "attackId": {
+            "type": "null"
+          },
+          "details": {
+            "type": "object"
+          },
+          "event": {
+            "type": "string",
+            "examples": [
+              "use"
+            ]
+          },
+          "itemName": {
+            "type": "null"
+          },
+          "itemUuid": {
+            "type": "null"
+          },
+          "kind": {
+            "type": "string",
+            "examples": [
+              "help"
+            ]
+          },
+          "marker": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "momentId": {
+            "type": "string"
+          },
+          "spend": {
+            "type": "null"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "actorUuid": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "tokenUuid": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actorUuid",
+                "name",
+                "tokenUuid"
+              ]
+            }
+          },
+          "tokenUuid": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ability",
+          "activityUuid",
+          "actorName",
+          "actorUuid",
+          "at",
+          "attackId",
+          "details",
+          "event",
+          "itemName",
+          "itemUuid",
+          "kind",
+          "marker",
+          "messageId",
+          "module",
+          "momentId",
+          "spend",
+          "targets",
+          "tokenUuid",
+          "version"
+        ]
+      },
+      "sample": {
+        "event": "use",
+        "module": "fvtt-mod-bythebooks",
+        "version": 2,
+        "kind": "help",
+        "marker": "message",
+        "momentId": "<id>|help|message",
+        "actorUuid": "Scene.<id>.Token.<id>.Actor.<id>",
+        "actorName": "Owl",
+        "tokenUuid": "Scene.<id>.Token.<id>",
+        "itemUuid": null,
+        "itemName": null,
+        "activityUuid": null,
+        "ability": "Help",
+        "messageId": "<id>",
+        "attackId": null,
+        "targets": [
+          {
+            "actorUuid": "Actor.<id>",
+            "tokenUuid": "Scene.<id>.Token.<id>",
+            "name": "BTB Test Sorcerer"
+          }
+        ],
+        "spend": null,
+        "details": {
+          "facet": "check",
+          "lend": {
+            "kind": "skill",
+            "key": "prc",
+            "label": "Perception"
+          },
+          "effectName": "Assisted — Perception",
+          "feet": 5
         },
         "at": 0
       }

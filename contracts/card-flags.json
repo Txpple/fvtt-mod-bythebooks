@@ -3094,18 +3094,18 @@
       "schema": {
         "type": "string",
         "examples": [
+          "05XoBxh94ZkIXsS3",
           "0FOYFdVZG2qknsAB",
           "6hZQ3oEiSPQgg4lW",
           "7hfPtz9lrAnMk2ev",
           "7jRNkhcwXA7MVDEK",
+          "AkwrgjZ3UBefdOGV",
+          "ApSOBfxTDExr0mfS",
           "BuWWUyv2JryZ4JeC",
           "C5GCIuqK2jLtUec3",
           "CK26bHBPOceaUhOj",
           "CvBltus29v1GPg5Y",
-          "DplSytcdZhG40kik",
-          "FyCfQ75cXX4R9sh3",
-          "GtKBT8PbxNpDNvpn",
-          "I9x4eNWvGBGlF0I1"
+          "DplSytcdZhG40kik"
         ]
       }
     },
@@ -6618,6 +6618,7 @@
         "baitDone",
         "castDone",
         "feintDone",
+        "helpDone",
         "ridersDone",
         "targets",
         "targets[]",
@@ -6644,6 +6645,9 @@
             "type": "boolean"
           },
           "feintDone": {
+            "type": "boolean"
+          },
+          "helpDone": {
             "type": "boolean"
           },
           "ridersDone": {
@@ -8832,11 +8836,256 @@
       "writers": [
         "help.js"
       ],
-      "on": [],
-      "stamp": null,
+      "on": [
+        "ChatMessage"
+      ],
+      "stamp": "flag",
       "readBy": [],
-      "recorded": false,
-      "fields": []
+      "recorded": true,
+      "fields": [
+        "answeredAt",
+        "chosen",
+        "chosen.facet",
+        "chosen.lend",
+        "chosen.lend.key",
+        "chosen.lend.kind",
+        "chosen.lend.label",
+        "combat",
+        "feet",
+        "helperName",
+        "landing",
+        "landing.at",
+        "landing.by",
+        "landing.window",
+        "lends",
+        "lends[]",
+        "lends[].key",
+        "lends[].kind",
+        "lends[].label",
+        "resolved",
+        "resolved.at",
+        "resolved.effectName",
+        "resolved.facet",
+        "resolved.lend",
+        "resolved.lend.key",
+        "resolved.lend.kind",
+        "resolved.lend.label",
+        "rows",
+        "rows[]",
+        "rows[].key",
+        "rows[].off",
+        "sourceUuid",
+        "status",
+        "target",
+        "target.name",
+        "target.uuid"
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "answeredAt": {
+            "type": "number"
+          },
+          "chosen": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "facet": {
+                "type": "string"
+              },
+              "lend": {
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "examples": [
+                      "skill"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "kind",
+                  "label"
+                ]
+              }
+            },
+            "required": [
+              "facet",
+              "lend"
+            ]
+          },
+          "combat": {
+            "type": "null"
+          },
+          "feet": {
+            "type": "number"
+          },
+          "helperName": {
+            "type": "string"
+          },
+          "landing": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "number"
+              },
+              "by": {
+                "type": "string"
+              },
+              "window": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "by",
+              "window"
+            ]
+          },
+          "lends": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "examples": [
+                    "skill"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "kind",
+                "label"
+              ]
+            }
+          },
+          "resolved": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "at": {
+                "type": "number"
+              },
+              "effectName": {
+                "type": "string"
+              },
+              "facet": {
+                "type": "string"
+              },
+              "lend": {
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "examples": [
+                      "skill"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "kind",
+                  "label"
+                ]
+              }
+            },
+            "required": [
+              "at",
+              "effectName",
+              "facet",
+              "lend"
+            ]
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "off": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "off"
+              ]
+            }
+          },
+          "sourceUuid": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "examples": [
+              "pending"
+            ]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "uuid"
+            ]
+          }
+        },
+        "required": [
+          "chosen",
+          "combat",
+          "feet",
+          "helperName",
+          "lends",
+          "resolved",
+          "rows",
+          "sourceUuid",
+          "status",
+          "target"
+        ]
+      }
     },
     "helpItem": {
       "class": "state",
@@ -10829,9 +11078,11 @@
       "recorded": true,
       "fields": [
         "<id>",
+        "AeoQsUAohLrXBSVM",
         "AmYcHJjfunVynBAk",
         "ChhZTizUEEswEhcT",
         "DHVNlHRbQUsVsZND",
+        "DxTAMXnfOcwISYLK",
         "EgdXoAZrGtdnImYT",
         "GHFGCLQiRcRkZLDw",
         "HXfYRaFbuUcYPUIK",
@@ -10839,7 +11090,9 @@
         "JkzuAikRNesnHyKe",
         "KLZkyYPSbhpANvoF",
         "KxUVJGFBgDDQrdtP",
+        "LPmnRJEhsSRwMmNa",
         "MATHlOMyOpMzvRRx",
+        "MDHsWjzXIBzGDezW",
         "MHdLSzyZFtmWDqdg",
         "McpANsULfZHtVTXK",
         "NVzysNcySTRhJMha",
@@ -10849,21 +11102,26 @@
         "RbfrLBesTVjIyZPv",
         "VALfnsDfWrxzBPbm",
         "WAlnqZNcTfcleNYB",
+        "WjrgqQhsitLPoZEp",
         "WjzpZAQYxHYxSPAz",
         "XDUwGZwWnrEdCIke",
         "YdLldjayBCwsJPjJ",
         "ZuaRLfsuvAFqwnjS",
+        "ameJIZwWKQeEbAJN",
         "czaHEhVYfIhlUSTq",
         "dzMilARHvevzWvxk",
         "ecCcoxQGEsOlkvHg",
         "fCbvKoMiripKgOdF",
+        "gJagKaMdTdPjGDZV",
         "hDtlByYAhJmQjGER",
         "hMaYgyGXTqghXqSa",
         "hSlvGiMnQVfxjSUC",
         "iOKQkIvyCfjQfgqc",
         "kKOWTqpnqlbvjUpk",
+        "kdboygiLSzxyPKDT",
         "lHRaIKzMqBMMZnPI",
         "lXVsDiryJjiOExgi",
+        "mReVOxrPurOhCQTn",
         "nNRkMtMMniEAmlIc",
         "nSYjcxyVvpxauYRz",
         "nTNxRxPfAAzFajXm",
@@ -10884,6 +11142,9 @@
       "schema": {
         "type": "object",
         "properties": {
+          "AeoQsUAohLrXBSVM": {
+            "type": "boolean"
+          },
           "AmYcHJjfunVynBAk": {
             "type": "boolean"
           },
@@ -10891,6 +11152,9 @@
             "type": "boolean"
           },
           "DHVNlHRbQUsVsZND": {
+            "type": "boolean"
+          },
+          "DxTAMXnfOcwISYLK": {
             "type": "boolean"
           },
           "EgdXoAZrGtdnImYT": {
@@ -10914,7 +11178,13 @@
           "KxUVJGFBgDDQrdtP": {
             "type": "boolean"
           },
+          "LPmnRJEhsSRwMmNa": {
+            "type": "boolean"
+          },
           "MATHlOMyOpMzvRRx": {
+            "type": "boolean"
+          },
+          "MDHsWjzXIBzGDezW": {
             "type": "boolean"
           },
           "MHdLSzyZFtmWDqdg": {
@@ -10944,6 +11214,9 @@
           "WAlnqZNcTfcleNYB": {
             "type": "boolean"
           },
+          "WjrgqQhsitLPoZEp": {
+            "type": "boolean"
+          },
           "WjzpZAQYxHYxSPAz": {
             "type": "boolean"
           },
@@ -10956,6 +11229,9 @@
           "ZuaRLfsuvAFqwnjS": {
             "type": "boolean"
           },
+          "ameJIZwWKQeEbAJN": {
+            "type": "boolean"
+          },
           "czaHEhVYfIhlUSTq": {
             "type": "boolean"
           },
@@ -10966,6 +11242,9 @@
             "type": "boolean"
           },
           "fCbvKoMiripKgOdF": {
+            "type": "boolean"
+          },
+          "gJagKaMdTdPjGDZV": {
             "type": "boolean"
           },
           "hDtlByYAhJmQjGER": {
@@ -10983,10 +11262,16 @@
           "kKOWTqpnqlbvjUpk": {
             "type": "boolean"
           },
+          "kdboygiLSzxyPKDT": {
+            "type": "boolean"
+          },
           "lHRaIKzMqBMMZnPI": {
             "type": "boolean"
           },
           "lXVsDiryJjiOExgi": {
+            "type": "boolean"
+          },
+          "mReVOxrPurOhCQTn": {
             "type": "boolean"
           },
           "nNRkMtMMniEAmlIc": {
@@ -11606,11 +11891,19 @@
       "writers": [
         "decide/help.js"
       ],
-      "on": [],
+      "on": [
+        "ActiveEffect"
+      ],
       "stamp": null,
       "readBy": [],
-      "recorded": false,
-      "fields": []
+      "recorded": true,
+      "fields": [],
+      "schema": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
     },
     "lightOn": {
       "class": "state",
@@ -12623,17 +12916,17 @@
               "type": "string",
               "examples": [
                 "Actor.1of7ytmp95RmP3dY",
+                "Actor.1plvrs9OOPlgf5Mw",
+                "Actor.3Z7mlgNSZe7urRJS",
                 "Actor.3ZLcT690RkC2x2x5",
                 "Actor.8JBqV79dWyDi5KBf",
+                "Actor.9WggyiaVLRjdjWyD",
                 "Actor.CiwcAAtM8HgZPRc9",
                 "Actor.J89prVUQbY6D5G5T",
                 "Actor.PDUDYW1pahZkOOmS",
                 "Actor.QPdVGhhL1FfpAfrC",
                 "Actor.RomIZh8ck3jxsVj8",
-                "Actor.TnXE7jxRNBLPq85H",
-                "Actor.g9Trxwz18XE3BUKr",
-                "Actor.l60y19TiF8lH8NAJ",
-                "Actor.p98Od6zhxNGnHJyX"
+                "Actor.TnXE7jxRNBLPq85H"
               ]
             }
           },
@@ -14111,6 +14404,7 @@
       "readBy": [],
       "recorded": true,
       "fields": [
+        "Actor|0MyLaWuHjSmbyR5f",
         "Actor|GrKk2ZBcPGcqlvvC",
         "Actor|HXtBr36rdWNtsfhd",
         "Actor|ywJGhYXTXyVY5S03",
@@ -14119,6 +14413,9 @@
       "schema": {
         "type": "object",
         "properties": {
+          "Actor|0MyLaWuHjSmbyR5f": {
+            "type": "string"
+          },
           "Actor|GrKk2ZBcPGcqlvvC": {
             "type": "string"
           },
@@ -17188,6 +17485,102 @@
         "companion.snapshot.delta.flags.dnd5e.summon.profile",
         "companion.snapshot.delta.img",
         "companion.snapshot.delta.items",
+        "companion.snapshot.delta.items[]",
+        "companion.snapshot.delta.items[]._id",
+        "companion.snapshot.delta.items[]._stats",
+        "companion.snapshot.delta.items[]._stats.compendiumSource",
+        "companion.snapshot.delta.items[]._stats.coreVersion",
+        "companion.snapshot.delta.items[]._stats.createdTime",
+        "companion.snapshot.delta.items[]._stats.duplicateSource",
+        "companion.snapshot.delta.items[]._stats.exportSource",
+        "companion.snapshot.delta.items[]._stats.lastModifiedBy",
+        "companion.snapshot.delta.items[]._stats.modifiedTime",
+        "companion.snapshot.delta.items[]._stats.systemId",
+        "companion.snapshot.delta.items[]._stats.systemVersion",
+        "companion.snapshot.delta.items[].effects",
+        "companion.snapshot.delta.items[].flags",
+        "companion.snapshot.delta.items[].flags.fvtt-mod-bythebooks",
+        "companion.snapshot.delta.items[].flags.fvtt-mod-bythebooks.helpItem",
+        "companion.snapshot.delta.items[].folder",
+        "companion.snapshot.delta.items[].img",
+        "companion.snapshot.delta.items[].name",
+        "companion.snapshot.delta.items[].ownership",
+        "companion.snapshot.delta.items[].ownership.default",
+        "companion.snapshot.delta.items[].sort",
+        "companion.snapshot.delta.items[].system",
+        "companion.snapshot.delta.items[].system.activities",
+        "companion.snapshot.delta.items[].system.activities.<id>",
+        "companion.snapshot.delta.items[].system.activities.<id>._id",
+        "companion.snapshot.delta.items[].system.activities.<id>.activation",
+        "companion.snapshot.delta.items[].system.activities.<id>.activation.override",
+        "companion.snapshot.delta.items[].system.activities.<id>.activation.type",
+        "companion.snapshot.delta.items[].system.activities.<id>.activation.value",
+        "companion.snapshot.delta.items[].system.activities.<id>.behaviors",
+        "companion.snapshot.delta.items[].system.activities.<id>.consumption",
+        "companion.snapshot.delta.items[].system.activities.<id>.consumption.scaling",
+        "companion.snapshot.delta.items[].system.activities.<id>.consumption.scaling.allowed",
+        "companion.snapshot.delta.items[].system.activities.<id>.consumption.spellSlot",
+        "companion.snapshot.delta.items[].system.activities.<id>.consumption.targets",
+        "companion.snapshot.delta.items[].system.activities.<id>.description",
+        "companion.snapshot.delta.items[].system.activities.<id>.description.value",
+        "companion.snapshot.delta.items[].system.activities.<id>.duration",
+        "companion.snapshot.delta.items[].system.activities.<id>.duration.concentration",
+        "companion.snapshot.delta.items[].system.activities.<id>.duration.expiry",
+        "companion.snapshot.delta.items[].system.activities.<id>.duration.override",
+        "companion.snapshot.delta.items[].system.activities.<id>.duration.units",
+        "companion.snapshot.delta.items[].system.activities.<id>.effects",
+        "companion.snapshot.delta.items[].system.activities.<id>.flags",
+        "companion.snapshot.delta.items[].system.activities.<id>.img",
+        "companion.snapshot.delta.items[].system.activities.<id>.name",
+        "companion.snapshot.delta.items[].system.activities.<id>.range",
+        "companion.snapshot.delta.items[].system.activities.<id>.range.override",
+        "companion.snapshot.delta.items[].system.activities.<id>.range.units",
+        "companion.snapshot.delta.items[].system.activities.<id>.roll",
+        "companion.snapshot.delta.items[].system.activities.<id>.roll.prompt",
+        "companion.snapshot.delta.items[].system.activities.<id>.roll.visible",
+        "companion.snapshot.delta.items[].system.activities.<id>.sort",
+        "companion.snapshot.delta.items[].system.activities.<id>.target",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.affects",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.affects.choice",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.affects.count",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.affects.type",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.override",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.prompt",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.template",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.template.contiguous",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.template.stationary",
+        "companion.snapshot.delta.items[].system.activities.<id>.target.template.units",
+        "companion.snapshot.delta.items[].system.activities.<id>.type",
+        "companion.snapshot.delta.items[].system.activities.<id>.uses",
+        "companion.snapshot.delta.items[].system.activities.<id>.uses.recovery",
+        "companion.snapshot.delta.items[].system.activities.<id>.uses.spent",
+        "companion.snapshot.delta.items[].system.activities.<id>.visibility",
+        "companion.snapshot.delta.items[].system.activities.<id>.visibility.level",
+        "companion.snapshot.delta.items[].system.activities.<id>.visibility.requireAttunement",
+        "companion.snapshot.delta.items[].system.activities.<id>.visibility.requireIdentification",
+        "companion.snapshot.delta.items[].system.activities.<id>.visibility.requireMagic",
+        "companion.snapshot.delta.items[].system.advancement",
+        "companion.snapshot.delta.items[].system.crewed",
+        "companion.snapshot.delta.items[].system.description",
+        "companion.snapshot.delta.items[].system.description.chat",
+        "companion.snapshot.delta.items[].system.description.value",
+        "companion.snapshot.delta.items[].system.enchant",
+        "companion.snapshot.delta.items[].system.identifier",
+        "companion.snapshot.delta.items[].system.prerequisites",
+        "companion.snapshot.delta.items[].system.prerequisites.items",
+        "companion.snapshot.delta.items[].system.prerequisites.repeatable",
+        "companion.snapshot.delta.items[].system.properties",
+        "companion.snapshot.delta.items[].system.requirements",
+        "companion.snapshot.delta.items[].system.source",
+        "companion.snapshot.delta.items[].system.source.revision",
+        "companion.snapshot.delta.items[].system.source.rules",
+        "companion.snapshot.delta.items[].system.type",
+        "companion.snapshot.delta.items[].system.type.subtype",
+        "companion.snapshot.delta.items[].system.type.value",
+        "companion.snapshot.delta.items[].system.uses",
+        "companion.snapshot.delta.items[].system.uses.recovery",
+        "companion.snapshot.delta.items[].system.uses.spent",
+        "companion.snapshot.delta.items[].type",
         "companion.snapshot.delta.system",
         "companion.snapshot.delta.system.attributes",
         "companion.snapshot.delta.system.attributes.hp",
@@ -17693,7 +18086,496 @@
                         "type": "string"
                       },
                       "items": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "_id": {
+                              "type": "string"
+                            },
+                            "_stats": {
+                              "type": "object",
+                              "properties": {
+                                "compendiumSource": {
+                                  "type": "null"
+                                },
+                                "coreVersion": {
+                                  "type": "string"
+                                },
+                                "createdTime": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                },
+                                "duplicateSource": {
+                                  "type": "null"
+                                },
+                                "exportSource": {
+                                  "type": "null"
+                                },
+                                "lastModifiedBy": {
+                                  "type": [
+                                    "null",
+                                    "string"
+                                  ]
+                                },
+                                "modifiedTime": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                },
+                                "systemId": {
+                                  "type": "string"
+                                },
+                                "systemVersion": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "compendiumSource",
+                                "coreVersion",
+                                "createdTime",
+                                "duplicateSource",
+                                "exportSource",
+                                "lastModifiedBy",
+                                "modifiedTime",
+                                "systemId",
+                                "systemVersion"
+                              ]
+                            },
+                            "effects": {
+                              "type": "array"
+                            },
+                            "flags": {
+                              "type": "object",
+                              "properties": {
+                                "fvtt-mod-bythebooks": {
+                                  "type": "object",
+                                  "properties": {
+                                    "helpItem": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "helpItem"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "fvtt-mod-bythebooks"
+                              ]
+                            },
+                            "folder": {
+                              "type": "null"
+                            },
+                            "img": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "ownership": {
+                              "type": "object",
+                              "properties": {
+                                "default": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "default"
+                              ]
+                            },
+                            "sort": {
+                              "type": "number"
+                            },
+                            "system": {
+                              "type": "object",
+                              "properties": {
+                                "activities": {
+                                  "type": "object",
+                                  "patternProperties": {
+                                    "^[A-Za-z0-9]{16}$": {
+                                      "type": "object",
+                                      "properties": {
+                                        "_id": {
+                                          "type": "string"
+                                        },
+                                        "activation": {
+                                          "type": "object",
+                                          "properties": {
+                                            "override": {
+                                              "type": "boolean"
+                                            },
+                                            "type": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "override",
+                                            "type",
+                                            "value"
+                                          ]
+                                        },
+                                        "behaviors": {
+                                          "type": "array"
+                                        },
+                                        "consumption": {
+                                          "type": "object",
+                                          "properties": {
+                                            "scaling": {
+                                              "type": "object",
+                                              "properties": {
+                                                "allowed": {
+                                                  "type": "boolean"
+                                                }
+                                              },
+                                              "required": [
+                                                "allowed"
+                                              ]
+                                            },
+                                            "spellSlot": {
+                                              "type": "boolean"
+                                            },
+                                            "targets": {
+                                              "type": "array"
+                                            }
+                                          },
+                                          "required": [
+                                            "scaling",
+                                            "spellSlot",
+                                            "targets"
+                                          ]
+                                        },
+                                        "description": {
+                                          "type": "object",
+                                          "properties": {
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ]
+                                        },
+                                        "duration": {
+                                          "type": "object",
+                                          "properties": {
+                                            "concentration": {
+                                              "type": "boolean"
+                                            },
+                                            "expiry": {
+                                              "type": "null"
+                                            },
+                                            "override": {
+                                              "type": "boolean"
+                                            },
+                                            "units": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "concentration",
+                                            "expiry",
+                                            "override",
+                                            "units"
+                                          ]
+                                        },
+                                        "effects": {
+                                          "type": "array"
+                                        },
+                                        "flags": {
+                                          "type": "object"
+                                        },
+                                        "img": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "range": {
+                                          "type": "object",
+                                          "properties": {
+                                            "override": {
+                                              "type": "boolean"
+                                            },
+                                            "units": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "override",
+                                            "units"
+                                          ]
+                                        },
+                                        "roll": {
+                                          "type": "object",
+                                          "properties": {
+                                            "prompt": {
+                                              "type": "boolean"
+                                            },
+                                            "visible": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "prompt",
+                                            "visible"
+                                          ]
+                                        },
+                                        "sort": {
+                                          "type": "number"
+                                        },
+                                        "target": {
+                                          "type": "object",
+                                          "properties": {
+                                            "affects": {
+                                              "type": "object",
+                                              "properties": {
+                                                "choice": {
+                                                  "type": "boolean"
+                                                },
+                                                "count": {
+                                                  "type": "string"
+                                                },
+                                                "type": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "choice",
+                                                "count",
+                                                "type"
+                                              ]
+                                            },
+                                            "override": {
+                                              "type": "boolean"
+                                            },
+                                            "prompt": {
+                                              "type": "boolean"
+                                            },
+                                            "template": {
+                                              "type": "object",
+                                              "properties": {
+                                                "contiguous": {
+                                                  "type": "boolean"
+                                                },
+                                                "stationary": {
+                                                  "type": "boolean"
+                                                },
+                                                "units": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "contiguous",
+                                                "stationary",
+                                                "units"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "affects",
+                                            "override",
+                                            "prompt",
+                                            "template"
+                                          ]
+                                        },
+                                        "type": {
+                                          "type": "string"
+                                        },
+                                        "uses": {
+                                          "type": "object",
+                                          "properties": {
+                                            "recovery": {
+                                              "type": "array"
+                                            },
+                                            "spent": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "recovery",
+                                            "spent"
+                                          ]
+                                        },
+                                        "visibility": {
+                                          "type": "object",
+                                          "properties": {
+                                            "level": {
+                                              "type": "object"
+                                            },
+                                            "requireAttunement": {
+                                              "type": "boolean"
+                                            },
+                                            "requireIdentification": {
+                                              "type": "boolean"
+                                            },
+                                            "requireMagic": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "level",
+                                            "requireAttunement",
+                                            "requireIdentification",
+                                            "requireMagic"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "_id",
+                                        "activation",
+                                        "behaviors",
+                                        "consumption",
+                                        "description",
+                                        "duration",
+                                        "effects",
+                                        "flags",
+                                        "img",
+                                        "name",
+                                        "range",
+                                        "roll",
+                                        "sort",
+                                        "target",
+                                        "type",
+                                        "uses",
+                                        "visibility"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "advancement": {
+                                  "type": "object"
+                                },
+                                "crewed": {
+                                  "type": "boolean"
+                                },
+                                "description": {
+                                  "type": "object",
+                                  "properties": {
+                                    "chat": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "chat",
+                                    "value"
+                                  ]
+                                },
+                                "enchant": {
+                                  "type": "object"
+                                },
+                                "identifier": {
+                                  "type": "string"
+                                },
+                                "prerequisites": {
+                                  "type": "object",
+                                  "properties": {
+                                    "items": {
+                                      "type": "array"
+                                    },
+                                    "repeatable": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "items",
+                                    "repeatable"
+                                  ]
+                                },
+                                "properties": {
+                                  "type": "array"
+                                },
+                                "requirements": {
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "type": "object",
+                                  "properties": {
+                                    "revision": {
+                                      "type": "number"
+                                    },
+                                    "rules": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "revision",
+                                    "rules"
+                                  ]
+                                },
+                                "type": {
+                                  "type": "object",
+                                  "properties": {
+                                    "subtype": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "subtype",
+                                    "value"
+                                  ]
+                                },
+                                "uses": {
+                                  "type": "object",
+                                  "properties": {
+                                    "recovery": {
+                                      "type": "array"
+                                    },
+                                    "spent": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "recovery",
+                                    "spent"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "activities",
+                                "advancement",
+                                "crewed",
+                                "description",
+                                "enchant",
+                                "identifier",
+                                "prerequisites",
+                                "properties",
+                                "requirements",
+                                "source",
+                                "type",
+                                "uses"
+                              ]
+                            },
+                            "type": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "_id",
+                            "_stats",
+                            "effects",
+                            "flags",
+                            "folder",
+                            "img",
+                            "name",
+                            "ownership",
+                            "sort",
+                            "system",
+                            "type"
+                          ]
+                        }
                       },
                       "system": {
                         "type": "object",
