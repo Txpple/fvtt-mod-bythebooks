@@ -154,6 +154,16 @@ export function coverStanding(carried, measured) {
   return { degree: measured?.degree ?? degreeOfBonus(0), cause: coverCause(measured?.by) };
 }
 
+/**
+ * Do a line's wall collisions give cover? Only a wall that also blocks SIGHT does: one drawn with Sight None
+ * (a rail, a ledge, a wall for bodies alone) is seen past and covers nothing.
+ * @param {{edges: Iterable<{sight: number}>}[]|null} collisions   the platform's `mode: "all"` hits
+ * @param {number} none   the platform's "no restriction" sense value
+ */
+export function collisionsCover(collisions, none) {
+  return (collisions ?? []).some(c => [...(c?.edges ?? [])].some(e => e.sight !== none));
+}
+
 /** @param {Rect} r @param {number} d */
 function shrink(r, d) {
   return { x: r.x + d, y: r.y + d, w: r.w - (2 * d), h: r.h - (2 * d) };

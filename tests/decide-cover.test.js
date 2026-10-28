@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CARRIED_CAUSE,
   COVER_DEGREES,
+  collisionsCover,
   coverAtTheAttack,
   coverCause,
   coverStanding,
@@ -147,6 +148,22 @@ describe("measured cover — the 2024 DMG's corner lines (RULINGS *Measured cove
 
   it("a Tiny creature's space is its own one square", () => {
     expect(squaresOf({ x: 0, y: 0, w: 50, h: 50 }, G)).toEqual([{ x: 0, y: 0, w: 50, h: 50 }]);
+  });
+});
+
+describe("a wall's Sight decides its cover (the user, 2026-10-28)", () => {
+  const NONE = 0;
+  const NORMAL = 20;
+  const hit = (...sights) => ({ edges: new Set(sights.map(sight => ({ sight }))) });
+  it("a wall that blocks sight covers; one with Sight None is seen past", () => {
+    expect(collisionsCover([hit(NORMAL)], NONE)).toBe(true);
+    expect(collisionsCover([hit(NONE)], NONE)).toBe(false);
+    expect(collisionsCover([hit(NONE), hit(NORMAL)], NONE)).toBe(true);
+    expect(collisionsCover([hit(NONE, NORMAL)], NONE)).toBe(true);
+  });
+  it("no collision is no cover", () => {
+    expect(collisionsCover([], NONE)).toBe(false);
+    expect(collisionsCover(null, NONE)).toBe(false);
   });
 });
 
