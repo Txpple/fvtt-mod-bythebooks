@@ -17,7 +17,7 @@
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { activityNamed, cardActivity, featureNamed, lower } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
-import { HELP_NAME, HELP_RULE, helpItemData } from "./decide/help.js";
+import { FAMILIAR_HELP_NAME, HELP_RULE, isHelpName, helpItemData } from "./decide/help.js";
 import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
@@ -914,9 +914,11 @@ async function landSummon(message) {
       // sight on (the packs ship it off); its range, vision mode and detection modes stay dnd5e's, read off the senses
       if ( sees ) foundry.utils.setProperty(changes.tokenUpdates, "sight.enabled", true);
       // a companion lands with the Help action on its sheet (help.js; RULINGS *The Help action*): the creature's own
-      // button, on the token's delta — the book's creature keeps its sheet
-      if ( companionOf(flag.itemName) && !actor.items.some(i => lower(i.name) === lower(HELP_NAME)) ) {
-        changes.actorUpdates.items.push(helpItemData({ description: await ruleHTML(HELP_RULE) }));
+      // button, on the token's delta — the book's creature keeps its sheet; a familiar's is "Help - Distract"
+      const companion = companionOf(flag.itemName);
+      if ( companion && !actor.items.some(i => isHelpName(i.name)) ) {
+        const name = (lower(companion.noun) === "familiar") ? FAMILIAR_HELP_NAME : undefined;
+        changes.actorUpdates.items.push(helpItemData({ description: await ruleHTML(HELP_RULE), name }));
       }
       const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
       if ( narrowed ) {
@@ -1251,8 +1253,9 @@ async function sweepSummonCopies() {
   if ( folderId ) await Actor.implementation.updateDocuments(homeless.map(a => ({ _id: a.id, folder: folderId })));
 }
 
-// ⚠ At `ready` the joining GM is not always flagged active yet (migrate.js says the same): the load's sweep runs when
-// this client's own activity lands instead. Once per load either way.
+// ⚠ At `ready` the joining GM is not always flagged active yet (migrate.js says the same), and this window's lead
+// (ui.js `claimLead`, a flag on its own User document) lands a round trip later: the load's sweep runs when either
+// lands on this client — its own activity (`userConnected`) or its own User's update (`updateUser`). Once per load.
 let sweptOnLoad = false;
 function sweepOnLoad() {
   if ( sweptOnLoad || !isActiveGM() ) return;
@@ -1261,6 +1264,7 @@ function sweepOnLoad() {
 }
 listenOnce("ready", "summons", sweepOnLoad);
 listen("userConnected", "summons", (user, active) => { if ( active && user?.isSelf ) sweepOnLoad(); });
+listen("updateUser", "summons", user => { if ( user?.isSelf ) sweepOnLoad(); });
 
 /** The live token a record landed, or null (in the pocket, dismissed, deleted by hand). */
 function liveToken(flag) {
