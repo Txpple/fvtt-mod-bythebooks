@@ -196,7 +196,8 @@ light by hand.
   on the Cast's own clock, the spell's 10 minutes. No token document is written: the light is the
   effect's `token.light.*` changes, so whatever ends the effect gives the token its own light back whole.
 - **Receipted.** The Cast's card says it ("Produce Flame — <token> sheds light: 20 ft Bright, 20 ft
-  more Dim", then how long and what puts it out) and carries the effect receipt; ✕ Revert deletes
+  more Dim", then "until its effect is removed or the spell is cast again; Hurl Fire puts it out")
+  and carries the effect receipt; ✕ Revert deletes
   the effect, and the light with it.
 - **Casting it again replaces it** ("The spell ends if you cast it again"): `recast: "ends"`, Light's
   word. The caster's earlier flame is deleted before the new one lands, so a recast never stacks two
@@ -207,9 +208,12 @@ light by hand.
   still shining, and nothing when none was. The hurl itself is the pack's attack, untouched. The
   put-out carries no receipt, as a recast's put-out and a gear light's Put out carry none: nothing
   landed, and reverting the hurl's damage does not light the flame again (cast it again).
-- **Any other end gives the light back**: the 10 minutes run out (the platform marks the effect
-  expired and a suppressed effect changes no token), the effect is deleted by hand, or a rest tidies
-  it (*Rests end the short effects*).
+- **Any other end gives the light back**: the effect is deleted by hand, a rest tidies it (*Rests end
+  the short effects*), or the 10 minutes run out (the platform marks the effect expired and a
+  suppressed effect changes no token). The table's world clock rarely moves (it advances in combat
+  rounds and by the GM's hand), so the minutes seldom run out, and removing the effect is the usual
+  end (the user, 2026-10-28: *"if i remove the effect, it removes the lght. throwing it also removes
+  the light/effect."*); the card says so rather than promising a timer.
 - **A sheet's own copy of the spell** (the user's hand walk on the sandbox, 2026-10-21: *"light doesnt
   go out if i just hurl it. if im carrying it, then hurl, the effect of light still stays on"*). Cecil's
   Produce Flame is the stopgap's world copy: its Cast applies its own "Produce Flame" effect (a marker

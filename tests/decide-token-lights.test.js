@@ -270,12 +270,12 @@ describe("Produce Flame — the flame in the hand lights its caster; a recast re
 });
 
 describe("lightLasts — how long the light stands, in the card's words", () => {
-  it("a recast row is the spell's; Produce Flame says what else puts it out", () => {
+  it("a recast row stands until its effect is removed; Produce Flame says what else puts it out", () => {
     expect(tl.lightLasts(reg.TOKEN_LIGHTS.Light)).toBe(
-      "for the spell's duration; casting it again puts it out"
+      "until its effect is removed or the spell is cast again"
     );
     expect(tl.lightLasts(reg.TOKEN_LIGHTS["Produce Flame"])).toBe(
-      "for the spell's duration; casting it again puts it out; Hurl Fire puts it out"
+      "until its effect is removed or the spell is cast again; Hurl Fire puts it out"
     );
   });
   it("a form's light stands while the form does; an enchantment's while the enchantment does", () => {

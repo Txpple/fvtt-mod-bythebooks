@@ -247,13 +247,14 @@ export function lightTargets(row, { self = null, targets = [] } = {}) {
 
 /**
  * How long a row's light stands, in the card's words: a form's while it stands, a spell's for its duration,
- * and what puts it out early.
+ * and what puts it out early. A recast row names its effect: the table's clock rarely runs a spell's minutes
+ * out, so the effect removed is the usual end.
  * @param {{ on?: string, recast?: string|null, ends?: string|null, out?: string|null }} row
  * @returns {string}
  */
 export function lightLasts(row) {
   const span = (row?.ends === "enchantment") ? "while the weapon's enchantment stands"
-    : row?.recast ? "for the spell's duration; casting it again puts it out"
+    : row?.recast ? "until its effect is removed or the spell is cast again"
     : (row?.on === "self") ? "while the transformation stands"
     : "for the spell's duration";
   return row?.out ? `${span}; ${row.out} puts it out` : span;
