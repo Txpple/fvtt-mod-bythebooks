@@ -1238,10 +1238,17 @@ async function sweepSummonCopies() {
   const copies = game.actors.filter(a => isSummonCopy(a)).map(a => ({ id: a.id, name: a.name, linked: !!a.prototypeToken?.actorLink,
     sources: [a._stats?.compendiumSource, a._stats?.duplicateSource] }));
   const ids = strayCopies(copies, { standing, kept, sources });
-  if ( !ids.length ) return;
-  await Actor.implementation.deleteDocuments(ids, { [MODULE_ID]: { companionEnd: true } });
-  const names = copies.filter(c => ids.includes(c.id)).map(c => c.name).join(", ");
-  log.info(`${ids.length} world cop${ids.length === 1 ? "y" : "ies"} of summoned creatures swept, nothing standing on them: ${names}.`);
+  if ( ids.length ) {
+    await Actor.implementation.deleteDocuments(ids, { [MODULE_ID]: { companionEnd: true } });
+    const names = copies.filter(c => ids.includes(c.id)).map(c => c.name).join(", ");
+    log.info(`${ids.length} world cop${ids.length === 1 ? "y" : "ies"} of summoned creatures swept, nothing standing on them: ${names}.`);
+  }
+  // a held copy outside the Summons folder (a pocketed familiar's, a pending cast's, one dnd5e's own import left in the
+  // caster's folder) moves in: the PCs folder stays the PCs' whatever holds the copy
+  const homeless = game.actors.filter(a => isSummonCopy(a) && !a.prototypeToken?.actorLink && !ids.includes(a.id) && (a.folder?.name !== SUMMONS_FOLDER));
+  if ( !homeless.length ) return;
+  const folderId = await summonsFolder();
+  if ( folderId ) await Actor.implementation.updateDocuments(homeless.map(a => ({ _id: a.id, folder: folderId })));
 }
 
 listenOnce("ready", "summons", () => { void sweepSummonCopies().catch(err => log.warn(`Could not sweep the summoned creatures' world copies.`, err)); });
