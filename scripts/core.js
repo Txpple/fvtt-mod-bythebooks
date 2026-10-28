@@ -81,7 +81,6 @@ export const S = {
   playerRollDamage: "playerRollDamage", // client
   effectBar: "effectBar",               // client: the effect view's bar above the hotbar
   effectHover: "effectHover",           // client: the effect view's hover card and held key
-  goingDownCosts: "goingDownCosts",     // world: a house rule — a level of Exhaustion at the drop to 0 HP (off by default)
   summonArt: "summonArt",               // world, hidden: the summon art window's table (summon-art.js)
   formArt: "formArt"                    // world, hidden: the Wild Shape art window's table (summon-art.js)
 };

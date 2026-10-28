@@ -217,7 +217,8 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       if ( !(actor instanceof Actor) || !actor.system.attributes?.hp ) continue;
       if ( !held && claimed(receiptMessage, target, actor, damages, { multiplier, ...(note ? { note } : {}) }) ) continue;
       const src = actor.system._source.attributes.hp;
-      // the Exhaustion rides the snapshot (GOING DOWN COSTS writes it in the damage's own update)
+      // the Exhaustion rides the snapshot: a rule writing a level into the damage's own update (House Rules' going-down
+      // rule) is recorded here and reverted with the Hit Points
       const prior = { value: src.value, temp: src.temp, tempmax: src.tempmax, exhaustion: Number(actor.system._source.attributes.exhaustion ?? 0) };
 
       // calculateDamage annotates WHY (a 9 that lands as 0); never recompute di/dr/dv by hand.

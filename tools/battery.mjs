@@ -248,11 +248,14 @@ if (snap.code !== 0) {
 console.log(`[battery] ${snap.body.split("\n").find(l => l.startsWith("[verify] SNAPSHOT")) ?? "settings recorded"}`);
 
 // ⚠ THE HOUSE RULES OFF for the run, back before the settings check: the suites assert the rules as written, and a
-// table with Going Down on (a level of Exhaustion at every drop to 0) walks its fixtures to Exhaustion 6 — dead —
-// inside a dozen suites. The section that tests the rule pins it on itself.
-const HOUSE_RULES = ["goingDownCosts"];
+// table with House Rules' going-down rule on (a level of Exhaustion at every drop to 0) walks its fixtures to
+// Exhaustion 6 — dead — inside a dozen suites. The section that tests the seam (smoke-bythebooks §4d) pins it on
+// itself. The rules live in Open Roll 5e: House Rules; on a table without the module, or one whose House Rules
+// predates a key, the job writes nothing and returns no prior for it.
+const HOUSE_RULES_MODULE = "fvtt-mod-houserules";
+const HOUSE_RULES = ["goingDown"];
 const pinHouseRules = (values_, label) => run("job", ["-e",
-  `const MOD = "fvtt-mod-bythebooks"; const out = {}; for (const [k, v] of Object.entries(arg)) { out[k] = game.settings.get(MOD, k); await game.settings.set(MOD, k, v); } return out;`,
+  `const MOD = ${JSON.stringify(HOUSE_RULES_MODULE)}; const out = {}; if (!game.modules.get(MOD)?.active) return out; for (const [k, v] of Object.entries(arg)) { if (!game.settings.settings.has(MOD + "." + k)) continue; out[k] = game.settings.get(MOD, k); await game.settings.set(MOD, k, v); } return out;`,
   "--arg", JSON.stringify(values_)], label);
 const pinned = pinHouseRules(Object.fromEntries(HOUSE_RULES.map(k => [k, false])), "pin-house-rules");
 // job.mjs prints its result pretty, over several lines: the text between the first "{" and the last "}".
@@ -260,8 +263,10 @@ const priorHouseRules = (() => {
   try { return JSON.parse(pinned.body.slice(pinned.body.indexOf("{"), pinned.body.lastIndexOf("}") + 1)); }
   catch { return {}; }
 })();
+const pinnedKeys = HOUSE_RULES.filter(k => k in priorHouseRules);
 if (pinned.code !== 0) console.log(`[battery] ⚠ the house rules could not be pinned off (exit ${pinned.code}) — see ${join(runDir, "pin-house-rules.txt")}`);
-else console.log(`[battery] house rules off for the run: ${HOUSE_RULES.map(k => `${k} (was ${JSON.stringify(priorHouseRules[k])})`).join(", ")}`);
+else if (!pinnedKeys.length) console.log(`[battery] house rules: nothing to pin (${HOUSE_RULES_MODULE} not active, or without ${HOUSE_RULES.join(", ")})`);
+else console.log(`[battery] house rules off for the run: ${pinnedKeys.map(k => `${k} (was ${JSON.stringify(priorHouseRules[k])})`).join(", ")}`);
 
 const results = [];
 let failed = 0;
@@ -314,7 +319,8 @@ const contracts = run("contracts", ["--check", "--run"]);
 for (const l of contracts.body.split("\n")) if (/^(CONTRACT|FAIL|REPORT| {2})/.test(l)) console.log(l.trimEnd());
 
 if (pinned.code === 0) {
-  const back = pinHouseRules(Object.fromEntries(HOUSE_RULES.map(k => [k, priorHouseRules[k] ?? false])), "unpin-house-rules");
+  // Only what was pinned goes back, to the value it had; a key the pin never touched is left as it is.
+  const back = pinHouseRules(Object.fromEntries(pinnedKeys.map(k => [k, priorHouseRules[k]])), "unpin-house-rules");
   console.log(`\n[battery] house rules back to the table's own${back.code === 0 ? "" : ` — ⚠ FAILED (exit ${back.code}), see ${join(runDir, "unpin-house-rules.txt")}`}`);
 }
 

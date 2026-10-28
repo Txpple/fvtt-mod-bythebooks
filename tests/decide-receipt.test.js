@@ -588,7 +588,7 @@ describe("revertableEffect — the effect twin", () => {
   });
 });
 
-describe("GOING DOWN COSTS — the drop's Exhaustion rides the receipt and its revert (2026-10-14)", () => {
+describe("the Exhaustion a damage's update changed (House Rules' going-down rule) rides the receipt and its revert", () => {
   const prior = { value: 7, temp: 0, tempmax: 0, exhaustion: 0 };
   const after = { value: 0, temp: 0, tempmax: 0, exhaustion: 1 };
   it("exhaustionChange reads the two snapshots; an older receipt without the field changes nothing", () => {
@@ -617,7 +617,7 @@ describe("GOING DOWN COSTS — the drop's Exhaustion rides the receipt and its r
     });
     expect("exhaustion" in still).toBe(false);
   });
-  it("the revert restores the level with the Hit Points; a receipt without it restores HP alone", () => {
+  it("the revert restores the recorded level with the Hit Points", () => {
     const entry = r.receiptEntry({
       uuid: "Actor.k",
       name: "Kartor",
@@ -629,6 +629,24 @@ describe("GOING DOWN COSTS — the drop's Exhaustion rides the receipt and its r
     const plan = r.revertPlan({ targets: [entry] }, "Actor.k");
     expect(plan.update["system.attributes.exhaustion"]).toBe(0);
     expect(plan.update["system.attributes.hp.value"]).toBe(7);
+  });
+  it("the revert says the recorded level even when the damage did not move it: a revert back to 0 is never charged", () => {
+    // A receipted heal on a creature at 0 (prior 0 HP, Exhaustion 2): its revert writes 0 HP again, and House Rules'
+    // going-down rule charges any write landing on 0 unless that write sets Exhaustion itself.
+    const healed = r.receiptEntry({
+      uuid: "Actor.k",
+      name: "Kartor",
+      prior: { value: 0, temp: 0, tempmax: 0, exhaustion: 2 },
+      after: { value: 9, temp: 0, tempmax: 0, exhaustion: 2 },
+      calc: null,
+      context: { combat: null, sourceUuid: null }
+    });
+    expect("exhaustion" in healed).toBe(false);
+    const plan = r.revertPlan({ targets: [healed] }, "Actor.k");
+    expect(plan.update["system.attributes.hp.value"]).toBe(0);
+    expect(plan.update["system.attributes.exhaustion"]).toBe(2);
+  });
+  it("an older receipt without a recorded level restores HP alone", () => {
     const bare = r.receiptEntry({
       uuid: "Actor.k",
       name: "Kartor",

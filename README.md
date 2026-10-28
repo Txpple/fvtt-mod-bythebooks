@@ -209,12 +209,14 @@ list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 | Resource Use Notices | world | Flash a notice when a player spends a limited-use ability. |
 | Roll Results Players See | world | What the public cards show players: results, AC and DC (the default), results only, nothing, or leave it to dnd5e. Overrides dnd5e's Visibility menu. |
 | Bloodied Shows on Every Token | world | The Bloodied marker on enemies too (the default), or friendly tokens only. Overrides dnd5e's Visibility menu. |
-| Going Down Costs a Level of Exhaustion | world | A house rule, off by default: a creature dropping to 0 Hit Points from damage gains a level of Exhaustion at the drop, on the damage receipt so Revert takes it back. |
 | Roll Your Own Damage | client | Ask before rolling your damage instead of rolling it for you. |
 | Effect Bar | client | The buff and debuff strip above the hotbar. |
 | Effect Cards on Hover and Alt | client | Effect cards beside any token you point at. |
 
-Every feature is always on. There is no per-feature switch. A table that wants one wants midi.
+Every feature is always on. There is no per-feature switch. A table that wants one wants midi. House rules are
+not here either: the one this module once carried, Going Down Costs a Level of Exhaustion, lives in
+[Open Roll 5e: House Rules](https://github.com/Txpple/fvtt-mod-houserules), which writes the level into the
+same update as the Hit Points, so the damage receipt here still shows "Exhaustion 0 → 1" and Revert takes it back.
 
 ## Documentation
 

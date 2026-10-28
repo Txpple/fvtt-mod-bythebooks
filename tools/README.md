@@ -105,7 +105,7 @@ A fixture combat (a killed run's) is teardown's, not the preflight's.
 **The downed leftovers are swept on every suite's connect** (`harness.mjs`, 2026-10-14): the module
 applies dnd5e's downed conditions out of combat too, and the Prone rider outlives the heal, as
 written — so a fixture one suite dropped and healed stood Prone in the next (a modifier it never
-pressed), with Exhaustion from the Going Down house rule and death saves from a death-save section.
+pressed), with Exhaustion from House Rules' going-down rule and death saves from a death-save section.
 Every `BTB Test` actor goes back to standing (Prone, Unconscious and Dead off, Exhaustion 0, death
 saves 0) before a suite's first section. Pools stay each suite's own; `reset-fixture-state` fills
 the shared four, and sweeps every FOREIGN token off the range (no fixture stamp, not a BTB Test
@@ -267,12 +267,14 @@ run the probe and compare its row with these.
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
 | `--list` | the order, the needs and the notes, without running anything. With `--changed` / `--files` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why |
 
-**The house rules are off for the run** (2026-10-14): after the settings snapshot the battery pins
-`goingDownCosts` false through `job.mjs` (the file `pin-house-rules.txt`), and puts the table's own
-value back before the settings check. The suites assert the rules as written; a table with the house
-rule on walked its fixtures to Exhaustion 6 — dead — across a dozen suites. The section that tests the
-rule (`smoke-bythebooks` §4d) pins it on itself. A suite run by hand on such a table is the
-hand-runner's to pin.
+**The house rules are off for the run** (2026-10-14; the rule moved to House Rules 2026-10-28): after
+the settings snapshot the battery pins House Rules' `goingDown` false through `job.mjs` (the file
+`pin-house-rules.txt`; nothing to pin on a table without the module), and puts the table's own value
+back before the settings check. The suites assert the rules as written; a table with the house rule on
+walked its fixtures to Exhaustion 6 — dead — across a dozen suites. The section that tests the seam
+(`smoke-bythebooks` §4d: the level House Rules writes into the damage's update, on the receipt row and
+reverted) pins it on itself and reports a skip without the module. A suite run by hand on such a table
+is the hand-runner's to pin.
 
 **The progress bar** (`battery-status.mjs`, 2026-09-30, the user's rule): **a status update on a running
 battery is this bar, never prose** — run it and paste the lines.

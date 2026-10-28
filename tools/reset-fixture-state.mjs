@@ -58,7 +58,7 @@ const out = await f.evaluate(async () => {
     const conditionIds = a.effects.filter(e => (e.statuses?.size ?? 0) > 0).map(e => e.id);
     if (conditionIds.length) await a.deleteEmbeddedDocuments('ActiveEffect', conditionIds);
     if (a.system.attributes?.hp?.max != null) {
-      // Exhaustion and death saves too: the Going Down house rule and the downed conditions leave both.
+      // Exhaustion and death saves too: House Rules' going-down rule and the downed conditions leave both.
       await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max, 'system.attributes.exhaustion': 0,
         'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
     }

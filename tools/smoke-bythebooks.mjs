@@ -7,8 +7,7 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs'
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'receipts.js',            // §4 / §4b / §4c — the revert row, clicked; §4d the drop's Exhaustion on the row and its revert
-  'drop-to-one.js',         // §4d — GOING DOWN COSTS: the level written in the damage's own update (the house-rule setting)
-  'polish.js',              // §5b — the card always posts, the no-target gate
+  'polish.js',             // §5b — the card always posts, the no-target gate
   'stats.js',               // §3b / §3c — the data-plane stamps, the death save's rollCtx
   // Nothing drives the rename's migration on purpose (a sandbox carries no legacy scope): it scans on
   // every GM load and finds nothing, and this suite is the battery's first load — the nearest claim.
@@ -22,7 +21,7 @@ const SECTIONS = {
   4: 'revert via a real DOM click',
   '4b': 'the immunity receipt (rolled N, took 0, WHY)',
   '4c': 'revert a KILL — the flake, made deterministic',
-  '4d': 'GOING DOWN COSTS (the house-rule setting, on for the section): a hit dropping the Victim to 0 adds a level of Exhaustion in the damage\'s own update; the receipt row says "Exhaustion 0 → 1"; Revert takes the level back with the HP; off, a drop adds nothing',
+  '4d': 'the seam with House Rules\' going-down rule (pinned on for the section; skipped without the module): a hit dropping the Victim to 0 lands a level of Exhaustion in the damage\'s own update; the receipt records it and its row says "Exhaustion 0 → 1"; Revert takes the level back with the HP; off, a drop adds nothing',
   5: 'the miss test',
   '5b': 'polish gates: the card always posts + no-target',
   '5c': 'the attacker-side mode gate (NPC / PC / all)',
@@ -54,7 +53,7 @@ let priorSettings = null;
     // The table's current settings, restored at the end (not hardcoded defaults): the snapshot stays on the
     // page for §6's restore.
     const settings = snapshotSettings(['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
-      'effectRiders', 'masteryRiders', 'goingDownCosts']);
+      'effectRiders', 'masteryRiders']);
     window.__smokeSettings = settings;
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
@@ -714,10 +713,15 @@ if (want('4c')) {
     JSON.stringify(r.rejections ?? []));
 }
 
-// ---- 4d. GOING DOWN COSTS: the house-rule setting, the level in the damage's own update, the receipt, the revert
+// ---- 4d. the seam with House Rules' going-down rule: the level it writes into the damage's own update, the receipt, the revert
 if (want('4d')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     const MOD = 'fvtt-mod-bythebooks';
+    const HR = 'fvtt-mod-houserules';
+    const RULE = 'goingDown';
+    // The rule lives in House Rules: without it there is no seam to test, and the section says so instead of failing.
+    if (!game.modules.get(HR)?.active || !game.settings.settings.has(`${HR}.${RULE}`)) return { ok: true, skipped: `${HR} not active, or without ${RULE}` };
+    const priorRule = game.settings.get(HR, RULE);
     const base = game.actors.get(victimId);
     const victim = canvas.tokens.get(victimToken).actor;
     const attacker = game.actors.get(attackerId);
@@ -744,7 +748,7 @@ if (want('4d')) {
       return damageMsg;
     };
     try {
-      await game.settings.set(MOD, 'goingDownCosts', true);
+      await game.settings.set(HR, RULE, true);
       const msg = await drop();
       const entry = msg.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null;
       const after = Number(victim.system._source.attributes.exhaustion ?? 0);
@@ -764,7 +768,7 @@ if (want('4d')) {
       const afterRevert = Number(victim.system._source.attributes.exhaustion ?? 0);
       const hpAfterRevert = victim.system._source.attributes.hp.value;
       // off: a drop adds nothing
-      await game.settings.set(MOD, 'goingDownCosts', false);
+      await game.settings.set(HR, RULE, false);
       const msg2 = await drop();
       const entry2 = msg2.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null;
       const offLevel = Number(victim.system._source.attributes.exhaustion ?? 0);
@@ -774,20 +778,23 @@ if (want('4d')) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
     } finally {
       try {
-        await game.settings.set(MOD, 'goingDownCosts', false);
+        await game.settings.set(HR, RULE, priorRule);
         await base.update({ 'system.attributes.ac.override': null });
         await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.temp': priorHp.temp, 'system.attributes.exhaustion': priorEx });
         for (const e of victim.effects.filter(e => e.statuses.has('dead') || e.statuses.has('unconscious') || e.statuses.has('exhaustion'))) { try { await e.delete(); } catch { /* gone */ } }
       } catch { /* best effort */ }
     }
   }, fx);
-  report('4d. the drop adds a level of Exhaustion in the damage\'s own update, recorded on the receipt entry',
-    r.ok && (r.level === 1) && (r.entry?.prior === 0) && (r.entry?.after === 1), r.ok ? `level=${r.level} entry=${JSON.stringify(r.entry)}` : r.why);
-  report('4d. the receipt row says "Exhaustion 0 → 1"', r.ok && /Exhaustion 0 → 1/.test(r.rowText), r.ok ? `row="${r.rowText}"` : r.why);
-  report('4d. Revert takes the level back with the HP', r.ok && r.reverted && (r.afterRevert === 0) && (r.hpAfterRevert === 1),
-    r.ok ? `reverted=${r.reverted} level=${r.afterRevert} hp=${r.hpAfterRevert}` : r.why);
-  report('4d. off: a drop adds nothing and the receipt carries no Exhaustion', r.ok && (r.offLevel === 0) && (r.entry2 === null),
-    r.ok ? `level=${r.offLevel} entry=${JSON.stringify(r.entry2)}` : r.why);
+  if (r.skipped) console.log(`  SKIP 4d. the seam with House Rules' going-down rule — ${r.skipped}`);
+  else {
+    report('4d. House Rules\' drop lands a level of Exhaustion in the damage\'s own update, recorded on the receipt entry',
+      r.ok && (r.level === 1) && (r.entry?.prior === 0) && (r.entry?.after === 1), r.ok ? `level=${r.level} entry=${JSON.stringify(r.entry)}` : r.why);
+    report('4d. the receipt row says "Exhaustion 0 → 1"', r.ok && /Exhaustion 0 → 1/.test(r.rowText), r.ok ? `row="${r.rowText}"` : r.why);
+    report('4d. Revert takes the level back with the HP (its write sets Exhaustion, so the rule charges nothing)', r.ok && r.reverted && (r.afterRevert === 0) && (r.hpAfterRevert === 1),
+      r.ok ? `reverted=${r.reverted} level=${r.afterRevert} hp=${r.hpAfterRevert}` : r.why);
+    report('4d. off: a drop adds nothing and the receipt carries no Exhaustion', r.ok && (r.offLevel === 0) && (r.entry2 === null),
+      r.ok ? `level=${r.offLevel} entry=${JSON.stringify(r.entry2)}` : r.why);
+  }
 }
 
 // ---- 5. the miss test

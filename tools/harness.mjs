@@ -421,7 +421,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   /**
    * ⚠ THE DOWNED LEFTOVERS, swept on every suite's connect: the module applies the downed conditions out of combat
    * too (dnd5e's own mapping), and the Prone rider OUTLIVES the heal, as written — so a fixture a previous suite
-   * dropped and healed stands Prone, with Exhaustion from the Going Down house rule when a table has it on, and
+   * dropped and healed stands Prone, with Exhaustion from House Rules' going-down rule when a table has it on, and
    * death saves from a death save section. Every `BTB Test` actor goes back to standing: those three statuses
    * off, Exhaustion 0, death saves 0. Pools are each suite's own (reset-fixture-state fills the shared four).
    */

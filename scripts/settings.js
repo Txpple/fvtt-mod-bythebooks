@@ -1,8 +1,9 @@
 /**
- * By the Books — the thirteen settings (ARCHITECTURE §8): ten world configs for the DM (one of them a house
- * rule, off by default), three per-client preferences; and one table kept out of the list, the summon art,
- * edited in its own window (summon-art.js). Everything else is the module itself and always on. Two of the
- * ten own dnd5e's Visibility menu, so a fresh world plays with the results on the table (issue #4).
+ * By the Books — the twelve settings (ARCHITECTURE §8): nine world configs for the DM, three per-client
+ * preferences, none of them a house rule (the table's house rules live in Open Roll 5e: House Rules); and one
+ * table kept out of the list, the summon art, edited in its own window (summon-art.js). Everything else is the
+ * module itself and always on. Two of the nine own dnd5e's Visibility menu, so a fresh world plays with the
+ * results on the table (issue #4).
  */
 import { MODULE_ID, S, isActiveGM, setting, log } from "./core.js";
 import { ROLL_RESULTS, bloodiedFor, visibilityWrites } from "./decide/visibility.js";
@@ -34,6 +35,35 @@ listenOnce("ready", "settings", syncVisibility);
 // ⚠ At `ready` the joining user is not always flagged active yet, so `activeGM` can miss this client:
 // the sync runs again when this client's own activity lands (seen on prod).
 listen("userConnected", "settings", (user, active) => { if ( active && user.isSelf ) void syncVisibility(); });
+
+// THE RETIRED SETTING: Going Down Costs a Level of Exhaustion (`goingDownCosts`, the one house rule this module ever
+// carried) lives in Open Roll 5e: House Rules, its `goingDown`, on by default there. The first active GM load after the
+// upgrade removes the old setting's world document, so nothing stale remains, and warns once when the rule was on and
+// House Rules is not running, so the table knows where its rule went. Runs on the same two triggers as the sync above.
+const RETIRED_GOING_DOWN = `${MODULE_ID}.goingDownCosts`;
+const HOUSE_RULES_ID = "fvtt-mod-houserules";
+let retiring = false;
+async function retireGoingDown() {
+  if ( retiring || !isActiveGM() ) return;
+  retiring = true;
+  try {
+    const doc = game.settings.storage.get("world")?.getSetting?.(RETIRED_GOING_DOWN) ?? null;
+    if ( !doc ) return;
+    let wasOn = false;
+    try { wasOn = JSON.parse(doc.value) === true; } catch { wasOn = false; }
+    if ( wasOn && (game.modules.get(HOUSE_RULES_ID)?.active !== true) ) {
+      ui.notifications.warn("By the Books: Going Down Costs a Level of Exhaustion now lives in Open Roll 5e: House Rules, which this world does not run — install it to keep the rule.", { permanent: true });
+    }
+    await doc.delete();
+    log.info(`Retired setting goingDownCosts removed (it was ${wasOn ? "on" : "off"}); the rule lives in House Rules.`);
+  } catch(err) {
+    log.warn("Could not remove the retired goingDownCosts setting.", err);
+  } finally {
+    retiring = false;
+  }
+}
+listenOnce("ready", "settings", () => void retireGoingDown());
+listen("userConnected", "settings", (user, active) => { if ( active && user.isSelf ) void retireGoingDown(); });
 
 listenOnce("init", "settings", () => {
   game.settings.register(MODULE_ID, S.decisionTimer, {
@@ -100,13 +130,6 @@ listenOnce("init", "settings", () => {
     hint: "On: the Bloodied marker shows on every token, enemies included, since abilities trigger on it. Off: friendly tokens only, dnd5e's own default. This overrides dnd5e's Visibility settings. The automation reads Hit Points either way.",
     scope: "world", config: true, type: Boolean, default: true,
     onChange: syncVisibility
-  });
-
-  // A HOUSE RULE, the one setting that is not the book's: off, the module plays the 2024 rules as written.
-  game.settings.register(MODULE_ID, S.goingDownCosts, {
-    name: "Going Down Costs a Level of Exhaustion",
-    hint: "A house rule, off by default. On: each time a creature drops to 0 Hit Points from damage it gains one level of Exhaustion, at the drop (not when it is healed), the sixth level being death as the 2024 rules say. Written in the same update as the damage and recorded on the damage receipt, so Revert takes it back.",
-    scope: "world", config: true, type: Boolean, default: false
   });
 
   // ⚠ Per-CLIENT and ON by default, or every new login starts wrong. Covers all three damage paths.

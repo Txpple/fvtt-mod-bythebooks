@@ -288,7 +288,8 @@ const WORLD_WRITERS = {
   "core.js": "spine plumbing: the flag-write serializer every record goes through — the record is the resolve",
   "holds.js": "the hold registry — client-local memory, no world write; listed because its release deletes nothing",
   "events.js": "the gate itself — publishes, never writes",
-  "migrate.js": "the rename's migration (3.0.0): a document's legacy flag scope moved under the new id, the old emanation behaviours retyped, the old world settings copied — no record and no moment; its writes carry the migration mark and the dispatcher drops their hooks"
+  "migrate.js": "the rename's migration (3.0.0): a document's legacy flag scope moved under the new id, the old emanation behaviours retyped, the old world settings copied — no record and no moment; its writes carry the migration mark and the dispatcher drops their hooks",
+  "settings.js": "the settings' own housekeeping: dnd5e's Visibility keys set, and the retired goingDownCosts world Setting document deleted once on the first active-GM load after the rule moved to House Rules — no record and no moment"
 };
 
 /**

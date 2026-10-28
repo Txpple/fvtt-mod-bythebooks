@@ -1243,9 +1243,9 @@ caster's death, never 0 Hit Points alone.
 
 ## 8. The settings surface
 
-Thirteen settings (RULINGS *The settings*, *Open roll by default*, *Session zero's combat*): ten world configs for
-the DM (one of them a house rule, Going Down Costs a Level of Exhaustion, off by default — the only setting that is
-not the book's), three per-client preferences. One more world key is kept out of the list: `summonArt`, the table's own
+Twelve settings (RULINGS *The settings*, *Open roll by default*, *Session zero's combat*): nine world configs for
+the DM, three per-client preferences; none of them a house rule (the one there was, Going Down Costs a Level of
+Exhaustion, lives in Open Roll 5e: House Rules). One more world key is kept out of the list: `summonArt`, the table's own
 token and portrait per summoned creature, edited only in its window behind a settings button
 ([summon-art.js](scripts/summon-art.js), RULINGS *Summons* call 15). Two of the nine, Roll Results Players See and Bloodied Shows on Every
 Token, own dnd5e's Visibility menu (`attackRollVisibility`, `challengeVisibility`, `bloodied`): the

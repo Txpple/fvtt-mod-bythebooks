@@ -350,7 +350,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const standing = async () => {
         const ids = actor.effects.filter(e => ['dead', 'unconscious', 'stable', 'prone'].some(s => e.statuses?.has(s))).map(e => e.id);
         if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
-        // The Going Down house rule, where a world runs it, left a level per drop above: Exhaustion is -2 per level on the d20.
+        // House Rules' going-down rule, where a world runs it, left a level per drop above: Exhaustion is -2 per level on the d20.
         if (Number(actor.system.attributes.exhaustion) > 0) await actor.update({ 'system.attributes.exhaustion': 0 });
       };
       const dsCardAfter = t0 => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, DS)?.actorUuid === actor.uuid)).pop() ?? null;

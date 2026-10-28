@@ -42,8 +42,9 @@ export function traitReasons(calc, multiplier = 1) {
 }
 
 /**
- * The Exhaustion a damage application changed (GOING DOWN COSTS, drop-to-one.js): `{ prior, after }` when the
- * snapshots carry it and it moved, else null. A snapshot without it (an older receipt) changes nothing.
+ * The Exhaustion a damage application changed (a rule writing a level into the damage's own update — House Rules'
+ * going-down rule): `{ prior, after }` when the snapshots carry it and it moved, else null. A snapshot without it
+ * (an older receipt) changes nothing.
  * @param {{exhaustion?: number}|null|undefined} prior
  * @param {{exhaustion?: number}|null|undefined} after
  */
@@ -76,7 +77,7 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
     ...(multiplier !== 1 ? { multiplier } : {}),
     prior,
     delta: hpDelta(prior, after),
-    // GOING DOWN COSTS (a house-rule setting, drop-to-one.js): the Exhaustion the drop added, so the revert takes it back.
+    // The Exhaustion the damage's update changed (House Rules' going-down rule), for the row's "Exhaustion 0 → 1".
     ...(exhaustionChange(prior, after) ? { exhaustion: exhaustionChange(prior, after) } : {}),
     taken: calc ? calc.amount : null,
     // POST-trait per part (rolls minus parts = lost to traits); healing parts arrive negated.
@@ -217,8 +218,11 @@ export function revertPlan(receipt, uuid) {
       "system.attributes.hp.value": entry.prior.value,
       "system.attributes.hp.temp": entry.prior.temp,
       "system.attributes.hp.tempmax": entry.prior.tempmax,
-      // the drop's Exhaustion goes back with the Hit Points (GOING DOWN COSTS)
-      ...(entry.exhaustion ? { "system.attributes.exhaustion": entry.exhaustion.prior } : {})
+      // The RECORDED prior Exhaustion goes back with the Hit Points whenever the snapshot has one, moved or not: House
+      // Rules' going-down rule charges any write that lands on 0 unless that write sets Exhaustion itself, so a revert
+      // back to 0 (a receipted heal, a lowered reroll) must say what the level was. An older receipt without it restores
+      // Hit Points alone.
+      ...((entry.prior?.exhaustion ?? null) !== null ? { "system.attributes.exhaustion": Number(entry.prior.exhaustion) } : {})
     },
     clearDefeated: (entry.prior.value ?? 0) > 0,
     ward: entry.ward ?? null

@@ -41,13 +41,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   try {
     /* --- 1: the settings form ---------------------------------------------------------- */
     // RULINGS *The settings*: the named settings (ten, then Roll Results and Bloodied for All with the Visibility
-    // menu's two, #4, then Going Down Costs a Level of Exhaustion), the world configs for the DM then the
-    // per-client preferences; no dividers, no interlock (every machine is always on). A setting a feature adds
-    // joins the registry and the pane: the checks read membership and order, never a count.
+    // menu's two, #4; Going Down Costs a Level of Exhaustion came and went, moved to House Rules), the world configs
+    // for the DM then the per-client preferences; no dividers, no interlock (every machine is always on). A setting a
+    // feature adds joins the registry and the pane: the checks read membership and order, never a count.
     if (want(1)) await section(1, async () => {
       const NAMED = ["decisionTimer", "dramaticBeat", "saveRolls", "concVisibility", "holdReveal",
-        "masteryAsk", "resourceNotices", "rollResults", "bloodiedAll", "goingDownCosts", "playerRollDamage", "effectBar", "effectHover"];
-      const NAMED_WORLD = NAMED.slice(0, 10);
+        "masteryAsk", "resourceNotices", "rollResults", "bloodiedAll", "playerRollDamage", "effectBar", "effectHover"];
+      const NAMED_WORLD = NAMED.slice(0, 9);
       // Registration: the module's config settings, in the order registered.
       const registered = [...game.settings.settings.values()]
         .filter(st => (st.namespace === MODULE_ID) && st.config);

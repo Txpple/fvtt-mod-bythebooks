@@ -12,7 +12,7 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, S, readFlag, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, setting, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
+import { MODULE_ID, readFlag, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { featureNamed, lower, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
@@ -189,24 +189,6 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, options) 
       .catch(err => { asking.delete(actor.uuid); log.error(`${found.name}'s ask failed — the creature stays at 1 HP; set it by hand.`, err); });
   } catch(err) {
     log.error(`Drop to 1 HP failed — the damage lands as the system has it.`, err);
-  }
-});
-
-// GOING DOWN COSTS (a house-rule SETTING, off by default — the one setting that is not the book's; RULINGS *Session
-// zero's combat*): a creature dropping to 0 Hit Points from damage gains a level of Exhaustion AT THE DROP. Registered
-// after the holds above, so a creature held at 1 (Relentless Endurance, Death Ward, a save that wins) pays nothing;
-// written in the same update as the damage, on the applying client, and read off the receipt's snapshots so Revert
-// takes it back (auto-apply.js, decide/receipt.js). Capped at the platform's 6, which dnd5e reads as Dead.
-listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, _options) => {
-  try {
-    if ( !setting(S.goingDownCosts) ) return;
-    if ( !(actor instanceof Actor) || !(Number(amount) > 0) || !(HP in (updates ?? {})) ) return;
-    const before = Number(actor.system?.attributes?.hp?.value ?? 0);
-    if ( !(before > 0) || (Number(updates[HP]) > 0) ) return;
-    const now = Number(actor.system?.attributes?.exhaustion ?? 0) || 0;
-    updates["system.attributes.exhaustion"] = Math.min(6, now + 1);
-  } catch(err) {
-    log.error(`Going down costs failed — add the level of Exhaustion by hand.`, err);
   }
 });
 

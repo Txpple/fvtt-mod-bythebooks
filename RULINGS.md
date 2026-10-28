@@ -1615,8 +1615,9 @@ The user, 2026-09-27, ruling the draft list: *"this is fine for now"*, and agree
 calls. The vision behind it (DESIGN, the refactor's rulings of 2026-09-27): batteries included, a few configs for DMs;
 midi is the alternative for a table that wants to configure everything.
 
-- **Ten settings** (twelve since *Open roll by default*; thirteen since *Session zero's combat*, 2026-10-14: Going Down
-  Costs a Level of Exhaustion, the one house rule, off by default). For the DM: Decision Timer, Dramatic Beat,
+- **Ten settings** (twelve since *Open roll by default*; thirteen from *Session zero's combat*, 2026-10-14, to
+  2026-10-28, when Going Down Costs a Level of Exhaustion, the one house rule, moved to Open Roll 5e: House Rules and
+  the count went back to twelve). For the DM: Decision Timer, Dramatic Beat,
   Players Roll Their Own Saves, Concentration Checks Are Public, Hold Shows the Math, Optional
   Masteries, Resource Use Notices.
   For each player: Roll Your Own Damage, Effect Bar, Effect Cards on Hover and Alt.
@@ -4221,6 +4222,16 @@ go.** Four items; the fourth, Familiar Friend, is *Summons* calls 45–47.
    snapshots carry the Exhaustion either side (`exhaustionChange`), the row says "Exhaustion 0 → 1", and Revert puts the
    level back with the Hit Points (`revertPlan`). Every creature, as the user ruled (2026-10-14): a non-important NPC
    dies at 0 under dnd5e and gains its level all the same, harmlessly.
+   **Moved to Open Roll 5e: House Rules (2026-10-28, its issue #1).** A house rule is House Rules' business, and
+   the seam here was wrong: it read `dnd5e.preApplyDamage`, so a creature held at 1 for a drop save that then
+   FAILED, or an ask DECLINED, fell to 0 through the module's own later `actor.update` and paid nothing. The user's
+   ruling: anything that goes to 0 pays; the miss was a bug. House Rules' rule reads `preUpdateActor` (Hit Points
+   from above 0 to 0 or below, on the updating client, into the same write), so every way down counts and no
+   setting remains here. What stays: the receipt snapshots `_source` Exhaustion either side of `applyDamage`
+   (`exhaustionChange`, the row's "Exhaustion 0 → 1"), and `revertPlan` now restores the RECORDED prior level
+   whenever the snapshot has one, moved or not, because House Rules charges any write landing on 0 unless that write
+   sets Exhaustion itself (a receipted heal's revert goes back to 0). On the first GM load after the upgrade the
+   retired setting's document is removed, with one warning when it was on and House Rules is not active.
 
 ## Portent widened (2026-10-14)
 
