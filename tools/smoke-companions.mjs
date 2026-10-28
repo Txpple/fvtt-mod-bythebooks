@@ -21,7 +21,7 @@ import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js'   // §1 the first landing (its token sees), §2 a new form replaces the old, §3 the pocket and the recall (it comes back seeing), §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard), §10 the familiar's name and its memory, §11 the Vestige's name, its own memory, §12 one seat across the pocket, the combat line's side, the hand-delete prompt
+  'summons.js'   // §1 the first landing (its token sees), §2 a new form replaces the old, §3 the pocket and the recall (it comes back seeing), §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard), §10 the familiar's name and its memory, §11 the Vestige's name, its own memory, §12 one seat across the pocket, the combat line's side, the hand-delete prompt, §13 a token teleported to another scene keeps its record; put away there, called back home
 ];
 
 // §9's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
@@ -39,7 +39,8 @@ const SECTIONS = {
   9: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Find Familiar answered as the assistant client arrives lands once — one claim, one token, one companion effect, one moment, no extra card',
   10: 'THE NAME: answered as an Owl named Pip — the token and its creature are Pip, the effect "Familiar: Pip (Fey)", the card "Pip — summoned" with "Owl", the world Owl keeps its name, the caster remembers Pip; cast again as a Cat with the field as the menu pre-fills it — Pip, a Cat, in the Owl\'s square; cast again with the field cleared — the Rat lands as Rat and the caster forgets; an answer with no field leaves the memory alone',
   11: 'THE VESTIGE\'S NAME (Arcana Unleashed\'s Vestige Companion, lent to the Sorcerer): with the familiar remembered as Pip, the Fiendish vestige answered as Ash lands as Ash — its token and its creature, the effect "Vestige: Ash" — and seeing; the caster remembers Ash for the Vestige and still Pip for the familiar; Dismiss takes it',
-  12: 'ONE SEAT AND A GUARDED DELETE: an Owl on the table in a combat beside its caster (17 and 10) — the combat line tags no "(foe)" on it; put away, its seat goes and the 10 is kept; called back, one seat at 10 and no second roll; deleted by hand, the token stays and the prompt asks; dismissed, nothing left'
+  12: 'ONE SEAT AND A GUARDED DELETE: an Owl on the table in a combat beside its caster (17 and 10) — the combat line tags no "(foe)" on it; put away, its seat goes and the 10 is kept; called back, one seat at 10 and no second roll; deleted by hand, the token stays and the prompt asks; dismissed, nothing left',
+  13: 'ACROSS SCENES: the Owl moved to a second scene the way Foundry\'s teleport moves it (cloned there with its flags, the old token deleted with `replacements`) — its record follows the new token; put away from there, no token on either scene, the effect in the pocket, a snapshot kept; called back beside its caster — one token; dismissed, nothing left'
 };
 const DEPENDS = { 2: [1], 3: [2], 4: [3], 5: [4], 7: [6] };
 
@@ -391,6 +392,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await dismiss(message);
       await invariant('12e', { effects: 0, tokens: 0, records: 0 });
+      current = null;
+    });
+    // ---- 13. across scenes: a teleported token keeps its record; put away from there, called back home
+    if (want(13)) await section(13, async () => {
+      const { message } = await summonFamiliar('Owl');
+      current = message;
+      const first = canvas.scene.tokens.get(message.getFlag(MOD, 'summon')?.landed?.[0]?.tokenId) ?? null;
+      if (!first) throw new Error('§13: the Owl has no token to move');
+      const [away] = await Scene.createDocuments([{ name: 'BTB Away Scene', active: false, navigation: false, width: 1000, height: 1000, grid: { size: grid } }]);
+      try {
+        // Foundry's teleport across scenes: the token cloned onto the destination (its id kept, its flags with it), the old one deleted with `replacements`
+        const data = first.toObject();
+        data.x = 300; data.y = 300;
+        const [moved] = await away.createEmbeddedDocuments('Token', [data], { keepId: true });
+        await canvas.scene.deleteEmbeddedDocuments('Token', [first.id], { replacements: { [first.id]: moved.uuid } });
+        const followed = await until(() => { const l = message.getFlag(MOD, 'summon')?.landed?.[0]; return (l?.sceneId === away.id) && (l?.tokenId === moved.id) ? l : null; }, { timeout: 8000 }).catch(() => null);
+        ok('§13a moved to another scene, its record follows the new token', !!followed && !canvas.scene.tokens.get(first.id) && !!away.tokens.get(moved.id),
+          JSON.stringify({ landed: message.getFlag(MOD, 'summon')?.landed?.[0], here: !!canvas.scene.tokens.get(first.id), there: !!away.tokens.get(moved.id) }));
+        await ask(message, 'away');
+        const snap = message.getFlag(MOD, 'summon')?.companion?.snapshot ?? null;
+        ok('§13b put away from there: no token on either scene, the effect in the pocket, a snapshot kept', !away.tokens.get(moved.id) && !familiarTokens().length
+          && (companionEffects().length === 1) && companionEffects()[0].name.includes('in the pocket') && !!snap,
+          JSON.stringify({ there: !!away.tokens.get(moved.id), here: familiarTokens().map(t => t.name), effects: companionEffects().map(e => e.name), snapshot: !!snap }));
+        await ask(message, 'recall', home());
+        await invariant('13c', { tokens: 1, pocket: false });
+      } finally {
+        if (game.scenes.get(away.id)) await away.delete();
+      }
+      await dismiss(message);
+      await invariant('13d', { effects: 0, tokens: 0, records: 0 });
       current = null;
     });
   } catch (err) {

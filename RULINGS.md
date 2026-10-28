@@ -3590,13 +3590,20 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
      a native delete may leave its record, seat and effect behind, and the spell dismisses it or puts it away instead;
      Proceed deletes it (`handDelete`), Cancel keeps it (`preDeleteToken`, `preDeleteActor`, vetoes; the module's own
      deletes carry `companionEnd`, dnd5e's transform revert its `replacements`).
-   - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: four long
+   - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: three long
      buttons stacked (the user, #16: a player reads them more easily than a row), every one shown and the one its state
-     refuses greyed (the subtitle says where it is; a greyed button hears no pointer, so no tooltip) — Dismiss: Pocket
-     Dimension · Summon: Pocket Dimension · Dismiss: Forever · Summon: New Form, then Do nothing (`companionMenu`); each
-     live button's hint is its tooltip. Summon: New Form is the real cast (ritual or slot,
-     the gallery, the type), and the new form takes the old one's place: in its square (no picker) or in the pocket;
-     the old one is dismissed (`replaces` on the record, `intoPocket` on the answer).
+     refuses greyed (the subtitle says where it is; a greyed button hears no pointer, so no tooltip, and no button has
+     one) — Dismiss: Pocket Dimension · Summon: Pocket Dimension · Dismiss: Forever, then Do Nothing (`companionMenu`).
+     Dismiss: Forever asks Yes or No first (`confirmPopup`, No the default). No Summon button (the user: redundant beside
+     Dismiss): a new form is Dismiss: Forever and the spell cast again. A cast sent to its card while one stands
+     (`toCard`) still replaces it, the new form in the old one's square (no picker) or in the pocket, the old one
+     dismissed (`replaces` on the record, `intoPocket` on the answer).
+   - **Across scenes.** A token Foundry's teleport moves to another scene (a region's behaviour clones it there with
+     its flags and deletes the old one with `replacements`, which the hand-delete prompt lets pass) keeps its record:
+     the elect re-points `landed` at the new token (`repointedLanded`), so put away from there it is snapshotted and
+     called back it lands beside its caster on whatever scene is viewed. Put away with no token of it on any scene is
+     refused with a notice, its state unchanged (the user's walk, 2026-10-28: a familiar teleported to another scene,
+     put away, could not be called back — the pocket had found nothing to snapshot). `smoke-companions` §13.
    - **The pocket.** Put away: the token is kept as a snapshot and removed; Call back: the picker with the row's
      `recallFt` ring (30 ft), unoccupied, no sight check (`pickSpots` `seen: false`), the snapshot rebuilt there as it
      left, on the floor it was called to (the caster's scene level, else the one viewed). One seat for the combat (the

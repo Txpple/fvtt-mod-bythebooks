@@ -384,8 +384,8 @@ function wirePicker(root, sections) {
  * @param {(picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => string|null} [spec.validate]
  *   a last word on a `checks` click, after the needs: why the answer cannot stand yet (the popup stays open), or null
  * @param {boolean} [spec.stack]          the buttons stacked one under another, full width (a menu read, not a yes or no)
- * @param {Array<{ action: string, label: string, default?: boolean, disabled?: boolean, tooltip?: string|null, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => void }>} spec.buttons
- *   `disabled` greys the button; `tooltip` the hint under the pointer (a greyed button hears no pointer, so none)
+ * @param {Array<{ action: string, label: string, default?: boolean, disabled?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => void }>} spec.buttons
+ *   `disabled` greys the button (a menu's choice its state refuses, shown so the list reads the same every time)
  */
 export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], validate = null, stack = false, buttons }) {
   if ( by && !answersHere(by, subject) ) return null;
@@ -396,7 +396,7 @@ export async function openPicker(message, key, subject, { title, icon = "fa-soli
   const dialog = await openMomentPopup(message, key, subject, {
     title, icon, width, gate: by ? false : gate,
     content: bfCard({ eyebrow: card.eyebrow, tone: card.tone ?? "pending", title: card.title, subtitle: card.subtitle ?? "", lines: sections.map(sectionHTML) }),
-    buttons: buttons.map(b => ({ action: b.action, label: b.label, default: !!b.default, disabled: !!b.disabled, tooltip: b.tooltip || undefined,
+    buttons: buttons.map(b => ({ action: b.action, label: b.label, default: !!b.default, disabled: !!b.disabled,
       callback: (_event, button) => {
         // the click guard below keeps the popup open; this is the belt for a submit that got past it
         const why = b.checks ? missing(button.form) : null;

@@ -25,7 +25,7 @@ import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAn
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
   fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect, summonSees, petNameOf, rememberedName, rememberName,
   PET_NAME_MAX } from "./decide/summons.js";
-import { transformRecord } from "./decide/transforms.js";
+import { transformRecord, repointedLanded } from "./decide/transforms.js";
 import { bfCard, esc } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
@@ -189,7 +189,7 @@ listen("dnd5e.preUseActivity", "summons", (activity, usageConfig, dialogConfig) 
       const message = id ? game.messages.get(id) : null;
       // the menu's Summon casts again with the cause this use arrived with (a forward's free cast: Familiar Friend); a use sent to
       // its card (`toCard`: a macro, an automation, the live suites) is that Summon — the new form takes the old one's place
-      if ( message && !usageConfig?.[MODULE_ID]?.toCard ) { void showCompanionMenu(message, activity, usageConfig?.cause ? foundry.utils.deepClone(usageConfig.cause) : null); return false; }
+      if ( message && !usageConfig?.[MODULE_ID]?.toCard ) { void showCompanionMenu(message); return false; }
     }
     // A spell that empowers a standing companion (SUMMON_EMPOWERS): the route is read before the dialog opens. A use
     // carrying the answer (`[MODULE_ID].empower`: a macro, an automation, the live suites) skips the question.
@@ -1243,17 +1243,15 @@ async function askCompanion(message, ask) {
   });
 }
 
-/** The menu's buttons, long and stacked, each named for what it does and where; the hint its tooltip (#16). */
+/** The menu's buttons, long and stacked, each named for what it does and where; no tooltips (#16). */
 const MENU = {
-  away: { label: "Dismiss: Pocket Dimension", hint: "a Magic action puts it away; it comes back as it left" },
-  recall: { label: "Summon: Pocket Dimension", hint: "a Magic action calls it back to an unoccupied space within reach" },
-  dismiss: { label: "Dismiss: Forever", hint: "it leaves for good; the spell cast again summons a new one" },
-  summon: { label: "Summon: New Form", hint: "cast the spell again: a new form takes its place" }
+  away: "Dismiss: Pocket Dimension",
+  recall: "Summon: Pocket Dimension",
+  dismiss: "Dismiss: Forever"
 };
 
-/** The cast menu: the companion as it stands, and what can be done with it (the choices by its state).
- * `cause` the use's cause (a forward's free cast), which Summon's new cast carries again. */
-async function showCompanionMenu(message, activity, cause = null) {
+/** The cast menu: the companion as it stands, and what can be done with it (the choices by its state). */
+async function showCompanionMenu(message) {
   const flag = readFlag(message, SUMMON_FLAG);
   const row = companionOf(flag?.itemName);
   const caster = resolveUuid(flag?.sourceUuid);
@@ -1272,8 +1270,12 @@ async function showCompanionMenu(message, activity, cause = null) {
       // the caster's floor when it stands here, else the floor being viewed
       if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, level: placement.level ?? canvas.level?.id ?? null, sceneId: canvas.scene?.id ?? null } });
     },
-    dismiss: () => askDismiss(message),
-    summon: () => { castThrough.add(activity.uuid); return activity.use(cause ? { cause } : {}); }
+    // forever asks first (#16): a dismissal cannot be undone, and the spell cast again is the only way to a new one
+    dismiss: async () => {
+      const yes = await confirmPopup(message, "dismissForever", { title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying",
+        content: `<p>Dismiss ${esc(creature.label)} forever? It leaves the table for good; casting ${esc(flag.itemName)} again summons a new one.</p>` });
+      if ( yes ) await askDismiss(message);
+    }
   };
   await openPicker(message, "companionMenu", caster, {
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
@@ -1283,9 +1285,9 @@ async function showCompanionMenu(message, activity, cause = null) {
     buttons: [
       // every choice shown, the one its state refuses greyed; the first live one is the default
       ...companionMenu(state, row, { empowered: !!flag.companion.empower }).map(({ kind, on }, i, all) => ({
-        action: kind, label: MENU[kind].label, disabled: !on, tooltip: MENU[kind].hint, default: all.findIndex(b => b.on) === i,
+        action: kind, label: MENU[kind], disabled: !on, default: all.findIndex(b => b.on) === i,
         submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => log.error(`The ${lower(row.noun)} could not ${kind}.`, err)); } })),
-      { action: "cancel", label: "Do nothing." }
+      { action: "cancel", label: "Do Nothing" }
     ]
   });
 }
@@ -1373,6 +1375,8 @@ async function actCompanion(message) {
   try {
     if ( companion.ask.kind === "away" ) {
       const doc = liveToken(flag);
+      // no token of it on any scene: nothing to snapshot, so nothing to call back — refused, its state unchanged
+      if ( !doc ) throw new Error("no token of it stands on any scene");
       if ( doc ) {
         await dropCarried(doc, companion.baseItems);
         const snapshot = doc.toObject();
@@ -1477,6 +1481,24 @@ listen("preDeleteActor", "summons", (actor, options, userId) => {
     if ( userId === game.user.id ) void confirmHandDelete(actor, flag);
     return false;
   } catch(err) { log.warn(`Could not read the creature's companion record — it is deleted as usual.`, err); }
+});
+
+// A token Foundry's teleport moves to another scene (a region's behaviour: the token cloned there with its flags, the
+// old one deleted with `replacements` naming the new uuid) keeps its record: the elect re-points `landed` at the new
+// token, so the pocket snapshots it and the recall rebuilds it wherever it went.
+listen("deleteToken", "summons", (token, options) => {
+  try {
+    if ( !isActiveGM() ) return;
+    const to = options?.replacements?.[token.id];
+    const message = to ? game.messages.get(readFlag(token, SUMMON_CARD_FLAG) ?? "") : null;
+    const flag = message ? readFlag(message, SUMMON_FLAG) : null;
+    if ( !flag?.landed?.some(l => (l.tokenId === token.id) && (l.sceneId === token.parent?.id)) ) return;
+    const doc = foundry.utils.fromUuidSync(to);
+    if ( !(doc instanceof TokenDocument) ) return;
+    void queueFlagWrite(message, SUMMON_FLAG, current => {
+      current.landed = repointedLanded(current.landed ?? [], { oldTokenId: token.id, tokenId: doc.id, sceneId: doc.parent.id, tokenUuid: doc.uuid, actorUuid: doc.actor?.uuid ?? null, name: doc.name });
+    }).catch(err => log.warn(`The record could not follow its token to the other scene.`, err));
+  } catch(err) { log.warn(`Could not follow a token's teleport — its record keeps the old scene.`, err); }
 });
 
 async function confirmHandDelete(doc, flag) {

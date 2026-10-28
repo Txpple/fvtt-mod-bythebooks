@@ -674,23 +674,18 @@ describe("companions — the familiar that stays", () => {
     expect(s.currentCompanion(records, "A", "Find Familiar")).toBe("new");
     expect(s.currentCompanion(records, "C", "Find Familiar")).toBeNull();
   });
-  it("the menu by its state: every choice shown, the pocket's greyed where it cannot apply", () => {
+  it("the menu by its state: every choice shown, the pocket's greyed where it cannot apply; no Summon", () => {
     expect(s.companionMenu("present")).toEqual([
       { kind: "away", on: true },
       { kind: "recall", on: false },
-      { kind: "dismiss", on: true },
-      { kind: "summon", on: true }
+      { kind: "dismiss", on: true }
     ]);
     expect(s.companionMenu("pocket")).toEqual([
       { kind: "away", on: false },
       { kind: "recall", on: true },
-      { kind: "dismiss", on: true },
-      { kind: "summon", on: true }
+      { kind: "dismiss", on: true }
     ]);
-    expect(s.companionMenu("present", { pocket: false }).map(b => b.kind)).toEqual([
-      "dismiss",
-      "summon"
-    ]);
+    expect(s.companionMenu("present", { pocket: false }).map(b => b.kind)).toEqual(["dismiss"]);
   });
   it("an ask must fit the state; a recall needs a square on a scene; one ask at a time", () => {
     expect(s.companionAsk({ state: "present" }, { kind: "away" })?.ask.kind).toBe("away");
@@ -1148,15 +1143,14 @@ describe("Battle Familiar: the rows, a standing summon that falls, the last form
     expect(s.companionMenu("present", { pocket: true }, { empowered: true })).toEqual([
       { kind: "away", on: false },
       { kind: "recall", on: false },
-      { kind: "dismiss", on: true },
-      { kind: "summon", on: true }
+      { kind: "dismiss", on: true }
     ]);
     expect(
       s
         .companionMenu("present", { pocket: true })
         .filter(b => b.on)
         .map(b => b.kind)
-    ).toEqual(["away", "dismiss", "summon"]);
+    ).toEqual(["away", "dismiss"]);
   });
 });
 
