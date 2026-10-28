@@ -133,6 +133,14 @@ export function d20FoldSpends(rollMessage) {
   return readFlag(rollMessage, "d20fold")?.spends ?? [];
 }
 
+/** A Death Saving Throw's fold (d20-folds.js) as death-saves.js reads it: its target, the composed total and the spends;
+ * null when no fold was offered on the roll. */
+export function deathSaveFoldOf(rollMessage) {
+  const flag = readFlag(rollMessage, "d20fold");
+  if ( !flag?.death ) return null;
+  return { dc: Number.isFinite(Number(flag.dc)) ? Number(flag.dc) : null, foldedTotal: flag.foldedTotal ?? null, spends: flag.spends ?? [] };
+}
+
 /** A Fighting Style face's fingerprint on its effect (damage-rules.js), or null. */
 export function styleFaceOf(effect) {
   return readFlag(effect, "fightingStyle") ?? null;

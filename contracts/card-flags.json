@@ -5495,6 +5495,19 @@
         ]
       }
     },
+    "deathSaveWritten": {
+      "class": "state",
+      "family": "state",
+      "means": "a latch on the system's death save card (death-saves.js): the tally a d20 fold's offer withheld is written; the card's own deltas and outcome are the resolve",
+      "writers": [
+        "death-saves.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
     "deathThroes": {
       "class": "state",
       "family": "state",

@@ -16,14 +16,14 @@
 import { MODULE_ID, readFlag, drivesMomentFor, canAnswerFor, keepsMessage, canApplyTo, rollerUserFor, leadsWindow,
   statContext, decisionWindow, queueFlagWrite, resolveUuid, resolveUuidAsync, savesRollThemselves, log } from "./core.js";
 import { d20FactsOf } from "./lookup.js";
-import { clearStatus } from "./shared.js";
+import { clearStatus, deathSaveFoldOf } from "./shared.js";
 import { subKindOf, originData } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, ruleLine, popupKey } from "./decide/present.js";
 import { downedOutcome } from "./decide/drop-to-one.js";
-import { DEATH_SAVE_RULE, makesDeathSaves, deathSaveOwed, deathSaveDue, deathSaveResult, damageAtZero,
+import { DEATH_SAVE_RULE, makesDeathSaves, deathSaveOwed, deathSaveDue, deathSaveResult, damageAtZero, foldedDeathSave, deathSaveTally,
   deathSaveAsk, deathSaveToast, deathSaveFloat, damageAtZeroWords, deathSaveCardLine } from "./decide/death-saves.js";
 import { armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, frontPopup, adoptManagedPopup, DialogCarried,
-  scheduleBarSync, postCard, dramaticVerdictPause, momentButton } from "./ui.js";
+  scheduleBarSync, postCard, dramaticVerdictPause, momentButton, registerWithheld } from "./ui.js";
 import { tokensOf } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -31,6 +31,8 @@ import { listen } from "./dispatch.js";
 const DEATH_FLAG = "deathSave";
 /** On the roll's own card: which card it answers, and whether the buzzer rolled it. */
 const ROLL_FLAG = "deathSaveRoll";
+/** On the roll's own card: its withheld tally is written (the `death-save` machine). */
+const ROLL_WRITTEN = "deathSaveWritten";
 const HP = "system.attributes.hp.value";
 const FAILURE = "system.attributes.death.failure";
 
@@ -116,8 +118,10 @@ async function owedBy(card) {
   const actor = await resolveUuidAsync(flag.actorUuid);
   if ( !(actor instanceof Actor) ) return null;
   const owed = deathSaveOwed(factsOf(actor));
+  // A roll made since the ask answers it, its tally on the way (a d20 fold's offer withholds it): never a second roll.
+  if ( rollInFlightFor(card, flag) ) return null;
   if ( owed.owed ) return { flag, actor };
-  if ( keepsMessage(card) && !rollInFlightFor(card, flag) ) await settleMoot(card, owed.why);
+  if ( keepsMessage(card) ) await settleMoot(card, owed.why);
   return null;
 }
 
@@ -230,6 +234,56 @@ function armDeathTimer(message) {
   armAskTimer(timers, message, DEATH_FLAG, live => rollItself(live, { timedOut: true }), { owns: subjectOwns(f => f.actorUuid) });
 }
 
+/* --- the withheld roll: a d20 fold offered on it (d20-folds.js) -------------------------------------------------- */
+
+/** The roll as it stands after its folds, when a fold was offered on it; else null. */
+function foldedOf(message) {
+  const flag = deathSaveFoldOf(message);
+  const roll = message?.rolls?.[0];
+  if ( !flag || !roll ) return null;
+  return foldedDeathSave({ base: { total: Number(roll.total) || 0, isCritical: roll.isCritical === true, isFumble: roll.isFumble === true },
+    target: Number(flag.dc ?? roll.options?.target ?? 10) || 10, foldedTotal: flag.foldedTotal ?? null, spends: flag.spends ?? [] });
+}
+
+/** Writing a withheld roll's tally: one writer per card on this client. */
+const writing = new Set();
+
+/**
+ * The system's own steps after the roll (`Actor5e#rollDeathSave`), run once the fold's offer is answered: the tally from the
+ * roll as it now stands, the card's deltas and outcome (every client then says the result), and `dnd5e.postRollDeathSave`.
+ */
+registerWithheld("death-save", {
+  resume: async (ctx, message) => {
+    if ( !message?.id || writing.has(message.id) ) return;
+    if ( readFlag(message, ROLL_WRITTEN) ) return;
+    writing.add(message.id);
+    try {
+      const actor = await resolveUuidAsync(ctx?.uuid ?? cardActorOf(message)?.uuid);
+      if ( !(actor instanceof Actor) ) return;
+      const owed = deathSaveOwed(factsOf(actor));
+      if ( !owed.owed ) { log.warn(`${actor.name}'s Death Saving Throw was not written — ${owed.why}.`); return; }
+      const roll = message.rolls?.[0];
+      const folded = foldedOf(message) ?? { isSuccess: (Number(roll?.total) || 0) >= (Number(roll?.options?.target ?? 10) || 10),
+        isCritical: roll?.isCritical === true, isFumble: roll?.isFumble === true };
+      // The system's own arithmetic where it has it; the same rule here where it does not.
+      const fields = globalThis.dnd5e?.dataModels?.actor?.AttributesFields;
+      const { outcome, updates } = (typeof fields?.applyDeathSaveResult === "function")
+        ? fields.applyDeathSaveResult(actor.system.attributes.death, folded) : deathSaveTally(tallyOf(actor), folded);
+      // The card's deltas as the system computes them (its field class, reached through the save card's schema).
+      const deltasField = CONFIG.ChatMessage?.dataModels?.save?.schema?.fields?.deltas?.constructor;
+      const deltas = (typeof deltasField?.getDeltas === "function") ? deltasField.getDeltas(actor, { actor: updates, item: [] }) : null;
+      await message.setFlag(MODULE_ID, ROLL_WRITTEN, true);
+      if ( Object.keys(updates).length ) await actor.update(updates);
+      await message.update({ ...(deltas ? { "system.deltas": deltas } : {}), "system.outcome": outcome ?? null });
+      Hooks.callAll("dnd5e.postRollDeathSave", message.rolls ?? [], { message, subject: actor });
+    } catch(err) {
+      log.error(`The Death Saving Throw could not be written after its fold — tick it on the sheet.`, err);
+    } finally {
+      writing.delete(message.id);
+    }
+  }
+});
+
 /* --- the fold: the roll's card answers the ask ------------------------------------------------------------------ */
 
 /** The system's card, with its outcome and the sheet's tally, as plain facts. */
@@ -237,9 +291,15 @@ function resultOf(message, actor) {
   const roll = message.rolls?.[0];
   if ( !roll ) return null;
   const facts = d20FactsOf(roll);
-  return { ...deathSaveResult({ face: facts.kept ?? null, total: Number(roll.total) || 0, target: Number(roll.options?.target ?? 10) || 10,
+  // A fold on the roll: the total it composed, and the natural that stands (a reroll's 20 or 1, the roll's own else).
+  const folded = foldedOf(message);
+  const total = folded ? folded.total : (Number(roll.total) || 0);
+  const face = !folded ? (facts.kept ?? null)
+    : folded.isCritical ? (facts.critAt ?? 20) : folded.isFumble ? (facts.fumbleAt ?? 1)
+    : ((deathSaveFoldOf(message)?.spends ?? []).some(s => s?.reroll || s?.twenty) ? null : (facts.kept ?? null));
+  return { ...deathSaveResult({ face, total, target: Number(roll.options?.target ?? 10) || 10,
     critAt: facts.critAt, fumbleAt: facts.fumbleAt, outcome: message.system?.outcome ?? null, ...tallyOf(actor) }),
-    face: facts.kept ?? null, total: Number(roll.total) || 0 };
+    face, total };
 }
 
 // The system updates its card with the deltas and the outcome once the sheet is written: every client says the result,

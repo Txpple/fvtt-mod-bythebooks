@@ -15,11 +15,12 @@ import { bfCard, holdBarHTML, momentBarHTML, ruleLine, spendPhrase, RESCUE_KINDS
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { ADVANTAGE_BUYS, D20_FLOORS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS, d20FloorEntries } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
+import { deathSaveFoldWanted } from "./decide/death-saves.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, armAskTimer, disarmAskTimer, electOwns, openMomentPopup, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup,
   pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause, pendingRow, postCard } from "./ui.js";
 import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-damage.js";
-import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
+import { activityUuidOf, originData, subKindOf, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 import { esc } from "./decide/present.js";
 import { dieMaxOf, foldCanReach } from "./decide/rescue-hit.js";
@@ -485,17 +486,47 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       const ability = (testKind === "save") ? (data?.ability ?? null) : null;
       // A maneuver ARMED from the sheet folds in by itself; the other folds are offered after.
       if ( (testKind === "check") && await applyArmedFold(message, subject, testKind, { skill }) ) return;
-      const offers = availableFolds(subject, testKind, [], { skill, ability });
+      // A Death Saving Throw has its target (10): a success is never offered, a failure only what can still reach it,
+      // and the system's tally is WITHHELD (the veto below) until the offer is answered.
+      const death = (testKind === "save") && (subKindOf(message) === "death");
+      const target = death ? (Number(rolls[0].options?.target ?? 10) || 10) : null;
+      if ( death && !deathSaveFoldWanted({ total: rolls[0].total, target }) ) return;
+      let offers = availableFolds(subject, testKind, [], { skill, ability });
+      if ( death ) offers = reaching(offers, { total: rolls[0].total, kept: naturalOf(rolls[0]), target });
       if ( !offers.length ) return;
+      // ⚠ SYNCHRONOUS, before the first await: the system's `dnd5e.rollDeathSave` follows this hook at once.
+      if ( death ) withheldDeath.add(message.id);
       const window = decisionWindow();
-      await message.setFlag(MODULE_ID, "d20fold",
-        { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}), ...(ability ? { ability } : {}) });
+      try {
+        await message.setFlag(MODULE_ID, "d20fold",
+          { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}), ...(ability ? { ability } : {}),
+            ...(death ? { dc: target, death: true, resume: { by: "death-save", uuid: subject.uuid } } : {}) });
+      } catch(err) {
+        // ⚠ Fail OPEN: a broken offer must never swallow the Death Saving Throw — the tally lands as rolled.
+        if ( death ) await resumeWithheld("death-save", { uuid: subject.uuid }, message).catch(e => log.error(`The Death Saving Throw could not be written — tick it on the sheet.`, e));
+        throw err;
+      } finally {
+        withheldDeath.delete(message.id);
+      }
       armFoldTimer(message);
     } catch(err) {
       log.error(`D20 fold stamp (${hook}) failed.`, err);
     }
   });
 }
+
+/** The Death Saving Throws whose fold is being stamped on this client: the system's tally waits for the answer. */
+const withheldDeath = new Set();
+
+/** WITHHOLD, DO NOT UNDO: a Death Saving Throw offered a fold writes no tally now; `death-saves.js` writes it once the
+ * offer is answered (the `death-save` machine), from the roll as it then stands. A stamped flag withholds too (a reload). */
+listen("dnd5e.rollDeathSave", "d20-folds", rolls => {
+  const message = rolls?.[0]?.parent;
+  if ( !message?.id ) return;
+  if ( withheldDeath.has(message.id) ) return false;
+  const flag = readFlag(message, "d20fold");
+  if ( flag?.death && (flag.resume?.by === "death-save") ) return false;
+});
 
 /** INITIATIVE: a scoped fold or Lucky's Advantage offered on the roll's message; accepting re-sets
  * the combatant's initiative to the composed total (DESIGN §4). */
@@ -1098,13 +1129,18 @@ registerRescue("d20fold", {
 
 /** THE MOOT: a sibling spend fixed the roll, so this offer withdraws unspent. ⚠ Elect-owned, single writer. */
 async function mootFold(message) {
+  let mooted = false;
   await queueFlagWrite(message, "d20fold", current => {
     if ( (current.status !== "pending") || current.answer ) return false;
     current.status = "resolved";
     current.outcome = "no longer needed";
     current.offers = [];
+    mooted = true;
   });
   disarmAskTimer(foldTimers, message.id);
+  // A withheld Death Saving Throw still owes its tally.
+  const flag = readFlag(message, "d20fold");
+  if ( mooted && flag?.death ) await resumeWithheldSave(flag, message);
 }
 
 /** Is this offer's premise still alive, composed across everything already spent? */

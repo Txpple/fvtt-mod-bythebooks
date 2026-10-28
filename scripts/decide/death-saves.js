@@ -92,6 +92,60 @@ export function damageAtZero({ failure = 0, critical = false, amount, max }) {
   return { failure: after, steps, massive, outcome: (after >= THIRD) ? "death" : null };
 }
 
+/**
+ * Is a d20 fold (Heroic Inspiration, a reroll, a die) offered on this Death Saving Throw? Only on a failure: a roll
+ * that already met the target has nothing to rescue.
+ * @param {{total: number, target?: number}} facts
+ */
+export const deathSaveFoldWanted = ({ total, target = 10 }) => Number.isFinite(Number(total)) && (Number(total) < Number(target));
+
+/**
+ * The Death Saving Throw as it stands after its folds: the composed total against the target, the critical and fumble
+ * of the d20 that stands (a reroll's own, else the roll's), a verdict fold's success.
+ * @param {{base: {total: number, isCritical?: boolean, isFumble?: boolean}, target?: number, foldedTotal?: number|null,
+ *   spends?: {reroll?: {total: number, isCritical?: boolean, isFumble?: boolean}, twenty?: object, verdict?: string}[]}} facts
+ * @returns {{total: number, isSuccess: boolean, isCritical: boolean, isFumble: boolean}}
+ */
+export function foldedDeathSave({ base, target = 10, foldedTotal = null, spends = [] }) {
+  const list = spends ?? [];
+  // The d20 that stands: the last reroll's, a twenty's (Stroke of Luck), else the roll's own.
+  const last = list.findLast(s => s?.reroll || s?.twenty) ?? null;
+  const d20 = last?.twenty ? { isCritical: true, isFumble: false } : (last?.reroll ?? base);
+  const total = ((foldedTotal !== null) && Number.isFinite(Number(foldedTotal))) ? Number(foldedTotal) : (Number(base?.total) || 0);
+  const saved = list.some(s => s?.verdict === "saved");
+  return { total, isSuccess: saved || (total >= Number(target)), isCritical: d20?.isCritical === true, isFumble: d20?.isFumble === true };
+}
+
+/**
+ * The tally a Death Saving Throw writes, as the system writes it (`AttributesFields.applyDeathSaveResult`): a success
+ * counts, a critical revives at 1 Hit Point and clears the tally, the third success is Stable and clears it; a failure
+ * counts, a fumble two, the third is death.
+ * @param {{success?: number, failure?: number}} death
+ * @param {{isSuccess: boolean, isCritical?: boolean, isFumble?: boolean}} roll
+ * @returns {{outcome: "revive"|"stable"|"death"|null, updates: Record<string, number>}}
+ */
+export function deathSaveTally(death, { isSuccess, isCritical = false, isFumble = false }) {
+  /** @type {Record<string, number>} */
+  const updates = {};
+  /** @type {"revive"|"stable"|"death"|null} */
+  let outcome = null;
+  if ( isSuccess ) {
+    const successes = (Number(death?.success) || 0) + 1;
+    if ( isCritical ) {
+      Object.assign(updates, { "system.attributes.death.success": 0, "system.attributes.death.failure": 0, "system.attributes.hp.value": 1 });
+      outcome = "revive";
+    } else if ( successes >= THIRD ) {
+      Object.assign(updates, { "system.attributes.death.success": 0, "system.attributes.death.failure": 0 });
+      outcome = "stable";
+    } else updates["system.attributes.death.success"] = Math.min(Math.max(successes, 0), THIRD);
+  } else {
+    const failures = Math.min(Math.max((Number(death?.failure) || 0) + (isFumble ? 2 : 1), 0), THIRD);
+    updates["system.attributes.death.failure"] = failures;
+    if ( failures >= THIRD ) outcome = "death";
+  }
+  return { outcome, updates };
+}
+
 /* --- the words ----------------------------------------------------------------------------------------------- */
 
 /** "1 of 3 successes · 2 of 3 failures". */

@@ -8,6 +8,9 @@ import {
   deathSaveAsk,
   deathSaveCardLine,
   deathSaveDue,
+  deathSaveFoldWanted,
+  deathSaveTally,
+  foldedDeathSave,
   deathSaveFloat,
   deathSaveLine,
   deathSaveOwed,
@@ -376,5 +379,87 @@ describe("the words", () => {
     ).toBe(
       "Ilka takes 6 damage at 0 Hit Points — a failure · 0 of 3 successes · 1 of 3 failures · reverted"
     );
+  });
+});
+
+describe("a d20 fold on a Death Saving Throw", () => {
+  it("is offered on a failure only: a 10 already succeeds", () => {
+    expect(deathSaveFoldWanted({ total: 10, target: 10 })).toBe(false);
+    expect(deathSaveFoldWanted({ total: 15 })).toBe(false);
+    expect(deathSaveFoldWanted({ total: 9 })).toBe(true);
+    expect(deathSaveFoldWanted({ total: 0 })).toBe(true);
+  });
+
+  it("reads the roll as it stands: the reroll's total and its natural", () => {
+    const base = { total: 7, isCritical: false, isFumble: false };
+    expect(
+      foldedDeathSave({
+        base,
+        foldedTotal: 14,
+        spends: [{ reroll: { total: 14, isCritical: false, isFumble: false } }]
+      })
+    ).toEqual({ total: 14, isSuccess: true, isCritical: false, isFumble: false });
+    expect(
+      foldedDeathSave({
+        base,
+        foldedTotal: 20,
+        spends: [{ reroll: { total: 20, isCritical: true, isFumble: false } }]
+      }).isCritical
+    ).toBe(true);
+    // A natural 1 rerolled into a plain failure is one failure, not two.
+    const fumble = { total: 1, isCritical: false, isFumble: true };
+    expect(
+      foldedDeathSave({
+        base: fumble,
+        foldedTotal: 6,
+        spends: [{ reroll: { total: 6, isCritical: false, isFumble: false } }]
+      })
+    ).toEqual({ total: 6, isSuccess: false, isCritical: false, isFumble: false });
+    // A die added keeps the d20's own natural; a verdict fold succeeds; a twenty is a critical.
+    expect(foldedDeathSave({ base, foldedTotal: 11, spends: [{ die: 4 }] })).toEqual({
+      total: 11,
+      isSuccess: true,
+      isCritical: false,
+      isFumble: false
+    });
+    expect(foldedDeathSave({ base, spends: [{ verdict: "saved" }] }).isSuccess).toBe(true);
+    expect(
+      foldedDeathSave({ base, foldedTotal: 20, spends: [{ twenty: { total: 20, face: 7 } }] })
+        .isCritical
+    ).toBe(true);
+    // Passed: the roll as rolled.
+    expect(foldedDeathSave({ base })).toEqual({
+      total: 7,
+      isSuccess: false,
+      isCritical: false,
+      isFumble: false
+    });
+  });
+
+  it("writes the tally as the system does", () => {
+    expect(deathSaveTally({ success: 0, failure: 0 }, { isSuccess: true })).toEqual({
+      outcome: null,
+      updates: { "system.attributes.death.success": 1 }
+    });
+    expect(deathSaveTally({ success: 2, failure: 1 }, { isSuccess: true }).outcome).toBe("stable");
+    expect(
+      deathSaveTally({ success: 1, failure: 2 }, { isSuccess: true, isCritical: true })
+    ).toEqual({
+      outcome: "revive",
+      updates: {
+        "system.attributes.death.success": 0,
+        "system.attributes.death.failure": 0,
+        "system.attributes.hp.value": 1
+      }
+    });
+    expect(
+      deathSaveTally({ success: 0, failure: 0 }, { isSuccess: false, isFumble: true })
+    ).toEqual({ outcome: null, updates: { "system.attributes.death.failure": 2 } });
+    expect(deathSaveTally({ success: 0, failure: 2 }, { isSuccess: false }).outcome).toBe("death");
+    expect(
+      deathSaveTally({ success: 0, failure: 2 }, { isSuccess: false, isFumble: true }).updates[
+        "system.attributes.death.failure"
+      ]
+    ).toBe(3);
   });
 });

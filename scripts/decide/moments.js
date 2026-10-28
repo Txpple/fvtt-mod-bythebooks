@@ -984,6 +984,7 @@ export const STATE_KEYS = Object.freeze({
   // the PHB classes, C1
   concentrationExempt: "presentation — the card for a Concentration save the ask machine did not demand (Relentless Hunter: damage never breaks Hunter's Mark; concentration.js); nothing was rolled, nothing to resolve",
   deathSaveOfferAnswer: "an envelope — a keeper's answer to the death save's offer (Searing Vengeance); the fold onto deathSaveOffer is the resolve",
+  deathSaveWritten: "a latch on the system's death save card (death-saves.js): the tally a d20 fold's offer withheld is written; the card's own deltas and outcome are the resolve",
   deathSaveRoll: "provenance on the system's death save card (death-saves.js): the ask card it answers and whether the buzzer rolled it; the fold onto that card is the resolve",
   duplicatesSave: "provenance — the attacker's save a `save` duplicate demanded inside the hold (Unbreakable Majesty, hold/continue.js); the hold's verdict is the resolve",
   recoiled: "an ActiveEffect field — which attacker the Majestic Presence has already turned aside this turn, by combat turn (Unbreakable Majesty's once per turn per attacker)",
