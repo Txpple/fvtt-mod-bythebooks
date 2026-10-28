@@ -531,6 +531,48 @@ export function guardsHandDelete(flag) {
     && !!flag.companion && (flag.companion.state !== "gone");
 }
 
+/**
+ * Does this delete pass the hand-delete prompt? The module's own (`companionEnd`), one already confirmed
+ * (`handDelete`), and dnd5e's transform revert swapping the token (`replacements`).
+ * @param {object|null|undefined} options   the delete's options
+ * @param {string} scope   the module's flag scope
+ */
+export function handDeletePasses(options, scope) {
+  return !!(options?.[scope]?.companionEnd || options?.[scope]?.handDelete || options?.replacements);
+}
+
+/**
+ * The standing companion a world creature carries, for its hand delete: the record whose live token stands on it,
+ * or, in the pocket, whose snapshot does. Null when none.
+ * @param {Array<{ flag: object|null|undefined, liveActorId?: string|null }>} records   each with its live token's actor id
+ * @param {string} actorId
+ * @returns {object|null}  the record's flag
+ */
+export function handDeleteRecord(records, actorId) {
+  if ( !actorId ) return null;
+  const hit = (records ?? []).find(({ flag, liveActorId }) => guardsHandDelete(flag)
+    && ((liveActorId ?? flag.companion.snapshot?.actorId ?? null) === actorId));
+  return hit?.flag ?? null;
+}
+
+/**
+ * The hand-delete prompt's words. `name` and `spell` arrive escaped; `creature` true when the world creature is
+ * deleted rather than the token.
+ * @param {{ noun?: string|null, name: string, spell?: string|null, creature?: boolean }} what
+ * @returns {{ title: string, content: string, yes: string, no: string }}
+ */
+export function handDeleteQuestion({ noun = null, name, spell = null, creature = false }) {
+  const n = String(noun || "companion").toLowerCase();
+  const what = creature ? `${name}, the creature your ${n} is made from,` : name;
+  return {
+    title: `Delete the ${n}?`,
+    content: `<p>Deleting ${what} by hand may leave the ${n}'s record, seat and effect behind.</p>`
+      + `<p>Use ${spell || "the spell"} to dismiss it or put it away instead.</p>`,
+    yes: "Proceed",
+    no: "Cancel"
+  };
+}
+
 /** The item types a creature carries rather than is: what it leaves behind (its natural weapons are its stat block's). */
 const CARRIED = new Set(["weapon", "equipment", "consumable", "tool", "loot", "container"]);
 

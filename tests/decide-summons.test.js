@@ -343,6 +343,24 @@ describe("recallSeat — one seat across the pocket", () => {
       });
     }
   });
+  it("a kept seat holds its decimals and a stored string; a caster with no Initiative seats nowhere", () => {
+    expect(s.recallSeat({ combatId: "c1", initiative: 16.99 }, now)).toEqual({
+      initiative: 16.99,
+      roll: false
+    });
+    expect(s.recallSeat({ combatId: "c1", initiative: "12" }, now)).toEqual({
+      initiative: 12,
+      roll: false
+    });
+    expect(s.recallSeat({ combatId: "c1", initiative: "x" }, now)).toEqual({
+      initiative: null,
+      roll: true
+    });
+    expect(s.recallSeat(null, { combatId: "c1", own: false, casterInitiative: null })).toEqual({
+      initiative: null,
+      roll: false
+    });
+  });
 });
 
 // The PHB's Find Familiar, as the pack ships it (2026-10-12): one cr-mode profile with the Bat's uuid
@@ -546,6 +564,86 @@ describe("guardsHandDelete — a hand delete asks first", () => {
   });
 });
 
+describe("handDeletePasses — the deletes the prompt lets through", () => {
+  const MOD = "fvtt-mod-bythebooks";
+  it("the module's own, a confirmed one, and dnd5e's transform revert", () => {
+    expect(s.handDeletePasses({ [MOD]: { companionEnd: true } }, MOD)).toBe(true);
+    expect(s.handDeletePasses({ [MOD]: { handDelete: true } }, MOD)).toBe(true);
+    expect(s.handDeletePasses({ replacements: { old: "new" } }, MOD)).toBe(true);
+  });
+  it("a plain delete, another module's marker, or none at all asks", () => {
+    expect(s.handDeletePasses({}, MOD)).toBe(false);
+    expect(s.handDeletePasses(null, MOD)).toBe(false);
+    expect(s.handDeletePasses(undefined, MOD)).toBe(false);
+    expect(s.handDeletePasses({ "other-module": { companionEnd: true } }, MOD)).toBe(false);
+    expect(s.handDeletePasses({ [MOD]: { companionEnd: false } }, MOD)).toBe(false);
+  });
+});
+
+describe("handDeleteRecord — the companion a world creature carries", () => {
+  const onTable = { applied: true, itemName: "Find Familiar", companion: { state: "present" } };
+  const inPocket = {
+    applied: true,
+    itemName: "Find Familiar",
+    companion: { state: "pocket", snapshot: { actorId: "owl" } }
+  };
+  it("the record whose live token stands on the creature", () => {
+    expect(s.handDeleteRecord([{ flag: onTable, liveActorId: "owl" }], "owl")).toBe(onTable);
+  });
+  it("in the pocket, the record whose snapshot does", () => {
+    expect(s.handDeleteRecord([{ flag: inPocket, liveActorId: null }], "owl")).toBe(inPocket);
+  });
+  it("the live token wins over a stale snapshot", () => {
+    const moved = { ...inPocket, companion: { state: "present", snapshot: { actorId: "owl" } } };
+    expect(s.handDeleteRecord([{ flag: moved, liveActorId: "cat" }], "owl")).toBeNull();
+    expect(s.handDeleteRecord([{ flag: moved, liveActorId: "cat" }], "cat")).toBe(moved);
+  });
+  it("none for another creature, a companion gone or going, or no actor id", () => {
+    expect(s.handDeleteRecord([{ flag: onTable, liveActorId: "owl" }], "bat")).toBeNull();
+    expect(
+      s.handDeleteRecord([{ flag: { ...onTable, dismissAsked: true }, liveActorId: "owl" }], "owl")
+    ).toBeNull();
+    expect(
+      s.handDeleteRecord(
+        [{ flag: { ...inPocket, companion: { ...inPocket.companion, state: "gone" } } }],
+        "owl"
+      )
+    ).toBeNull();
+    expect(s.handDeleteRecord([{ flag: null, liveActorId: "owl" }], "owl")).toBeNull();
+    expect(s.handDeleteRecord([{ flag: onTable, liveActorId: "owl" }], null)).toBeNull();
+    expect(s.handDeleteRecord(null, "owl")).toBeNull();
+  });
+  it("a plain summon (no companion) is never guarded", () => {
+    expect(s.handDeleteRecord([{ flag: { applied: true }, liveActorId: "owl" }], "owl")).toBeNull();
+  });
+});
+
+describe("handDeleteQuestion — the prompt's words", () => {
+  it("the token: its name, the noun, the spell, Proceed and Cancel", () => {
+    const q = s.handDeleteQuestion({ noun: "Familiar", name: "Omen", spell: "Find Familiar" });
+    expect(q.title).toBe("Delete the familiar?");
+    expect(q.content).toContain(
+      "Deleting Omen by hand may leave the familiar's record, seat and effect behind."
+    );
+    expect(q.content).toContain("Use Find Familiar to dismiss it or put it away instead.");
+    expect([q.yes, q.no]).toEqual(["Proceed", "Cancel"]);
+  });
+  it("the world creature names what it is to the familiar", () => {
+    const q = s.handDeleteQuestion({
+      noun: "Familiar",
+      name: "Owl",
+      spell: "Find Familiar",
+      creature: true
+    });
+    expect(q.content).toContain("Deleting Owl, the creature your familiar is made from, by hand");
+  });
+  it("no row or no spell: a companion, the spell", () => {
+    const q = s.handDeleteQuestion({ name: "Ash" });
+    expect(q.title).toBe("Delete the companion?");
+    expect(q.content).toContain("Use the spell to dismiss it");
+  });
+});
+
 describe("companions — the familiar that stays", () => {
   const rec = (sourceUuid, extra = {}) => ({
     applied: true,
@@ -609,6 +707,13 @@ describe("companions — the familiar that stays", () => {
         { kind: "recall", placement: { x: 1, y: 2, elevation: 30, level: "floor3", sceneId: "s" } }
       )?.ask.placement
     ).toEqual({ x: 1, y: 2, elevation: 30, level: "floor3", sceneId: "s" });
+    // an empty floor (a scene without levels) is none, never ""
+    expect(
+      s.companionAsk(
+        { state: "pocket" },
+        { kind: "recall", placement: { x: 1, y: 2, level: "", sceneId: "s" } }
+      )?.ask.placement.level
+    ).toBeNull();
     expect(
       s.companionAsk({ state: "present", ask: { kind: "away" } }, { kind: "away" })
     ).toBeNull();

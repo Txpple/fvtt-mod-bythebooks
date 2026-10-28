@@ -21,7 +21,7 @@ import { HELP_NAME, HELP_RULE, helpItemData } from "./decide/help.js";
 import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
-  ownershipGrant, seatInitiative, recallSeat, guardsHandDelete, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
+  ownershipGrant, seatInitiative, recallSeat, guardsHandDelete, handDeletePasses, handDeleteRecord, handDeleteQuestion, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
   fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect, summonSees, petNameOf, rememberedName, rememberName,
   PET_NAME_MAX } from "./decide/summons.js";
@@ -1454,11 +1454,9 @@ async function confirmCompanionEnd(effect, message) {
 // A companion's token, or the world creature it stands on, deleted by hand asks first: the spell's menu dismisses it
 // or puts it away, and a native delete leaves its record, seat and effect behind. The module's own deletes carry
 // `companionEnd`, a confirmed one `handDelete`; dnd5e's transform revert (`replacements`) swaps the token and passes.
-const handDeletePasses = options => !!(options?.[MODULE_ID]?.companionEnd || options?.[MODULE_ID]?.handDelete || options?.replacements);
-
 listen("preDeleteToken", "summons", (token, options, userId) => {
   try {
-    if ( handDeletePasses(options) ) return;
+    if ( handDeletePasses(options, MODULE_ID) ) return;
     const message = game.messages.get(readFlag(token, SUMMON_CARD_FLAG) ?? "") ?? null;
     const flag = message ? readFlag(message, SUMMON_FLAG) : null;
     if ( !guardsHandDelete(flag) ) return;
@@ -1469,9 +1467,8 @@ listen("preDeleteToken", "summons", (token, options, userId) => {
 
 listen("preDeleteActor", "summons", (actor, options, userId) => {
   try {
-    if ( handDeletePasses(options) || actor.isToken ) return;
-    const flag = summonRecords().map(r => r.flag).find(f => guardsHandDelete(f)
-      && ((liveToken(f)?.actorId ?? f.companion.snapshot?.actorId) === actor.id)) ?? null;
+    if ( handDeletePasses(options, MODULE_ID) || actor.isToken ) return;
+    const flag = handDeleteRecord(summonRecords().map(({ flag }) => ({ flag, liveActorId: liveToken(flag)?.actorId ?? null })), actor.id);
     if ( !flag ) return;
     if ( userId === game.user.id ) void confirmHandDelete(actor, flag);
     return false;
@@ -1479,15 +1476,8 @@ listen("preDeleteActor", "summons", (actor, options, userId) => {
 });
 
 async function confirmHandDelete(doc, flag) {
-  const noun = lower(companionOf(flag.itemName)?.noun ?? "companion");
-  const spell = flag.itemName ? `${esc(flag.itemName)}` : "the spell";
-  const what = (doc instanceof Actor) ? `the creature ${esc(doc.name)} stands on` : esc(doc.name);
-  const yes = await confirmPopup(doc.uuid, "handDelete", {
-    title: `Delete the ${noun}?`,
-    content: `<p>Deleting ${what} by hand may leave the ${noun}'s record, seat and effect behind.</p>`
-      + `<p>Use ${spell} to dismiss it or put it away instead.</p>`,
-    yes: "Proceed", no: "Cancel"
-  });
+  const yes = await confirmPopup(doc.uuid, "handDelete", handDeleteQuestion({ noun: companionOf(flag.itemName)?.noun ?? null,
+    name: esc(doc.name), spell: flag.itemName ? esc(flag.itemName) : null, creature: doc instanceof Actor }));
   if ( yes ) await doc.delete({ [MODULE_ID]: { handDelete: true } });
 }
 

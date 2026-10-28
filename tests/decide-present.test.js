@@ -922,5 +922,12 @@ describe("rosterSide — the combat line's side tag", () => {
     expect(p.rosterSide({ isPC: true })).toBe("");
     expect(p.rosterSide({ isPC: false })).toBe(" (foe)");
     expect(p.rosterSide({ isPC: false, disposition: null })).toBe(" (foe)");
+    expect(p.rosterSide({ isPC: true, disposition: undefined })).toBe("");
+  });
+  it("a disposition stored as text reads as its number; junk falls back", () => {
+    expect(p.rosterSide({ isPC: false, disposition: "1" })).toBe("");
+    expect(p.rosterSide({ isPC: false, disposition: "-1" })).toBe(" (foe)");
+    expect(p.rosterSide({ isPC: true, disposition: "x" })).toBe("");
+    expect(p.rosterSide()).toBe(" (foe)");
   });
 });
