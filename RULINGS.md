@@ -1607,7 +1607,7 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   at the teardown, because their fixtures stand creatures in a row on purpose and a measured +2 would move
   hit and miss under sections about something else. `smoke-reminders` §14 clears the flag.
 - `tests/decide-cover.test.js`, `smoke-reminders` §14 (written 2026-09-27 while the sandbox ran the
-  release battery; its first live run is owed).
+  release battery; first walked green 8/8 on 2026-10-28 with the Sight None and Limited walls, 14g–h).
 
 ## The settings (2026-09-27)
 

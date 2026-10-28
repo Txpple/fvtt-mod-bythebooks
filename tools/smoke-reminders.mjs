@@ -1251,8 +1251,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const text = await hoverText();
           const shot = await shoot();
           const line = await lineSoon(shot);
-          ok('14d. a wall across the line: "Total Cover" over "a wall in the way"; the attack records NO AC (a miss) even with Sharpshooter, and says why',
-            /Total Cover a wall in the way/.test(text) && (shot?.system?.targets?.[0]?.ac === null) && /the .*: Total Cover$/.test(line)
+          ok('14d. a wall across the line: "Total Cover" over "a wall in the way" on the hover and the card; the attack records NO AC (a miss) even with Sharpshooter',
+            /Total Cover a wall in the way/.test(text) && (shot?.system?.targets?.[0]?.ac === null) && /the .*: Total Cover · a wall in the way$/.test(line)
               && !shot?.getFlag(MOD, 'coverIgnored'), `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac} line="${line}"`);
         }
         await clearWalls();
@@ -1274,9 +1274,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const acWith = Number(victim.system.attributes.ac.value);
           const shot = await shoot();
           const line = await lineSoon(shot);
-          ok(`14f. a hand-set Three-Quarters Cover (AC ${acWith}) over a measured Half: the attack records AC ${acWith} — the degrees never add — and the card names the one that stands`,
-            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && /the .*: Three-Quarters Cover \(\+5 AC\)$/.test(line),
-            `acWith=${acWith} recorded=${shot?.system?.targets?.[0]?.ac}`);
+          ok(`14f. a hand-set Three-Quarters Cover (AC ${acWith}) over a measured Half: the attack records AC ${acWith} — the degrees never add — and the card names the one that stands, "its own cover status"`,
+            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && /the .*: Three-Quarters Cover \(\+5 AC\) · its own cover status$/.test(line),
+            `acWith=${acWith} recorded=${shot?.system?.targets?.[0]?.ac} line="${line}"`);
         }
         await victim.toggleStatusEffect('coverThreeQuarters', { active: false });
         await until(() => !victim.statuses?.has?.('coverThreeQuarters'), { label: 'Three-Quarters Cover off the victim' });
