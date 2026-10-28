@@ -1251,7 +1251,16 @@ async function sweepSummonCopies() {
   if ( folderId ) await Actor.implementation.updateDocuments(homeless.map(a => ({ _id: a.id, folder: folderId })));
 }
 
-listenOnce("ready", "summons", () => { void sweepSummonCopies().catch(err => log.warn(`Could not sweep the summoned creatures' world copies.`, err)); });
+// ⚠ At `ready` the joining GM is not always flagged active yet (migrate.js says the same): the load's sweep runs when
+// this client's own activity lands instead. Once per load either way.
+let sweptOnLoad = false;
+function sweepOnLoad() {
+  if ( sweptOnLoad || !isActiveGM() ) return;
+  sweptOnLoad = true;
+  void sweepSummonCopies().catch(err => log.warn(`Could not sweep the summoned creatures' world copies.`, err));
+}
+listenOnce("ready", "summons", sweepOnLoad);
+listen("userConnected", "summons", (user, active) => { if ( active && user?.isSelf ) sweepOnLoad(); });
 
 /** The live token a record landed, or null (in the pocket, dismissed, deleted by hand). */
 function liveToken(flag) {
