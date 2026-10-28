@@ -3494,7 +3494,11 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
    leaves the card `asked`.
 5. **The elect lands it** (`registerResumable("summon")`, claimed inside `queueFlagWrite` as the mastery swap is): fetch or
    import the creature with its own permissions (`fetchExisting`, the origin stamped so a re-cast finds the one world copy — linked
-   companions import once and keep); dnd5e's own `getChanges` for the profile, per token; the tokens created on the record's scene;
+   companions import once and keep); **the world copy lives in the Summons folder**, never the caster's (the PCs folder stays the
+   PCs'; `summonsFolder`, made on first use, an unlinked copy found elsewhere moved in), and the elect deletes an unlinked copy
+   nothing holds — no token on any scene stands on it, no pocket snapshot names it, no pending landing casts its source — after
+   every dismissal and once at the first GM load, which also takes the strays dnd5e's own import left in the casters' folders
+   (`sweepSummonCopies`, decide `strayCopies`; the next cast imports afresh); dnd5e's own `getChanges` for the profile, per token; the tokens created on the record's scene;
    **concentration's end takes them** — the elect, on the concentration effect's delete, asks the dismissal of every landed record
    naming it (call 7); `dnd5e.postSummon` fired for
    whoever listens; the caster's owners (level 3) granted OWNER on the world actor; **a seat right after the caster** (toggle A): a

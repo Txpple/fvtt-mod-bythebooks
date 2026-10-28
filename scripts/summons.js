@@ -24,7 +24,7 @@ import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAn
   ownershipGrant, seatInitiative, recallSeat, guardsHandDelete, handDeletePasses, handDeleteRecord, handDeleteQuestion, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
   fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect, summonSees, petNameOf, rememberedName, rememberName,
-  PET_NAME_MAX } from "./decide/summons.js";
+  PET_NAME_MAX, SUMMONS_FOLDER, isSummonCopy, strayCopies } from "./decide/summons.js";
 import { transformRecord, repointedLanded } from "./decide/transforms.js";
 import { bfCard, esc } from "./decide/present.js";
 import { artChanges } from "./decide/summon-art.js";
@@ -830,8 +830,12 @@ async function landSummon(message) {
     if ( !profile ) throw new Error(`no profile ${flag.profileId} on ${activity.item?.name}`);
     const scene = game.scenes.get(flag.sceneId) ?? canvas.scene;
     if ( !scene ) throw new Error("the scene the creature was placed on is gone");
-    const fetchOptions = { folderId: caster.folder?.id ?? null, origin: { key: "flags.dnd5e.summon.origin", value: activity.item.uuid } };
+    // the creature's world copy lives in the Summons folder, never the caster's (the PCs folder stays the PCs'), and goes
+    // once nothing stands on it (`sweepSummonCopies`); a linked companion imports once and keeps, wherever the table put it
+    const folderId = await summonsFolder();
+    const fetchOptions = { folderId, origin: { key: "flags.dnd5e.summon.origin", value: activity.item.uuid } };
     const actor = await dnd5e.documents.Actor5e.fetchExisting(flag.summonUuid, fetchOptions);
+    if ( folderId && isSummonCopy(actor) && !actor.prototypeToken?.actorLink && (actor.folder?.id !== folderId) ) await actor.update({ folder: folderId });
     const options = { profile: profile._id, creatureSize: flag.creatureSize ?? undefined, creatureType: flag.creatureType ?? undefined };
     const row = flag.choice ? SUMMON_CHOICES[flag.choice] : null;
     const concentration = concentrationOf(caster, flag);
@@ -1142,6 +1146,8 @@ async function dismissSummon(message) {
       current.dismissed = true; current.dismissing = false; current.dismissedAt = Date.now();
       if ( current.companion ) { current.companion.state = "gone"; current.companion.snapshot = null; }
     });
+    // the world copies nothing stands on any more go with it (a dismissed record holds none)
+    await sweepSummonCopies().catch(err => log.warn(`Could not sweep the summoned creatures' world copies.`, err));
   }
 }
 
@@ -1203,6 +1209,42 @@ const summonRecords = () => game.messages.contents.map(m => {
   const flag = readFlag(m, SUMMON_FLAG);
   return { id: m.id, flag: flag ? { ...flag, itemName: rulesName(flag.itemName) } : flag };
 });
+
+/** The world folder the system's copies of summoned creatures land in, made on first use; null when it cannot be. */
+async function summonsFolder() {
+  const have = game.folders.find(f => (f.type === "Actor") && (f.name === SUMMONS_FOLDER) && !f.folder);
+  if ( have ) return have.id;
+  try { return (await Folder.implementation.create({ name: SUMMONS_FOLDER, type: "Actor" }))?.id ?? null; }
+  catch(err) { log.warn(`Could not make the "${SUMMONS_FOLDER}" folder — the creature's copy lands at the directory's root.`, err); return null; }
+}
+
+/**
+ * The elect deletes the system's own copies of summoned creatures nothing holds any more (RULINGS *Summons* call 5):
+ * no token on any scene stands on it, no record's pocket snapshot names it, no landing still pending casts its
+ * source. A linked companion imports once and keeps. Runs after every dismissal and once at the first GM load, which
+ * also takes the strays an earlier table left in the casters' folders.
+ */
+async function sweepSummonCopies() {
+  if ( !isActiveGM() ) return;
+  const standing = new Set();
+  for ( const scene of game.scenes ) for ( const t of scene.tokens ) if ( t.actorId ) standing.add(t.actorId);
+  const kept = new Set();
+  const sources = new Set();
+  for ( const { flag } of summonRecords() ) {
+    if ( !flag || flag.dismissed ) continue;
+    if ( flag.companion?.snapshot?.actorId ) kept.add(flag.companion.snapshot.actorId);
+    if ( !flag.applied && (flag.outcome !== "failed") && flag.summonUuid ) sources.add(flag.summonUuid);
+  }
+  const copies = game.actors.filter(a => isSummonCopy(a)).map(a => ({ id: a.id, name: a.name, linked: !!a.prototypeToken?.actorLink,
+    sources: [a._stats?.compendiumSource, a._stats?.duplicateSource] }));
+  const ids = strayCopies(copies, { standing, kept, sources });
+  if ( !ids.length ) return;
+  await Actor.implementation.deleteDocuments(ids, { [MODULE_ID]: { companionEnd: true } });
+  const names = copies.filter(c => ids.includes(c.id)).map(c => c.name).join(", ");
+  log.info(`${ids.length} world cop${ids.length === 1 ? "y" : "ies"} of summoned creatures swept, nothing standing on them: ${names}.`);
+}
+
+listenOnce("ready", "summons", () => { void sweepSummonCopies().catch(err => log.warn(`Could not sweep the summoned creatures' world copies.`, err)); });
 
 /** The live token a record landed, or null (in the pocket, dismissed, deleted by hand). */
 function liveToken(flag) {

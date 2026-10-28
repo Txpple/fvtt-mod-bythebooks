@@ -1270,3 +1270,37 @@ describe("a familiar's name — asked every time, remembered per caster (call 61
     );
   });
 });
+
+// The world copies dnd5e imports for a summon: the Summons folder, and the sweep once nothing stands on one.
+describe("summon copies", () => {
+  const owl = { id: "owl", linked: false, sources: ["Compendium.mm.actors.Actor.owl", null] };
+  const cat = { id: "cat", linked: false, sources: ["Compendium.mm.actors.Actor.cat", null] };
+  const hound = { id: "hound", linked: true, sources: ["Compendium.phb.actors.Actor.hound", null] };
+  const none = () => ({ standing: new Set(), kept: new Set(), sources: new Set() });
+
+  it("knows dnd5e's own import by its flag, old or new", () => {
+    expect(s.isSummonCopy({ flags: { dnd5e: { isAutoImported: true } } })).toBe(true);
+    expect(s.isSummonCopy({ flags: { dnd5e: { summonedCopy: true } } })).toBe(true);
+    expect(s.isSummonCopy({ flags: { dnd5e: {} } })).toBe(false);
+    expect(s.isSummonCopy({ flags: {} })).toBe(false);
+    expect(s.isSummonCopy(null)).toBe(false);
+  });
+
+  it("sweeps an unlinked copy nothing holds and keeps a linked companion", () => {
+    expect(s.strayCopies([owl, cat, hound], none())).toEqual(["owl", "cat"]);
+    expect(s.strayCopies([], none())).toEqual([]);
+    expect(s.strayCopies(null, none())).toEqual([]);
+  });
+
+  it("keeps a copy a token stands on, a pocket snapshot names or a pending landing casts", () => {
+    expect(s.strayCopies([owl, cat], { ...none(), standing: new Set(["owl"]) })).toEqual(["cat"]);
+    expect(s.strayCopies([owl, cat], { ...none(), kept: new Set(["cat"]) })).toEqual(["owl"]);
+    expect(
+      s.strayCopies([owl, cat], { ...none(), sources: new Set(["Compendium.mm.actors.Actor.owl"]) })
+    ).toEqual(["cat"]);
+    // a copy cloned off a world actor is held by its duplicate source
+    const clone = { id: "clone", linked: false, sources: [null, "Actor.world1"] };
+    expect(s.strayCopies([clone], { ...none(), sources: new Set(["Actor.world1"]) })).toEqual([]);
+    expect(s.strayCopies([clone], none())).toEqual(["clone"]);
+  });
+});

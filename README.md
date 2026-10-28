@@ -115,6 +115,8 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   Familiar. The player places the creature on the map; the GM's client creates it, gives the
   player ownership, seats it right after the caster in the tracker, and ties it to the spell's
   concentration. No Create Token, no Create Actor, no Allow Summoning setting. Dismiss is a button.
+  The creature's world copy sits in a **Summons** folder, never among the PCs, and goes when the
+  creature does (the next cast imports it afresh); a GM's first load sweeps the strays left before.
   A feat that reaches the familiar is kept: Familiar Friend's free cast spends its use and no slot,
   its Fortified Familiar Hit Points land on the creature, and its Helpful Friend Advantage is a tick
   in the skill dialog while the familiar stands within 5 feet (greyed, with the reason, when it does not).

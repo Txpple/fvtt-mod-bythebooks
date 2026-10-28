@@ -753,3 +753,29 @@ export function systemHpBonusOf(changes, hpMax) {
   }
   return 0;
 }
+
+/** The world folder dnd5e's own copies of summoned creatures land in (RULINGS *Summons* call 5). */
+export const SUMMONS_FOLDER = "Summons";
+
+/**
+ * Is this world actor dnd5e's own copy of a summoned creature — `fetchExisting`'s import, flagged `isAutoImported`
+ * (`summonedCopy` on older systems)? Never a creature the table made itself.
+ * @param {{ flags?: { dnd5e?: { isAutoImported?: boolean, summonedCopy?: boolean } } }|null|undefined} actor
+ * @returns {boolean}
+ */
+export function isSummonCopy(actor) {
+  return !!(actor?.flags?.dnd5e?.isAutoImported || actor?.flags?.dnd5e?.summonedCopy);
+}
+
+/**
+ * The copies nothing holds, to delete: unlinked (a linked companion imports once and keeps), no token standing on it
+ * (`standing`: every scene's tokens' actor ids), no pocket snapshot naming it (`kept`), no landing still pending
+ * casting its source (`sources`: the compendium or world uuid a record was cast from).
+ * @param {Array<{ id: string, linked?: boolean, sources?: Array<string|null|undefined> }>} copies
+ * @param {{ standing: Set<string>, kept: Set<string>, sources: Set<string> }} holds
+ * @returns {string[]}
+ */
+export function strayCopies(copies, { standing, kept, sources }) {
+  return (copies ?? []).filter(c => !c.linked && !standing.has(c.id) && !kept.has(c.id)
+    && !(c.sources ?? []).some(src => src && sources.has(src))).map(c => c.id);
+}
