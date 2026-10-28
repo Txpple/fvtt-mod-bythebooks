@@ -17,7 +17,7 @@
 import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { activityNamed, cardActivity, featureNamed, lower } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
-import { FAMILIAR_HELP_NAME, HELP_RULE, isHelpName, helpItemData } from "./decide/help.js";
+import { HELP_NAME, HELP_RULE, helpItemData } from "./decide/help.js";
 import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
@@ -914,11 +914,9 @@ async function landSummon(message) {
       // sight on (the packs ship it off); its range, vision mode and detection modes stay dnd5e's, read off the senses
       if ( sees ) foundry.utils.setProperty(changes.tokenUpdates, "sight.enabled", true);
       // a companion lands with the Help action on its sheet (help.js; RULINGS *The Help action*): the creature's own
-      // button, on the token's delta — the book's creature keeps its sheet; a familiar's is "Help - Distract"
-      const companion = companionOf(flag.itemName);
-      if ( companion && !actor.items.some(i => isHelpName(i.name)) ) {
-        const name = (lower(companion.noun) === "familiar") ? FAMILIAR_HELP_NAME : undefined;
-        changes.actorUpdates.items.push(helpItemData({ description: await ruleHTML(HELP_RULE), name }));
+      // button, on the token's delta — the book's creature keeps its sheet
+      if ( companionOf(flag.itemName) && !actor.items.some(i => lower(i.name) === lower(HELP_NAME)) ) {
+        changes.actorUpdates.items.push(helpItemData({ description: await ruleHTML(HELP_RULE) }));
       }
       const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
       if ( narrowed ) {
