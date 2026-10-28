@@ -665,6 +665,9 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
   });
   if ( withdrawn ) {
     disarmAskTimer(foldTimers, message.id);
+    // A withheld Death Saving Throw still owes its tally (the moot below passes it by: the offer is no longer pending).
+    const flag = readFlag(message, "d20fold");
+    if ( flag?.death ) await resumeWithheldSave(flag, message);
     return;
   }
   if ( !claimed ) return;
@@ -675,6 +678,19 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
     return;
   }
   await resolveFold(message, answer);
+}
+
+/** An accepted fold that cannot go on: the offer closes as "gone" (or "used", a spend already stood), and a withheld
+ * save resolves from the roll as it stands. */
+async function abandonFold(message, flag) {
+  await queueFlagWrite(message, "d20fold", current => {
+    if ( current.status !== "pending" ) return false;
+    current.status = "resolved";
+    current.outcome = current.spends?.length ? "used" : "gone";
+    current.offers = [];
+  });
+  disarmAskTimer(foldTimers, message.id);
+  await resumeWithheldSave(flag, message);
 }
 
 /** Does this offer answer to this token? A kind, or `tactical:<name>` where two tactical rows stand. */
@@ -725,7 +741,9 @@ async function resolveFold(message, answer) {
         return;
       }
 
-      if ( !(await spec.spend(actor, marker, message)) ) return;
+      // ⚠ A spend or a roll that fails CLOSES the offer: left pending with its answer, the crash-resume would retry it
+      // on every update and a withheld save would never resolve.
+      if ( !(await spec.spend(actor, marker, message)) ) return void await abandonFold(message, flag);
 
       // The new number, public, stamped `respondsTo` so no recognizer claims it. A VERDICT kind rolls nothing.
       let rolled = null;
@@ -734,7 +752,7 @@ async function resolveFold(message, answer) {
         rolled = REROLL_KINDS.has(kind)
           ? await rerollD20(message.rolls?.[0], actor, { advantage: (kind === "reroll") && (marker.row.advantage === true) })
           : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
-        if ( !rolled ) return;
+        if ( !rolled ) return void await abandonFold(message, flag);
         // Lucky's Advantage: the HIGHER of the two d20s stands, its crit with it.
         if ( kind === "advantage" ) {
           const first = message.rolls?.[0];
