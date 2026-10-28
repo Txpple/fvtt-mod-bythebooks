@@ -3590,10 +3590,13 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
      a native delete may leave its record, seat and effect behind, and the spell dismisses it or puts it away instead;
      Proceed deletes it (`handDelete`), Cancel keeps it (`preDeleteToken`, `preDeleteActor`, vetoes; the module's own
      deletes carry `companionEnd`, dnd5e's transform revert its `replacements`).
-   - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: on the
-     table Put it away · Dismiss forever · Summon; in the pocket Call it back · Dismiss forever · Summon. Summon is the
-     real cast (ritual or slot, the gallery, the type), and the new form takes the old one's place: in its square (no
-     picker) or in the pocket; the old one is dismissed (`replaces` on the record, `intoPocket` on the answer).
+   - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: four long
+     buttons stacked (the user, #16: a player reads them more easily than a row), every one shown and the one its state
+     refuses greyed (the subtitle says where it is; a greyed button hears no pointer, so no tooltip) — Dismiss: Pocket
+     Dimension · Summon: Pocket Dimension · Dismiss: Forever · Summon: New Form, then Do nothing (`companionMenu`); each
+     live button's hint is its tooltip. Summon: New Form is the real cast (ritual or slot,
+     the gallery, the type), and the new form takes the old one's place: in its square (no picker) or in the pocket;
+     the old one is dismissed (`replaces` on the record, `intoPocket` on the answer).
    - **The pocket.** Put away: the token is kept as a snapshot and removed; Call back: the picker with the row's
      `recallFt` ring (30 ft), unoccupied, no sight check (`pickSpots` `seen: false`), the snapshot rebuilt there as it
      left, on the floor it was called to (the caster's scene level, else the one viewed). One seat for the combat (the
@@ -3901,7 +3904,7 @@ forward and no pool) and Intercept Attack (an `ac` guard) stay WAITS rows. The c
    combatant): every combatant of the old token takes the new one, the companion's record names it (`repointedLanded`), the
    caster's effect goes as the elect's own (`empowerEnd`). Helpful Friend finds the familiar through the transform and the
    revert alike.
-54. **The pocket and the spell never overlap**: "Put it away" is not offered while empowered (`companionMenu` `empowered`;
+54. **The pocket and the spell never overlap**: "Dismiss: Pocket Dimension" is greyed while empowered (`companionMenu` `empowered`;
    `companionAsk` refuses it), the mirror of call 51's refusal.
 55. **A use carrying the answer skips the question** (`[MODULE_ID].empower` on the use: a macro, an automation, the live
    suites), as `toCard` skips the menu; a `toCard` use with a companion standing is the menu's Summon (the new form takes

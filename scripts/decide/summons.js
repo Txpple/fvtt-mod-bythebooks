@@ -491,16 +491,20 @@ export function currentCompanion(records, sourceUuid, itemName) {
 }
 
 /**
- * The cast menu while a companion stands: put it away or call it back (as it stands), dismiss it
- * forever, or cast for a new form. `pocket` false offers no pocket.
+ * The cast menu while a companion stands, every choice shown and the one its state refuses greyed (a fixed list
+ * reads more easily than a changing one): into the pocket, back from it, dismissed forever, or the spell cast again
+ * for a new form. `pocket` false shows no pocket. (A greyed button gets no tooltip: the platform's disabled button
+ * hears no pointer, so the card's subtitle, where it is, says why.)
  * @param {"present"|"pocket"} state
  * @param {{ pocket?: boolean }} row
- * @returns {string[]}  of away · recall · dismiss · summon
+ * @returns {Array<{ kind: string, on: boolean }>}  of away · recall · dismiss · summon
  */
 export function companionMenu(state, { pocket = true } = {}, { empowered = false } = {}) {
+  const present = state === "present";
   // an empowered companion (SUMMON_EMPOWERS) stays on the table: the pocket and the spell never overlap
-  const first = (!pocket || empowered) ? [] : (state === "pocket") ? ["recall"] : ["away"];
-  return [...first, "dismiss", "summon"];
+  const away = { kind: "away", on: present && !empowered };
+  const recall = { kind: "recall", on: !present };
+  return [...(pocket ? [away, recall] : []), { kind: "dismiss", on: true }, { kind: "summon", on: true }];
 }
 
 /**

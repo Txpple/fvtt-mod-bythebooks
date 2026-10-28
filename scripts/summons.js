@@ -1243,11 +1243,12 @@ async function askCompanion(message, ask) {
   });
 }
 
+/** The menu's buttons, long and stacked, each named for what it does and where; the hint its tooltip (#16). */
 const MENU = {
-  away: { label: "Put it away", hint: "into its pocket dimension" },
-  recall: { label: "Call it back", hint: "an unoccupied space within reach" },
-  dismiss: { label: "Dismiss forever", hint: "" },
-  summon: { label: "Summon", hint: "cast the spell: a new form takes its place" }
+  away: { label: "Dismiss: Pocket Dimension", hint: "a Magic action puts it away; it comes back as it left" },
+  recall: { label: "Summon: Pocket Dimension", hint: "a Magic action calls it back to an unoccupied space within reach" },
+  dismiss: { label: "Dismiss: Forever", hint: "it leaves for good; the spell cast again summons a new one" },
+  summon: { label: "Summon: New Form", hint: "cast the spell again: a new form takes its place" }
 };
 
 /** The cast menu: the companion as it stands, and what can be done with it (the choices by its state).
@@ -1278,10 +1279,13 @@ async function showCompanionMenu(message, activity, cause = null) {
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
     card: { eyebrow: row.noun, title: creature.label, subtitle: [flag.companion.type, where].filter(Boolean).join(" · ") },
     sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { note: flag.companion.empower ? `${row.brief ?? ""} Empowered, it stays on the table until the spell ends.`.trim() : (row.brief ?? "") }],
+    stack: true,
     buttons: [
-      ...companionMenu(state, row, { empowered: !!flag.companion.empower }).map((kind, i) => ({ action: kind, label: MENU[kind].label, default: i === 0,
+      // every choice shown, the one its state refuses greyed; the first live one is the default
+      ...companionMenu(state, row, { empowered: !!flag.companion.empower }).map(({ kind, on }, i, all) => ({
+        action: kind, label: MENU[kind].label, disabled: !on, tooltip: MENU[kind].hint, default: all.findIndex(b => b.on) === i,
         submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => log.error(`The ${lower(row.noun)} could not ${kind}.`, err)); } })),
-      { action: "cancel", label: "Not now" }
+      { action: "cancel", label: "Do nothing." }
     ]
   });
 }

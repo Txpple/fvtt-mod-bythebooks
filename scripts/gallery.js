@@ -16,6 +16,7 @@ import { openMomentPopup, pickInputs, picked, pickedAll } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
 import { footprintsOverlap, spotVerdict } from "./decide/summons.js";
 import { artFor } from "./decide/summon-art.js";
+import { SURFACES } from "./surfaces.js";
 
 const ART = 44;
 
@@ -382,9 +383,11 @@ function wirePicker(root, sections) {
  * @param {Array<{ field: string, why: string }>} [spec.needs]   in the order the popup reads
  * @param {(picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => string|null} [spec.validate]
  *   a last word on a `checks` click, after the needs: why the answer cannot stand yet (the popup stays open), or null
- * @param {Array<{ action: string, label: string, default?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => void }>} spec.buttons
+ * @param {boolean} [spec.stack]          the buttons stacked one under another, full width (a menu read, not a yes or no)
+ * @param {Array<{ action: string, label: string, default?: boolean, disabled?: boolean, tooltip?: string|null, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], text: (field: string) => string|null, form: HTMLFormElement|null }) => void }>} spec.buttons
+ *   `disabled` greys the button; `tooltip` the hint under the pointer (a greyed button hears no pointer, so none)
  */
-export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], validate = null, buttons }) {
+export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], validate = null, stack = false, buttons }) {
   if ( by && !answersHere(by, subject) ) return null;
   const missing = form => {
     const picks = readPicks(form);
@@ -393,7 +396,7 @@ export async function openPicker(message, key, subject, { title, icon = "fa-soli
   const dialog = await openMomentPopup(message, key, subject, {
     title, icon, width, gate: by ? false : gate,
     content: bfCard({ eyebrow: card.eyebrow, tone: card.tone ?? "pending", title: card.title, subtitle: card.subtitle ?? "", lines: sections.map(sectionHTML) }),
-    buttons: buttons.map(b => ({ action: b.action, label: b.label, default: !!b.default,
+    buttons: buttons.map(b => ({ action: b.action, label: b.label, default: !!b.default, disabled: !!b.disabled, tooltip: b.tooltip || undefined,
       callback: (_event, button) => {
         // the click guard below keeps the popup open; this is the belt for a submit that got past it
         const why = b.checks ? missing(button.form) : null;
@@ -403,6 +406,15 @@ export async function openPicker(message, key, subject, { title, icon = "fa-soli
   });
   const root = dialog?.element ?? null;
   wirePicker(root, sections);
+  if ( stack ) {
+    // the footer's row becomes a column, each button its own line (the platform flexes them in a row)
+    const footer = root?.querySelector(SURFACES.dialogFooter);
+    if ( footer ) {
+      footer.style.flexDirection = "column";
+      footer.style.alignItems = "stretch";
+      for ( const button of footer.querySelectorAll("button") ) button.style.flex = "0 0 auto";
+    }
+  }
   for ( const b of buttons.filter(x => x.checks) ) {
     root?.querySelector(`button[data-action="${b.action}"]`)?.addEventListener("click", event => {
       const why = missing(event.currentTarget?.form ?? null);
