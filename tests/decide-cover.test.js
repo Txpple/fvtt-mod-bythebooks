@@ -153,17 +153,47 @@ describe("measured cover — the 2024 DMG's corner lines (RULINGS *Measured cove
 
 describe("a wall's Sight decides its cover (the user, 2026-10-28)", () => {
   const NONE = 0;
+  const LIMITED = 10;
   const NORMAL = 20;
+  const sense = { none: NONE, limited: LIMITED };
   const hit = (...sights) => ({ edges: new Set(sights.map(sight => ({ sight }))) });
   it("a wall that blocks sight covers; one with Sight None is seen past", () => {
-    expect(collisionsCover([hit(NORMAL)], NONE)).toBe(true);
-    expect(collisionsCover([hit(NONE)], NONE)).toBe(false);
-    expect(collisionsCover([hit(NONE), hit(NORMAL)], NONE)).toBe(true);
-    expect(collisionsCover([hit(NONE, NORMAL)], NONE)).toBe(true);
+    expect(collisionsCover([hit(NORMAL)], sense)).toBe(true);
+    expect(collisionsCover([hit(NONE)], sense)).toBe(false);
+    expect(collisionsCover([hit(NONE), hit(NORMAL)], sense)).toBe(true);
+    expect(collisionsCover([hit(NONE, NORMAL)], sense)).toBe(true);
   });
+  it('a line stopped only by Limited-sight walls is "limited"; a full wall on it wins', () => {
+    expect(collisionsCover([hit(LIMITED)], sense)).toBe("limited");
+    expect(collisionsCover([hit(LIMITED), hit(LIMITED)], sense)).toBe("limited");
+    expect(collisionsCover([hit(LIMITED), hit(NORMAL)], sense)).toBe(true);
+    expect(collisionsCover([hit(NONE), hit(LIMITED)], sense)).toBe("limited");
+  });
+
+  it("Limited-sight walls lift the cover to Half at most, named as such; a full wall beside them still counts", () => {
+    const limited = measureCover({
+      attacker: sq(0, 0),
+      target: sq(4, 0),
+      grid: G,
+      wallBlocks: () => "limited"
+    });
+    expect(limited.degree.key).toBe("half");
+    expect(limited.by).toEqual(["limited"]);
+    expect(coverCause(limited.by)).toBe("a limited sight wall in the way");
+    const slit = measureCover({
+      attacker: sq(0, 0),
+      target: sq(4, 0),
+      grid: G,
+      wallBlocks: (a, b) =>
+        wallsOf(vwall(250, -1000, 45), vwall(250, 55, 1000))(a, b) ? true : "limited"
+    });
+    expect(slit.degree.key).toBe("threeQuarters");
+    expect(slit.by).toEqual(["wall"]);
+  });
+
   it("no collision is no cover", () => {
-    expect(collisionsCover([], NONE)).toBe(false);
-    expect(collisionsCover(null, NONE)).toBe(false);
+    expect(collisionsCover([], sense)).toBe(false);
+    expect(collisionsCover(null, sense)).toBe(false);
   });
 });
 

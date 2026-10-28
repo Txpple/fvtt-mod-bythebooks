@@ -240,7 +240,7 @@ export function carriedCover(actor) {
   return Math.max(0, Number(ac?.cover) || 0);
 }
 
-/** MEASURED COVER (RULINGS *Measured cover*): walls by the MOVE collision test, bar one with Sight None;
+/** MEASURED COVER (RULINGS *Measured cover*): walls by the MOVE collision test, bar Sight None (Limited: Half at most);
  * creatures bar the hidden and dead; null off one scene, on hex, or on a scene flagged `noCover` (the
  * suites' lever: their fixtures stand in a row).
  * @param {Token} attacker
@@ -260,9 +260,9 @@ export function measuredCoverBetween(attacker, target) {
       creatures.push({ name: other.name, rect: spaceOf(d, size) });
     }
     const backend = CONFIG.Canvas.polygonBackends.move;
-    // the walls in a line's way are the MOVE test's; one whose Sight is None is seen past and gives no cover
-    const none = CONST.EDGE_SENSE_TYPES.NONE;
-    const wallBlocks = (p, q) => collisionsCover(backend.testCollision(p, q, { type: "move", mode: "all" }), none);
+    // the walls in a line's way are the MOVE test's; Sight None is seen past, Sight Limited is Half at most
+    const sense = { none: CONST.EDGE_SENSE_TYPES.NONE, limited: CONST.EDGE_SENSE_TYPES.LIMITED };
+    const wallBlocks = (p, q) => collisionsCover(backend.testCollision(p, q, { type: "move", mode: "all" }), sense);
     return measureCover({
       attacker: spaceOf(a, size), target: spaceOf(t, size), grid, creatures, wallBlocks,
       // the platform's test ROUNDS its points to whole pixels — a pull under 2 px can land back on the edge

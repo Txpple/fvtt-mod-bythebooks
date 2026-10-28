@@ -1566,7 +1566,10 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   2026-10-28, after the session's attic: a wall drawn for bodies alone — Foundry's Invisible Wall,
   a rail, a ledge — is seen past): of the move test's hits, only an edge that also restricts sight
   counts (`decide/cover.js` `collisionsCover`). The Window tool's walls restrict sight by
-  Proximity, so a window still covers. Foundry walls have no height: a drawn wall is a whole wall,
+  Proximity, so a window still covers. **A wall whose Sight is Limited** (Foundry's terrain wall:
+  a hedge, a low wall, crates) **gives Half at most** (the user, 2026-10-28: "1, yes"): its lines
+  count as a creature's do, and a full wall on the same line still counts in full. The cover line
+  names it "a limited sight wall in the way". Foundry walls have no height: a drawn wall is a whole wall,
   so a low wall a table wants as Half is set by hand (the status still counts — below).
 - ⓐ **A line that only grazes an obstacle does not count** — the books are silent (the DMG's line of
   sight counts a touch; its cover rule says "blocked"). Two tokens side by side would otherwise

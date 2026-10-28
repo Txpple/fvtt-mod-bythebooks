@@ -87,9 +87,9 @@ export function segmentCrossesRect(a, b, r) {
  * @param {Rect} args.target
  * @param {number} args.grid     0: gridless
  * @param {Blocker[]} [args.creatures]   every OTHER creature's space
- * @param {(a: Point, b: Point) => boolean} [args.wallBlocks]
+ * @param {(a: Point, b: Point) => boolean|"limited"} [args.wallBlocks]   "limited": only Limited-sight walls
  * @param {number} [args.inset]
- * @returns {{degree: CoverDegree, lines: {a: Point, b: Point, wall: boolean, creature: string|null}[], by: string[]}}
+ * @returns {{degree: CoverDegree, lines: {a: Point, b: Point, wall: boolean, limited: boolean, creature: string|null}[], by: string[]}}
  */
 export function measureCover({ attacker, target, grid, creatures = [], wallBlocks = () => false, inset = 1 }) {
   const origins = insetCorners(attacker, inset);
@@ -100,14 +100,16 @@ export function measureCover({ attacker, target, grid, creatures = [], wallBlock
   for ( const o of origins ) {
     for ( const sq of squares ) {
       const lines = insetCorners(sq, inset).map(b => {
-        const wall = !!wallBlocks(o, b);
+        const hit = wallBlocks(o, b);
+        const limited = hit === "limited";
+        const wall = !limited && !!hit;
         const creature = boxes.find(c => segmentCrossesRect(o, b, c.rect))?.name ?? null;
-        return { a: o, b, wall, creature: (creature === null) ? null : creature };
+        return { a: o, b, wall, limited, creature: (creature === null) ? null : creature };
       });
       const walled = lines.filter(l => l.wall).length;
-      const blocked = lines.filter(l => l.wall || (l.creature !== null)).length;
+      const blocked = lines.filter(l => l.wall || l.limited || (l.creature !== null)).length;
       if ( walled < lines.length ) everyLineWalled = false;
-      // a creature lifts the square to Half at most (PHB table)
+      // a creature or a Limited-sight wall lifts the square to Half at most (PHB table; RULINGS *Measured cover*)
       const degree = Math.max(degreeOfLines(walled), Math.min(1, degreeOfLines(blocked)));
       if ( !best || (degree < best.degree) || ((degree === best.degree) && (blocked < best.blocked)) ) best = { degree, blocked, lines };
     }
@@ -115,12 +117,16 @@ export function measureCover({ attacker, target, grid, creatures = [], wallBlock
   const degreeAt = i => /** @type {CoverDegree} */ (COVER_DEGREES[i]);
   if ( !best ) return { degree: degreeAt(0), lines: [], by: [] };
   const index = everyLineWalled ? 3 : best.degree;
-  // `by` names what SET the degree: the wall when its lines alone reach it, else the creatures that lifted it to Half
+  // `by` names what SET the degree: the wall when its lines alone reach it, else the Limited walls and creatures
+  // that lifted it to Half
   const by = [];
   if ( index > 0 ) {
     const walledAlone = (index === 3) ? 3 : degreeOfLines(best.lines.filter(l => l.wall).length);
     if ( walledAlone >= index ) by.push("wall");
-    else for ( const l of best.lines ) if ( (l.creature !== null) && !l.wall && !by.includes(l.creature) ) by.push(l.creature);
+    else {
+      if ( best.lines.some(l => l.limited) ) by.push("limited");
+      for ( const l of best.lines ) if ( (l.creature !== null) && !l.wall && !l.limited && !by.includes(l.creature) ) by.push(l.creature);
+    }
   }
   return { degree: degreeAt(index), lines: best.lines, by };
 }
@@ -132,7 +138,8 @@ export function degreeOfBonus(bonus) {
 
 /** What a cover row says is in the way, the hover card's and the attack card's alike: "a wall in the way". */
 export function coverCause(by) {
-  return by?.length ? `${by.map(b => (b === "wall") ? "a wall" : b).join(", ")} in the way` : "";
+  const named = { wall: "a wall", limited: "a limited sight wall" };
+  return by?.length ? `${by.map(b => named[b] ?? b).join(", ")} in the way` : "";
 }
 
 /** The cause named when the target's own cover (a status or an effect on its AC) is what stands. */
@@ -155,13 +162,17 @@ export function coverStanding(carried, measured) {
 }
 
 /**
- * Do a line's wall collisions give cover? Only a wall that also blocks SIGHT does: one drawn with Sight None
- * (a rail, a ledge, a wall for bodies alone) is seen past and covers nothing.
+ * Do a line's wall collisions give cover? Only a wall that also restricts SIGHT does: one drawn with Sight None
+ * (a rail, a ledge, a wall for bodies alone) is seen past and covers nothing; one with Sight Limited (a hedge,
+ * a low wall) answers "limited", Half at most.
  * @param {{edges: Iterable<{sight: number}>}[]|null} collisions   the platform's `mode: "all"` hits
- * @param {number} none   the platform's "no restriction" sense value
+ * @param {{none: number, limited: number}} sense   the platform's sense values
+ * @returns {boolean|"limited"}
  */
-export function collisionsCover(collisions, none) {
-  return (collisions ?? []).some(c => [...(c?.edges ?? [])].some(e => e.sight !== none));
+export function collisionsCover(collisions, { none, limited }) {
+  const sights = (collisions ?? []).flatMap(c => [...(c?.edges ?? [])].map(e => e.sight)).filter(v => v !== none);
+  if ( !sights.length ) return false;
+  return sights.every(v => v === limited) ? "limited" : true;
 }
 
 /** @param {Rect} r @param {number} d */
