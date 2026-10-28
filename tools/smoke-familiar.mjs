@@ -157,12 +157,12 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       for (const l of landedMessage?.getFlag(MOD, 'summon')?.landed ?? []) if (!madeTokens.includes(l.tokenId)) madeTokens.push(l.tokenId);
       if (game.combat?.getFlag(MOD, 'suiteFamiliar')) await game.combat.delete();
       const tokens = madeTokens.filter(id => canvas.scene.tokens.get(id));
-      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
+      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens, { 'fvtt-mod-bythebooks': { companionEnd: true } });
       for (const e of caster.effects.filter(e => /^Battle Familiar/.test(e.name))) { try { await e.delete({ [MOD]: { empowerEnd: true } }); } catch { /* gone */ } }
       for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { try { await e.delete(); } catch { /* gone */ } } }
       const live = caster.items.filter(i => lent.includes(i.id) || ((i.type === 'feat') && (i.name === 'Familiar Friend')) || ((i.type === 'spell') && ((i.name === 'Find Familiar') || (i.name === 'Battle Familiar')))).map(i => i.id);
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
-      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
+      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete({ 'fvtt-mod-bythebooks': { companionEnd: true } }); }
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BTB Test') || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));

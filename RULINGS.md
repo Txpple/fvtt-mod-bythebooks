@@ -3569,13 +3569,20 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
      the pocket"); a marker, no changes. Removing it asks "Dismiss familiar? This will remove them forever. More options
      available by pressing Find Familiar spell."; yes dismisses it forever, no keeps it
      (`preDeleteActiveEffect`, a veto; the elect's own removal carries `companionEnd`).
+   - **A hand delete.** Deleting its token, or the world creature it stands on, by hand asks "Delete the familiar?":
+     a native delete may leave its record, seat and effect behind, and the spell dismisses it or puts it away instead;
+     Proceed deletes it (`handDelete`), Cancel keeps it (`preDeleteToken`, `preDeleteActor`, vetoes; the module's own
+     deletes carry `companionEnd`, dnd5e's transform revert its `replacements`).
    - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: on the
      table Put it away · Dismiss forever · Summon; in the pocket Call it back · Dismiss forever · Summon. Summon is the
      real cast (ritual or slot, the gallery, the type), and the new form takes the old one's place: in its square (no
      picker) or in the pocket; the old one is dismissed (`replaces` on the record, `intoPocket` on the answer).
    - **The pocket.** Put away: the token is kept as a snapshot and removed; Call back: the picker with the row's
      `recallFt` ring (30 ft), unoccupied, no sight check (`pickSpots` `seen: false`), the snapshot rebuilt there as it
-     left. A familiar called back into a started combat rolls its own Initiative again.
+     left, on the floor it was called to (the caster's scene level, else the one viewed). One seat for the combat (the
+     user, session 02's notes): put away, its seat goes and its Initiative is kept on the record (`companion.seat`);
+     called back into that combat, it sits at that Initiative, no second roll; first seated in a combat on its recall,
+     it rolls its own Initiative once (`recallSeat`).
    - **No GM online:** every one of these, the first cast included, is refused with "you can't summon or dismiss a
      familiar without a GM online", before any slot is spent.
    - **Leaving and arriving.** Each beat floats on every client the effect's own way ("+(Owl)" rising, "−(Owl)"

@@ -43,6 +43,8 @@
       "hitmenu",
       "hold",
       "job",
+      "live-death-fold",
+      "live-death-fold-d",
       "lucky",
       "maneuvers",
       "mastery-record",
@@ -3112,7 +3114,7 @@
     "companionEnd": {
       "class": "state",
       "family": "state",
-      "means": "a delete option, not a flag — the elect's own removal of a companion's effect, which the owner's removal prompt lets pass (summons.js)",
+      "means": "a delete option, not a flag — the elect's own removal of a companion's effect or token, which the hand-removal prompts let pass (summons.js)",
       "writers": [
         "summons.js"
       ],
@@ -3906,6 +3908,7 @@
         "combatantIds[]",
         "dc",
         "deadline",
+        "death",
         "foldedTotal",
         "offers",
         "offers[]",
@@ -4013,6 +4016,9 @@
           "deadline": {
             "type": "number"
           },
+          "death": {
+            "type": "boolean"
+          },
           "foldedTotal": {
             "type": "number"
           },
@@ -4108,7 +4114,6 @@
             },
             "required": [
               "by",
-              "cardId",
               "uuid"
             ]
           },
@@ -5502,11 +5507,16 @@
       "writers": [
         "death-saves.js"
       ],
-      "on": [],
+      "on": [
+        "ChatMessage"
+      ],
       "stamp": null,
       "readBy": [],
-      "recorded": false,
-      "fields": []
+      "recorded": true,
+      "fields": [],
+      "schema": {
+        "type": "boolean"
+      }
     },
     "deathThroes": {
       "class": "state",
@@ -8434,6 +8444,19 @@
       "means": "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",
       "writers": [
         "damage-rules.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
+    "handDelete": {
+      "class": "state",
+      "family": "state",
+      "means": "a delete option, not a flag — a companion's token or creature deleted by hand after its prompt said Proceed, which the prompt lets pass (summons.js)",
+      "writers": [
+        "summons.js"
       ],
       "on": [],
       "stamp": null,

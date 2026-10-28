@@ -32,7 +32,7 @@ const out = await f.evaluate(async () => {
     const linked = range.tokens.filter(t => legacyHome(t) || (t.actorLink
       && /^(BTB|BF) Test /.test(game.actors.get(t.actorId)?.name ?? '') && !t.getFlag('fvtt-mod-bythebooks', 'fixtureHome')));
     if (linked.length) {
-      await range.deleteEmbeddedDocuments('Token', linked.map(t => t.id));
+      await range.deleteEmbeddedDocuments('Token', linked.map(t => t.id), { 'fvtt-mod-bythebooks': { companionEnd: true } });
       report.push(`${range.name}: swept ${linked.length} linked stray token(s): ${linked.map(t => `${game.actors.get(t.actorId)?.name} @ ${t.x},${t.y}`).join('; ')}`);
     } else report.push(`${range.name}: no linked stray tokens`);
     // ⚠ FOREIGN tokens on the range — nothing of the fixtures' (no stamp, not a BTB Test actor): a hand-run walk's
@@ -41,10 +41,10 @@ const out = await f.evaluate(async () => {
     const foreign = range.tokens.filter(t => !legacyHome(t) && !t.getFlag('fvtt-mod-bythebooks', 'fixtureHome')
       && !/^(BTB|BF) Test /.test(game.actors.get(t.actorId)?.name ?? ''));
     if (foreign.length) {
-      await range.deleteEmbeddedDocuments('Token', foreign.map(t => t.id));
+      await range.deleteEmbeddedDocuments('Token', foreign.map(t => t.id), { 'fvtt-mod-bythebooks': { companionEnd: true } });
       const chests = [...new Set(foreign.map(t => t.actorId))].map(id => game.actors.get(id))
         .filter(a => a && /'s gear$/.test(a.name) && !game.scenes.some(s => s.tokens.some(t => t.actorId === a.id)));
-      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id));
+      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id), { 'fvtt-mod-bythebooks': { companionEnd: true } });
       report.push(`${range.name}: swept ${foreign.length} foreign token(s): ${foreign.map(t => `${t.name} @ ${t.x},${t.y}`).join('; ')}`
         + (chests.length ? ` (and ${chests.length} gear chest actor(s))` : ''));
     }

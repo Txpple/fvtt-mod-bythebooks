@@ -462,10 +462,10 @@ const out = await f.evaluate(async ({ playerName }) => {
     const foreign = scene.tokens.filter(t => !t.getFlag("fvtt-mod-bythebooks", "fixtureHome")
       && !/^(BTB|BF) Test /.test(game.actors.get(t.actorId)?.name ?? ""));
     if (foreign.length) {
-      await scene.deleteEmbeddedDocuments("Token", foreign.map(t => t.id));
+      await scene.deleteEmbeddedDocuments("Token", foreign.map(t => t.id), { "fvtt-mod-bythebooks": { companionEnd: true } });
       const chests = [...new Set(foreign.map(t => t.actorId))].map(id => game.actors.get(id))
         .filter(a => a && /'s gear$/.test(a.name) && !game.scenes.some(s => s.tokens.some(t => t.actorId === a.id)));
-      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id));
+      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id), { "fvtt-mod-bythebooks": { companionEnd: true } });
       log.push(`swept ${foreign.length} foreign token(s) off the range: ${foreign.map(t => t.name).join(", ")}${chests.length ? ` (and ${chests.length} gear chest actor(s))` : ""}`);
     }
 

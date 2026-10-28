@@ -249,22 +249,22 @@ export async function openMomentPopup(message, sub, subject, {
 
 /**
  * A yes-or-no question the player's own action raises (a cast the module takes past dnd5e's dialog, a companion's
- * effect removed): Yes and No, No the default, through openMomentPopup on this client. True or false, or null when it
- * closes unanswered or is already open.
+ * effect removed): Yes and No (or the question's own words), No the default, through openMomentPopup on this client.
+ * True or false, or null when it closes unanswered or is already open.
  * @param {any} message   the card, or the id the popup is keyed by
  * @param {string} sub
- * @param {{title?: string, icon?: string, content?: string, width?: number}} question
+ * @param {{title?: string, icon?: string, content?: string, width?: number, yes?: string, no?: string}} question
  * @returns {Promise<boolean|null>}
  */
-export async function confirmPopup(message, sub, { title, icon, content, width = 400 }) {
+export async function confirmPopup(message, sub, { title, icon, content, width = 400, yes = "COMMON.Yes", no = "COMMON.No" }) {
   /** @type {(answer: boolean|null) => void} */
   let settle = () => {};
   const answered = new Promise(resolve => { settle = resolve; });
   const dialog = await openMomentPopup(message, sub, null, {
     gate: false, title, icon, width, content,
     buttons: [
-      { action: "yes", label: "COMMON.Yes", icon: "fa-solid fa-check", callback: () => settle(true) },
-      { action: "no", label: "COMMON.No", icon: "fa-solid fa-xmark", default: true, callback: () => settle(false) }
+      { action: "yes", label: yes, icon: "fa-solid fa-check", callback: () => settle(true) },
+      { action: "no", label: no, icon: "fa-solid fa-xmark", default: true, callback: () => settle(false) }
     ],
     onDismiss: () => settle(null)
   });

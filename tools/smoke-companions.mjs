@@ -21,7 +21,7 @@ import { gmIdentity } from './target.mjs';
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js'   // §1 the first landing (its token sees), §2 a new form replaces the old, §3 the pocket and the recall (it comes back seeing), §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard), §10 the familiar's name and its memory, §11 the Vestige's name, its own memory
+  'summons.js'   // §1 the first landing (its token sees), §2 a new form replaces the old, §3 the pocket and the recall (it comes back seeing), §4 a new form into the pocket, §5 Dismiss forever, §6 two casts back to back, §7 the fall at 0 HP, §8 an orphan swept, §9 a landing as a second GM client arrives (the claim, the snapshot guard), §10 the familiar's name and its memory, §11 the Vestige's name, its own memory, §12 one seat across the pocket, the combat line's side, the hand-delete prompt
 ];
 
 // §9's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
@@ -38,7 +38,8 @@ const SECTIONS = {
   8: 'AN ORPHAN SWEPT: a companion effect left on the caster naming a card no longer in the log is removed by the next landing; one effect after it',
   9: 'TWO GM CLIENTS (an Assistant GM beside the suite\'s; a Gamemaster beside an Assistant waits for the gm2 user): Find Familiar answered as the assistant client arrives lands once — one claim, one token, one companion effect, one moment, no extra card',
   10: 'THE NAME: answered as an Owl named Pip — the token and its creature are Pip, the effect "Familiar: Pip (Fey)", the card "Pip — summoned" with "Owl", the world Owl keeps its name, the caster remembers Pip; cast again as a Cat with the field as the menu pre-fills it — Pip, a Cat, in the Owl\'s square; cast again with the field cleared — the Rat lands as Rat and the caster forgets; an answer with no field leaves the memory alone',
-  11: 'THE VESTIGE\'S NAME (Arcana Unleashed\'s Vestige Companion, lent to the Sorcerer): with the familiar remembered as Pip, the Fiendish vestige answered as Ash lands as Ash — its token and its creature, the effect "Vestige: Ash" — and seeing; the caster remembers Ash for the Vestige and still Pip for the familiar; Dismiss takes it'
+  11: 'THE VESTIGE\'S NAME (Arcana Unleashed\'s Vestige Companion, lent to the Sorcerer): with the familiar remembered as Pip, the Fiendish vestige answered as Ash lands as Ash — its token and its creature, the effect "Vestige: Ash" — and seeing; the caster remembers Ash for the Vestige and still Pip for the familiar; Dismiss takes it',
+  12: 'ONE SEAT AND A GUARDED DELETE: an Owl on the table in a combat beside its caster (17 and 10) — the combat line tags no "(foe)" on it; put away, its seat goes and the 10 is kept; called back, one seat at 10 and no second roll; deleted by hand, the token stays and the prompt asks; dismissed, nothing left'
 };
 const DEPENDS = { 2: [1], 3: [2], 4: [3], 5: [4], 7: [6] };
 
@@ -91,12 +92,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try {
       await closeDialogs();
       const tokens = familiarTokens().map(t => t.id);
-      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
+      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens, { 'fvtt-mod-bythebooks': { companionEnd: true } });
       for (const e of caster.effects.filter(e => /^Familiar:/.test(e.name) || e.getFlag(MOD, 'companion'))) { try { await e.delete({ [MOD]: { companionEnd: true } }); } catch { try { await e.delete(); } catch { /* gone */ } } }
       if (caster.getFlag(MOD, 'petNames') !== undefined) await caster.unsetFlag(MOD, 'petNames');
       const live = caster.items.filter(i => lent.includes(i.id) || ((i.type === 'spell') && (i.name === 'Find Familiar'))).map(i => i.id);
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
-      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
+      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete({ 'fvtt-mod-bythebooks': { companionEnd: true } }); }
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart) && (m.speaker?.alias?.startsWith?.('BTB Test') || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) { log.push(`TEARDOWN ERROR: ${err?.message}`); }
@@ -348,6 +349,49 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('§11b the caster remembers Ash for the Vestige and still Pip for the familiar', !!ash && (remembered() === 'Pip'), JSON.stringify(caster.getFlag(MOD, 'petNames') ?? null));
       if (vlanded) await dismiss(vmsg);
       ok('§11c Dismiss takes the vestige', !!vmsg?.getFlag(MOD, 'summon')?.dismissed && !canvas.scene.tokens.get(vtok?.id ?? ''), JSON.stringify({ dismissed: !!vmsg?.getFlag(MOD, 'summon')?.dismissed, token: !!canvas.scene.tokens.get(vtok?.id ?? '') }));
+    });
+
+    // ---- 12. one seat across the pocket, the combat line's side, the hand-delete prompt
+    if (want(12)) await section(12, async () => {
+      const { message } = await summonFamiliar('Owl');
+      current = message;
+      await invariant('12a', { named: 'Owl', pocket: false });
+      const owl = () => canvas.scene.tokens.get(message.getFlag(MOD, 'summon')?.landed?.[0]?.tokenId) ?? null;
+      const first = owl();
+      const [combat] = await Combat.createDocuments([{ scene: canvas.scene.id, active: true }]);
+      try {
+        await combat.createEmbeddedDocuments('Combatant', [
+          { tokenId: casterToken.id, sceneId: canvas.scene.id, actorId: caster.id, initiative: 17 },
+          { tokenId: first.id, sceneId: canvas.scene.id, actorId: first.actorId, initiative: 10 }
+        ]);
+        await combat.startCombat();
+        const roster = await until(() => game.messages.contents.findLast(m => m.getFlag(MOD, 'combatRoster')?.combatId === combat.id) ?? null, { timeout: 8000 }).catch(() => null);
+        const entry = roster?.getFlag(MOD, 'combatRoster')?.combatants?.find(c => c.tokenId === first.id) ?? null;
+        const text = roster?.content ?? '';
+        ok('§12a the combat line tags no "(foe)" on the friendly Owl, its disposition kept', /10 · Owl/.test(text) && !/Owl \(foe\)/.test(text) && (entry?.disposition === 1),
+          JSON.stringify({ roster: !!roster, entry, line: (text.match(/[^>]*Owl[^<]*/) ?? [''])[0] }));
+        await ask(message, 'away');
+        const kept = message.getFlag(MOD, 'summon')?.companion?.seat ?? null;
+        ok('§12b put away, its seat goes and its Initiative is kept', !combat.combatants.some(c => c.tokenId === first.id) && (combat.combatants.size === 1) && (kept?.initiative === 10),
+          JSON.stringify({ seats: combat.combatants.map(c => `${c.name}:${c.initiative}`), kept }));
+        const since = Date.now();
+        await ask(message, 'recall', home());
+        const back = owl();
+        const seats = await until(() => { const s = combat.combatants.filter(c => c.tokenId === back?.id); return s.length ? s : null; }, { timeout: 8000 }).catch(() => []);
+        const rolled = game.messages.contents.some(m => (m.timestamp >= since) && m.getFlag('core', 'initiativeRoll'));
+        ok('§12c called back, one seat at 10 and no second roll', (seats.length === 1) && (seats[0].initiative === 10) && (combat.combatants.size === 2) && !rolled
+          && !message.getFlag(MOD, 'summon')?.companion?.seat, JSON.stringify({ seats: combat.combatants.map(c => `${c.name}:${c.initiative}`), rolled }));
+        await canvas.scene.deleteEmbeddedDocuments('Token', [back.id]);
+        const prompt = await until(() => [...foundry.applications.instances.values()].find(a => /Delete the familiar\?/.test(a.element?.textContent ?? '')) ?? null, { timeout: 5000 }).catch(() => null);
+        ok('§12d deleted by hand, the token stays and the prompt asks (Proceed or Cancel)', !!canvas.scene.tokens.get(back.id) && !!prompt
+          && /Proceed/.test(prompt?.element?.textContent ?? '') && /Cancel/.test(prompt?.element?.textContent ?? ''), JSON.stringify({ token: !!canvas.scene.tokens.get(back.id), prompt: !!prompt }));
+        if (prompt) await prompt.close();
+      } finally {
+        if (game.combats.get(combat.id)) await combat.delete();
+      }
+      await dismiss(message);
+      await invariant('12e', { effects: 0, tokens: 0, records: 0 });
+      current = null;
     });
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });

@@ -21,7 +21,7 @@ import { HELP_NAME, HELP_RULE, helpItemData } from "./decide/help.js";
 import { COMPANIONS, SUMMON_AS, SUMMON_BOONS, SUMMON_CHOICES, SUMMON_COMMANDS, SUMMON_EMPOWERS, SUMMON_EXTRAS, SUMMON_FALLS, SUMMON_GUISES, SUMMON_LIGHTS, SUMMON_LOOKS, SUMMON_ONE_FORM, TRANSFORMS,
   summonChoiceEntries, summonEmpowerEntries, summonFallEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
-  ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
+  ownershipGrant, seatInitiative, recallSeat, guardsHandDelete, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds, sizesInOrder, summonEffectName, tokenLight, formName, guisesOf, boonFormula, boonHpPlan, systemHpBonusOf, castUsage,
   fallenSummon, casterDeathSummons, lastFormRows, empowerRoute, staleCompanionEffect, summonSees, petNameOf, rememberedName, rememberName,
   PET_NAME_MAX } from "./decide/summons.js";
@@ -1048,7 +1048,7 @@ async function sweepDeadLanding(message, flag) {
       const seats = combat.combatants.filter(c => (c.sceneId === scene.id) && ids.includes(c.tokenId)).map(c => c.id);
       if ( seats.length ) await combat.deleteEmbeddedDocuments("Combatant", seats);
     }
-    await scene.deleteEmbeddedDocuments("Token", ids);
+    await scene.deleteEmbeddedDocuments("Token", ids, { [MODULE_ID]: { companionEnd: true } });
   }
   const caster = resolveUuid(flag.sourceUuid);
   const mine = e => [readFlag(e, SUMMON_CARD_FLAG), readFlag(e, "summonEffect"), readFlag(e, "companion")].includes(message.id);
@@ -1125,7 +1125,7 @@ async function dismissSummon(message) {
     for ( const [sceneId, ids] of byScene ) {
       const scene = game.scenes.get(sceneId);
       const live = ids.filter(id => scene?.tokens.get(id));
-      if ( live.length ) await scene.deleteEmbeddedDocuments("Token", live);
+      if ( live.length ) await scene.deleteEmbeddedDocuments("Token", live, { [MODULE_ID]: { companionEnd: true } });
     }
     // a companion dismissed while empowered (SUMMON_EMPOWERS): the spell ends with it — its record stamped, the caster's
     // effect removed after the token (no form is left to revert)
@@ -1268,7 +1268,8 @@ async function showCompanionMenu(message, activity, cause = null) {
       const origin = tokensOf(caster, { all: true, documents: true })[0] ?? null;
       const [placement] = await pickSpots({ originToken: origin, actorUuid: flag.summonUuid, count: 1, rangeFt: row.recallFt ?? null,
         label: flag.companion.name || flag.summonName, seen: false, img: flag.companion.snapshot?.texture?.src ?? null });
-      if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, sceneId: canvas.scene?.id ?? null } });
+      // the caster's floor when it stands here, else the floor being viewed
+      if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, level: placement.level ?? canvas.level?.id ?? null, sceneId: canvas.scene?.id ?? null } });
     },
     dismiss: () => askDismiss(message),
     summon: () => { castThrough.add(activity.uuid); return activity.use(cause ? { cause } : {}); }
@@ -1374,7 +1375,14 @@ async function actCompanion(message) {
         delete snapshot._id;
         await queueFlagWrite(message, SUMMON_FLAG, current => { current.companion.events = [...(current.companion.events ?? []), companionEvent("leave", doc, companion, caster)]; });
         await pause(LEAVE_MS);
-        await doc.delete();
+        // its seat goes with it (a deleted token keeps its combatant), the Initiative kept for the way back
+        const seat = game.combat?.combatants.find(c => (c.tokenId === doc.id) && (c.sceneId === doc.parent.id)) ?? null;
+        patch.seat = seat ? { combatId: game.combat.id, initiative: seat.initiative ?? null } : null;
+        for ( const combat of game.combats ) {
+          const seats = combat.combatants.filter(c => (c.tokenId === doc.id) && (c.sceneId === doc.parent.id)).map(c => c.id);
+          if ( seats.length ) await combat.deleteEmbeddedDocuments("Combatant", seats);
+        }
+        await doc.delete({ [MODULE_ID]: { companionEnd: true } });
         patch.snapshot = snapshot;
       }
       patch.state = "pocket";
@@ -1384,6 +1392,8 @@ async function actCompanion(message) {
       const scene = game.scenes.get(at.sceneId);
       if ( !scene || !companion.snapshot ) throw new Error("nothing to call back, or the scene is gone");
       const data = { ...companion.snapshot, x: at.x, y: at.y, elevation: at.elevation ?? 0 };
+      // the floor it was called to, not the one it went away from (v14 scene levels)
+      if ( at.level ) data.level = at.level;
       // it comes back seeing, whatever the snapshot kept (one put away with its sight off)
       if ( seesOf(game.actors.get(companion.snapshot.actorId), flag) ) foundry.utils.setProperty(data, "sight.enabled", true);
       const [doc] = await scene.createEmbeddedDocuments("Token", [data]);
@@ -1397,10 +1407,12 @@ async function actCompanion(message) {
       const combat = activeCombatFor(caster);
       if ( combat ) {
         const own = listedNames(summonOwnInitiativeEntries()).has(lower(rulesName(flag.itemName)));
-        const seated = await combat.createEmbeddedDocuments("Combatant", [{ tokenId: doc.id, sceneId: scene.id, actorId: doc.actorId,
-          initiative: own ? null : seatInitiative(combat.getCombatantsByActor(caster)[0]?.initiative ?? null) }]);
-        if ( own && seated.length ) await combat.rollInitiative(seated.map(c => c.id));
+        const { initiative, roll } = recallSeat(companion.seat, { combatId: combat.id, own,
+          casterInitiative: combat.getCombatantsByActor(caster)[0]?.initiative ?? null });
+        const seated = await combat.createEmbeddedDocuments("Combatant", [{ tokenId: doc.id, sceneId: scene.id, actorId: doc.actorId, initiative }]);
+        if ( roll && seated.length ) await combat.rollInitiative(seated.map(c => c.id));
       }
+      patch.seat = null;
     }
   } catch(err) {
     log.error(`The ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"}.`, err);
@@ -1437,6 +1449,46 @@ async function confirmCompanionEnd(effect, message) {
   if ( !message || !flag?.applied ) { await effect.delete({ [MODULE_ID]: { companionEnd: true } }); return; }
   if ( row && needsGM(row) ) return;
   await askDismiss(message);
+}
+
+// A companion's token, or the world creature it stands on, deleted by hand asks first: the spell's menu dismisses it
+// or puts it away, and a native delete leaves its record, seat and effect behind. The module's own deletes carry
+// `companionEnd`, a confirmed one `handDelete`; dnd5e's transform revert (`replacements`) swaps the token and passes.
+const handDeletePasses = options => !!(options?.[MODULE_ID]?.companionEnd || options?.[MODULE_ID]?.handDelete || options?.replacements);
+
+listen("preDeleteToken", "summons", (token, options, userId) => {
+  try {
+    if ( handDeletePasses(options) ) return;
+    const message = game.messages.get(readFlag(token, SUMMON_CARD_FLAG) ?? "") ?? null;
+    const flag = message ? readFlag(message, SUMMON_FLAG) : null;
+    if ( !guardsHandDelete(flag) ) return;
+    if ( userId === game.user.id ) void confirmHandDelete(token, flag);
+    return false;
+  } catch(err) { log.warn(`Could not read the token's companion record — it is deleted as usual.`, err); }
+});
+
+listen("preDeleteActor", "summons", (actor, options, userId) => {
+  try {
+    if ( handDeletePasses(options) || actor.isToken ) return;
+    const flag = summonRecords().map(r => r.flag).find(f => guardsHandDelete(f)
+      && ((liveToken(f)?.actorId ?? f.companion.snapshot?.actorId) === actor.id)) ?? null;
+    if ( !flag ) return;
+    if ( userId === game.user.id ) void confirmHandDelete(actor, flag);
+    return false;
+  } catch(err) { log.warn(`Could not read the creature's companion record — it is deleted as usual.`, err); }
+});
+
+async function confirmHandDelete(doc, flag) {
+  const noun = lower(companionOf(flag.itemName)?.noun ?? "companion");
+  const spell = flag.itemName ? `${esc(flag.itemName)}` : "the spell";
+  const what = (doc instanceof Actor) ? `the creature ${esc(doc.name)} stands on` : esc(doc.name);
+  const yes = await confirmPopup(doc.uuid, "handDelete", {
+    title: `Delete the ${noun}?`,
+    content: `<p>Deleting ${what} by hand may leave the ${noun}'s record, seat and effect behind.</p>`
+      + `<p>Use ${spell} to dismiss it or put it away instead.</p>`,
+    yes: "Proceed", no: "Cancel"
+  });
+  if ( yes ) await doc.delete({ [MODULE_ID]: { handDelete: true } });
 }
 
 // At 0 HP the familiar disappears (the spell's own text), leaving behind what it carried: the elect

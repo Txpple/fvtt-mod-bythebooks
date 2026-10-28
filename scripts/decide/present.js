@@ -21,6 +21,19 @@ export const TONE = {
   crit:    "rgba(232,190,50,0.95)"    // a critical hit, dark text
 };
 
+/**
+ * A combat line's side tag: the token's disposition (a friendly familiar is no foe), the actor type only when no
+ * disposition was kept. FRIENDLY 1 · NEUTRAL 0 · HOSTILE -1 · SECRET -2 (CONST.TOKEN_DISPOSITIONS).
+ * @param {{ isPC?: boolean, disposition?: number|null }} combatant
+ * @returns {string}  "" for the party's side, else " (foe)" or " (neutral)"
+ */
+export function rosterSide({ isPC = false, disposition = null } = {}) {
+  if ( (disposition === null) || !Number.isFinite(Number(disposition)) ) return isPC ? "" : " (foe)";
+  const d = Number(disposition);
+  if ( d === 1 ) return "";
+  return (d === 0) ? " (neutral)" : " (foe)";
+}
+
 /** The tone a roll mode wears: Advantage good, Disadvantage bad, Normal and Listed neutral. */
 export const modeTone = mode => ((mode === "advantage") || (mode === "succeeds")) ? TONE.good
   : ((mode === "disadvantage") || (mode === "fails")) ? TONE.bad : TONE.neutral;

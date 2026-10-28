@@ -311,7 +311,7 @@ async function installW({ mod, casterName, rangeName }) {
     }
     const made = c.events.filter(e => e.kind === "token").map(e => e.id);
     const tokens = made.filter(id => range.tokens.get(id));
-    if (tokens.length) await range.deleteEmbeddedDocuments("Token", tokens).catch(() => {});
+    if (tokens.length) await range.deleteEmbeddedDocuments("Token", tokens, { "fvtt-mod-bythebooks": { companionEnd: true } }).catch(() => {});
     for (const e of caster.effects.filter(x => x.getFlag(mod, "companion") || /^Familiar:/.test(x.name ?? ""))) {
       try { await e.delete({ [mod]: { companionEnd: true } }); } catch { /* gone */ }
     }
@@ -334,13 +334,13 @@ async function installW({ mod, casterName, rangeName }) {
       try { await e.delete({ [mod]: { companionEnd: true } }); out.push(`effect ${e.name}`); } catch { /* gone */ }
     }
     const tokens = (tokenIds ?? []).filter(id => range.tokens.get(id));
-    if (tokens.length) { await range.deleteEmbeddedDocuments("Token", tokens).catch(() => {}); out.push(`${tokens.length} token(s)`); }
+    if (tokens.length) { await range.deleteEmbeddedDocuments("Token", tokens, { "fvtt-mod-bythebooks": { companionEnd: true } }).catch(() => {}); out.push(`${tokens.length} token(s)`); }
     const spells = caster.items.filter(i => i.getFlag("world", "multiGmProbe")).map(i => i.id);
     if (spells.length) { await caster.deleteEmbeddedDocuments("Item", spells).catch(() => {}); out.push("the lent Find Familiar"); }
     const cards = game.messages.filter(m => (m.timestamp >= runStart) && (m.speaker?.actor === caster.id) && m.getFlag(mod, "summon")).map(m => m.id);
     if (cards.length) { await ChatMessage.deleteDocuments(cards).catch(() => {}); out.push(`${cards.length} card(s)`); }
     const imported = game.actors.filter(a => a.getFlag("dnd5e", "isAutoImported") && ((a._stats?.createdTime ?? 0) >= runStart));
-    if (imported.length) { await Actor.deleteDocuments(imported.map(a => a.id)).catch(() => {}); out.push(`imported ${imported.map(a => a.name).join(", ")}`); }
+    if (imported.length) { await Actor.deleteDocuments(imported.map(a => a.id), { "fvtt-mod-bythebooks": { companionEnd: true } }).catch(() => {}); out.push(`imported ${imported.map(a => a.name).join(", ")}`); }
     return out;
   };
 

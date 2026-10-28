@@ -909,3 +909,18 @@ describe("scrubRule — a string rule cut to what a reader needs", () => {
     );
   });
 });
+
+describe("rosterSide — the combat line's side tag", () => {
+  it("reads the token's disposition, not the actor type", () => {
+    expect(p.rosterSide({ isPC: false, disposition: 1 })).toBe("");
+    expect(p.rosterSide({ isPC: true, disposition: 1 })).toBe("");
+    expect(p.rosterSide({ isPC: false, disposition: 0 })).toBe(" (neutral)");
+    expect(p.rosterSide({ isPC: false, disposition: -1 })).toBe(" (foe)");
+    expect(p.rosterSide({ isPC: false, disposition: -2 })).toBe(" (foe)");
+  });
+  it("an older roster with no disposition falls back to the actor type", () => {
+    expect(p.rosterSide({ isPC: true })).toBe("");
+    expect(p.rosterSide({ isPC: false })).toBe(" (foe)");
+    expect(p.rosterSide({ isPC: false, disposition: null })).toBe(" (foe)");
+  });
+});

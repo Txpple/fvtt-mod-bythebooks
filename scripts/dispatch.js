@@ -106,6 +106,8 @@ export const VETOABLE = Object.freeze([
   "preCreateChatMessage",
   "preCreateActiveEffect",
   "preDeleteActiveEffect",
+  "preDeleteToken",
+  "preDeleteActor",
   "preCreateRegionBehavior",
   "dnd5e.preUseActivity",
   "dnd5e.preDisplayCard",

@@ -291,7 +291,7 @@ export async function judgeArrival({ sections, titles, run, id, expect = {} }) {
       await until(() => message.getFlag(MOD, "summon")?.dismissed, { timeout: 15_000, label: "the summon dismissed" }).catch(() => null);
     }
     const left = stamped().map(t => t.id);
-    if (left.length) await range.deleteEmbeddedDocuments("Token", left).catch(() => {});
+    if (left.length) await range.deleteEmbeddedDocuments("Token", left, { "fvtt-mod-bythebooks": { companionEnd: true } }).catch(() => {});
     const effectIds = companions().map(e => e.id);
     if (effectIds.length) await caster.deleteEmbeddedDocuments("ActiveEffect", effectIds, { [MOD]: { companionEnd: true } }).catch(() => {});
     if (prep.concentration && caster?.concentration?.effects?.size) await caster.endConcentration().catch(() => {});
@@ -299,7 +299,7 @@ export async function judgeArrival({ sections, titles, run, id, expect = {} }) {
     if (lent.length) await caster.deleteEmbeddedDocuments("Item", lent).catch(() => {});
     if (message && game.messages.get(message.id)) await message.delete().catch(() => {});
     const imported = game.actors.filter(a => a.getFlag("dnd5e", "isAutoImported") && ((a._stats?.createdTime ?? 0) >= prep.since));
-    if (imported.length) await Actor.deleteDocuments(imported.map(a => a.id)).catch(() => {});
+    if (imported.length) await Actor.deleteDocuments(imported.map(a => a.id), { "fvtt-mod-bythebooks": { companionEnd: true } }).catch(() => {});
   } catch (err) { log.push(`§${id} TEARDOWN ERROR: ${err?.message ?? err}`); }
   return { results, log, skips };
 }

@@ -364,6 +364,19 @@ export function seatInitiative(casterInitiative) {
 }
 
 /**
+ * A companion's seat as it comes back from the pocket: the Initiative it held in this combat when it went
+ * (one seat, never a second roll), else a first seat the cast's way (its own roll, or right after the caster).
+ * @param {{ combatId: string, initiative: number|null }|null|undefined} kept  stamped as it went into the pocket
+ * @param {{ combatId: string, own: boolean, casterInitiative: number|null }} now
+ * @returns {{ initiative: number|null, roll: boolean }}
+ */
+export function recallSeat(kept, { combatId, own, casterInitiative }) {
+  const held = ((kept?.initiative === null) || (kept?.initiative === undefined)) ? NaN : Number(kept.initiative);
+  if ( (kept?.combatId === combatId) && Number.isFinite(held) ) return { initiative: held, roll: false };
+  return own ? { initiative: null, roll: true } : { initiative: seatInitiative(casterInitiative), roll: false };
+}
+
+/**
  * The earlier summons a new one replaces (SUMMON_SINGLES): the same caster's records of the same spell
  * that landed and still stand, never the new one itself. Empty when the spell is not a single.
  * @param {Array<{ id: string, flag: object|null|undefined }>} records   every card's summon record, by message id
@@ -494,7 +507,7 @@ export function companionMenu(state, { pocket = true } = {}, { empowered = false
  * A player's ask of a standing companion, judged against its state: away from the table, a recall
  * from the pocket with a square to land on. The patch to the record's `companion`, or null.
  * @param {{ state: string, ask?: object|null, empower?: object|null }|null|undefined} companion
- * @param {{ kind: string, placement?: { x: number, y: number, elevation?: number, sceneId: string|null } }} ask
+ * @param {{ kind: string, placement?: { x: number, y: number, elevation?: number, level?: string|null, sceneId: string|null } }} ask
  */
 export function companionAsk(companion, ask) {
   if ( !companion || companion.ask ) return null;
@@ -502,9 +515,20 @@ export function companionAsk(companion, ask) {
   if ( (ask?.kind === "away") && (companion.state === "present") && !companion.empower ) return { ask: { kind: "away", at: Date.now() } };
   const p = ask?.placement;
   if ( (ask?.kind === "recall") && (companion.state === "pocket") && Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)) && p?.sceneId ) {
-    return { ask: { kind: "recall", placement: { x: Number(p.x), y: Number(p.y), elevation: Number(p.elevation) || 0, sceneId: p.sceneId }, at: Date.now() } };
+    // the floor it was picked on (v14 scene levels) rides along: without it the token keeps the floor it was put away from
+    return { ask: { kind: "recall", placement: { x: Number(p.x), y: Number(p.y), elevation: Number(p.elevation) || 0, level: p.level || null, sceneId: p.sceneId }, at: Date.now() } };
   }
   return null;
+}
+
+/**
+ * Does a hand delete of this record's creature ask first? A companion on the table or waiting in the pocket:
+ * its record, seat and effect follow the spell's menu, which a native delete leaves behind.
+ * @param {object|null|undefined} flag   the summon record
+ */
+export function guardsHandDelete(flag) {
+  return !!flag?.applied && !flag.dismissAsked && !flag.dismissed && (flag.outcome !== "failed")
+    && !!flag.companion && (flag.companion.state !== "gone");
 }
 
 /** The item types a creature carries rather than is: what it leaves behind (its natural weapons are its stat block's). */

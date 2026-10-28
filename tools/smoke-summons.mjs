@@ -79,19 +79,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (/Summon/.test(app.element?.textContent ?? '') && (app instanceof foundry.applications.api.DialogV2)) { try { await app.close(); } catch { /* gone */ } }
       }
       const tokens = madeTokens.filter(id => canvas.scene.tokens.get(id));
-      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
+      if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens, { 'fvtt-mod-bythebooks': { companionEnd: true } });
       for (const e of caster.effects.filter(e => /Shared Resistance|Summon|Battle Familiar|Mage Hand|Clairvoyance/.test(e.name))) { try { await e.delete({ [MOD]: { summonEnd: true } }); } catch { /* gone */ } }
       for (const e of caster.effects.filter(e => e.statuses?.has?.('dead'))) { try { await e.delete(); } catch { /* gone */ } }
       if (artBefore !== undefined) await game.settings.set(MOD, 'summonArt', artBefore);
       const live = lent.filter(id => caster.items.get(id));
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
-      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
+      for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete({ 'fvtt-mod-bythebooks': { companionEnd: true } }); }
       // The gear a fallen Battle Familiar leaves (a Loot Shelf chest where it stood): its token and its actor go too,
       // or the next area ask on the range lists the chest.
       const chests = game.actors.filter(a => /'s gear$/.test(a.name ?? '') && (a._stats?.createdTime ?? 0) >= suiteStart);
       const chestTokens = canvas.scene.tokens.filter(t => chests.some(a => a.id === t.actorId)).map(t => t.id);
-      if (chestTokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', chestTokens);
-      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id));
+      if (chestTokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', chestTokens, { 'fvtt-mod-bythebooks': { companionEnd: true } });
+      if (chests.length) await Actor.deleteDocuments(chests.map(a => a.id), { 'fvtt-mod-bythebooks': { companionEnd: true } });
       for (const m of madeMessages) { if (game.messages.get(m.id)) await m.delete(); }
       if (game.combat?.getFlag(MOD, 'suiteSummons')) await game.combat.delete();
     } catch (err) { log.push(`TEARDOWN ERROR: ${err?.message}`); }

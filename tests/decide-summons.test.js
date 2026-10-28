@@ -317,6 +317,34 @@ describe("seatInitiative — the creature right after the caster", () => {
   });
 });
 
+describe("recallSeat — one seat across the pocket", () => {
+  const now = { combatId: "c1", own: true, casterInitiative: 17 };
+  it("the Initiative it held in this combat, never a second roll", () => {
+    expect(s.recallSeat({ combatId: "c1", initiative: 10 }, now)).toEqual({
+      initiative: 10,
+      roll: false
+    });
+    expect(s.recallSeat({ combatId: "c1", initiative: 0 }, now)).toEqual({
+      initiative: 0,
+      roll: false
+    });
+  });
+  it("a first seat the cast's way: no seat kept, another combat's, or one never rolled", () => {
+    for (const kept of [
+      null,
+      undefined,
+      { combatId: "c0", initiative: 10 },
+      { combatId: "c1", initiative: null }
+    ]) {
+      expect(s.recallSeat(kept, now)).toEqual({ initiative: null, roll: true });
+      expect(s.recallSeat(kept, { ...now, own: false })).toEqual({
+        initiative: 16.99,
+        roll: false
+      });
+    }
+  });
+});
+
 // The PHB's Find Familiar, as the pack ships it (2026-10-12): one cr-mode profile with the Bat's uuid
 // beside its cap, and Celestial, Fey or Fiend offered as the creature type.
 const phbFamiliar = {
@@ -497,6 +525,27 @@ describe("replacedSummons — one familiar at a time", () => {
   });
 });
 
+describe("guardsHandDelete — a hand delete asks first", () => {
+  const standing = { applied: true, companion: { state: "present" } };
+  it("a companion on the table or in the pocket", () => {
+    expect(s.guardsHandDelete(standing)).toBe(true);
+    expect(s.guardsHandDelete({ ...standing, companion: { state: "pocket" } })).toBe(true);
+  });
+  it("never a plain summon, a companion going or gone, or a failed landing", () => {
+    for (const flag of [
+      null,
+      { applied: true },
+      { ...standing, applied: false },
+      { ...standing, dismissAsked: true },
+      { ...standing, dismissed: true },
+      { ...standing, outcome: "failed" },
+      { ...standing, companion: { state: "gone" } }
+    ]) {
+      expect(s.guardsHandDelete(flag)).toBe(false);
+    }
+  });
+});
+
 describe("companions — the familiar that stays", () => {
   const rec = (sourceUuid, extra = {}) => ({
     applied: true,
@@ -552,7 +601,14 @@ describe("companions — the familiar that stays", () => {
         { state: "pocket" },
         { kind: "recall", placement: { x: 1, y: 2, sceneId: "s" } }
       )?.ask.placement
-    ).toEqual({ x: 1, y: 2, elevation: 0, sceneId: "s" });
+    ).toEqual({ x: 1, y: 2, elevation: 0, level: null, sceneId: "s" });
+    // the floor it was picked on rides along: without it the token keeps the floor it went away from
+    expect(
+      s.companionAsk(
+        { state: "pocket" },
+        { kind: "recall", placement: { x: 1, y: 2, elevation: 30, level: "floor3", sceneId: "s" } }
+      )?.ask.placement
+    ).toEqual({ x: 1, y: 2, elevation: 30, level: "floor3", sceneId: "s" });
     expect(
       s.companionAsk({ state: "present", ask: { kind: "away" } }, { kind: "away" })
     ).toBeNull();

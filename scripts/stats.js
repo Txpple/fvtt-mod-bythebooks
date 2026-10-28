@@ -5,7 +5,7 @@
  * ⚠ Ungated by design (a toggle would punch holes in the ledger).
  */
 import { MODULE_ID, readFlag, TITLE, isActiveGM, statContext, gmIds, log } from "./core.js";
-import { bfCard, esc } from "./decide/present.js";
+import { bfCard, esc, rosterSide } from "./decide/present.js";
 // Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
 import { listen } from "./dispatch.js";
@@ -64,10 +64,12 @@ async function stampRoster(combat) {
         tokenId: c.tokenId ?? null,
         name: c.name,
         initiative: c.initiative ?? null,
-        isPC: c.actor?.type === "character"
+        isPC: c.actor?.type === "character",
+        // the side the line tags: the token's, not the actor type (a familiar is an NPC on the party's side)
+        disposition: c.token?.disposition ?? null
       }));
     const order = combatants.map(c =>
-      `${(c.initiative ?? "—")} · ${c.name}${c.isPC ? "" : " (foe)"}`);
+      `${(c.initiative ?? "—")} · ${c.name}${rosterSide(c)}`);
     await postCard({
       to: gmIds(),
       alias: TITLE,
@@ -122,7 +124,7 @@ async function closeRoster(combat) {
     // Content and flag in ONE update: one re-render.
     const scene = flag.sceneName ?? "the field";
     const order = (flag.combatants ?? []).map(c =>
-      `${(c.initiative ?? "—")} · ${c.name}${c.isPC ? "" : " (foe)"}`);
+      `${(c.initiative ?? "—")} · ${c.name}${rosterSide(c)}`);
     await message.update({
       content: bfCard({
         eyebrow: "Combat",
