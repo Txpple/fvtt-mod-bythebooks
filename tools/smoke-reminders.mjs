@@ -29,7 +29,7 @@ const SECTIONS = {
   11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll',
   12: 'the check gate: Poisoned and Frightened on a raw check and a skill, the record, never on a programmatic roll (2026-09-03)',
   13: 'the range cancellers (the PHB feats, group 2, 2026-09-26): Crossbow Expert answers the point-blank row (listed, net Normal) and not a dart\'s; Sharpshooter answers long range; Half Cover — the attack records the AC without it and the card says so, and the gate lists it; Spell Sniper answers a cantrip\'s point-blank row',
-  14: 'measured cover (2026-09-27, the 2024 DMG\'s corner lines): the hover card\'s Cover section and the attack\'s recorded AC — a creature in the way is Half, an open line None, a wall across is Total (Sharpshooter or not), a wall\'s corner is Half and Sharpshooter takes it off, a hand-set Three-Quarters stands over a measured Half'
+  14: 'measured cover (2026-09-27, the 2024 DMG\'s corner lines): the hover card\'s Cover section and the attack\'s recorded AC — a creature in the way is Half, an open line None, a wall across is Total (Sharpshooter or not), a wall\'s corner is Half and Sharpshooter takes it off, a hand-set Three-Quarters stands over a measured Half, a wall with Sight None is no cover and one with Sight Limited is Half'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -1207,8 +1207,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         /** The cover row once it is drawn; soft: no row reads as ''. */
         const lineSoon = msg => until(() => lineOf(msg) || null, { timeout: 4000 }).catch(() => '');
         // a wall's edge is set as the document is created and dropped as it is deleted (WallDocument#initializeEdge)
-        const addWall = async c => {
-          const [w] = await scene.createEmbeddedDocuments('Wall', [{ c }]);
+        const addWall = async (c, data = {}) => {
+          const [w] = await scene.createEmbeddedDocuments('Wall', [{ c, ...data }]);
           walls.push(w.id);
           await until(() => scene.walls.get(w.id)?.edge, { label: 'the wall\'s edge in place' });
         };
@@ -1279,6 +1279,32 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `acWith=${acWith} recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
         await victim.toggleStatusEffect('coverThreeQuarters', { active: false });
+        await until(() => !victim.statuses?.has?.('coverThreeQuarters'), { label: 'Three-Quarters Cover off the victim' });
+        await clearWalls();
+        // 14g — the full-row wall again, drawn with Sight None (a wall for bodies alone): seen past, no cover
+        const across = [midX, 1400 - (squarePx * 6), midX, 1400 + (squarePx * 6)];
+        await addWall(across, { sight: CONST.WALL_SENSE_TYPES.NONE });
+        {
+          const text = await hoverText();
+          const shot = await shoot();
+          const stray = await watch(() => lineOf(shot), { ms: 400 });
+          ok('14g. a wall across the line with Sight None: "No Cover" on the hover card; the attack records the base AC and draws NO cover row',
+            !stray && /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured'),
+            `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac} stray=${!!stray}`);
+        }
+        await clearWalls();
+        // 14h — the same wall with Sight Limited (a terrain wall: a hedge, a low wall): Half at most, named as such
+        await addWall(across, { sight: CONST.WALL_SENSE_TYPES.LIMITED });
+        {
+          const text = await hoverText();
+          const shot = await shoot();
+          const line = await lineSoon(shot);
+          ok(`14h. a wall across the line with Sight Limited: "Half Cover (+2 AC)" over "a limited sight wall in the way" on the hover and the card; the attack records AC ${baseAC + 2}`,
+            /Cover Half Cover \(\+2 AC\) a limited sight wall in the way/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC + 2)
+              && /the .*: Half Cover \(\+2 AC\) · a limited sight wall in the way$/.test(line),
+            `card="${text.slice(0, 160)}" recorded=${shot?.system?.targets?.[0]?.ac} line="${line}"`);
+        }
+        await clearWalls();
       } finally {
         await closeGates();
         await clearStatuses();
