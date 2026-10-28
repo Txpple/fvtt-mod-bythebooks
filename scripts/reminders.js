@@ -16,8 +16,8 @@ import { askDefaults, circleBend, creatureTypeOf } from "./decide/emanations.js"
 import { tokensInRegions, tokenOf } from "./geometry.js";
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
-import { feetOf, measuredCoverBetween, nearestFeet, tokensOverlap } from "./geometry.js";
-import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
+import { carriedCover, feetOf, measuredCoverBetween, nearestFeet, tokensOverlap } from "./geometry.js";
+import { CARRIED_CAUSE, COVER_DEGREES, coverAtTheAttack, coverStanding, degreeOfBonus } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, demandBendSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover, forgoneSources } from "./decide/reminders.js";
@@ -165,13 +165,6 @@ function rangeFeatsOf(attacker, activity) {
   }, RANGE_FEATS);
 }
 
-/** The cover a target's prepared AC carries; an AC OVERRIDE leaves cover out (`prepareArmorClass`). */
-const coverOf = actor => {
-  const ac = actor?.system?.attributes?.ac;
-  if ( Number.isFinite(Number(ac?.override)) && (ac?.override !== null) && (ac?.override !== "") ) return 0;
-  return Math.max(0, Number(ac?.cover) || 0);
-};
-
 /* Cover at the attack, per recorded target: MEASURED cover raises the recorded AC over the carried
  * cover (RULINGS *Measured cover*), then a BYPASS feat records the AC without it. */
 listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
@@ -190,19 +183,20 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
       const name = t?.name ?? actor?.name ?? "";
       // The card names the cover on every attack; a hand-set status that wins is the one named.
       if ( (t?.ac === null) || (t?.ac === undefined) ) {
-        if ( from && actor?.statuses?.has?.("coverTotal") ) measured.push({ name, key: "total", label: degreeOf(null).label, bonus: null });
+        if ( from && actor?.statuses?.has?.("coverTotal") ) measured.push({ name, key: "total", label: degreeOfBonus(null).label, bonus: null, cause: CARRIED_CAUSE });
         continue;
       }
-      let carried = coverOf(actor);
+      let carried = carriedCover(actor);
       const token = from ? (resolveUuid(t.token)?.object ?? tokenOf(actor?.uuid)) : null;
       const m = token ? measuredCoverBetween(from, token) : null;
       if ( m ) {
+        // the row says what stands and why, as the hover card does (decide/cover.js `coverStanding`)
+        const { degree: stands, cause } = coverStanding(carried, m);
         const { raise, total } = coverAtTheAttack(carried, m.degree);
-        if ( total ) { t.ac = null; measured.push({ name, key: m.degree.key, label: m.degree.label, bonus: null }); continue; }
+        if ( total ) { t.ac = null; measured.push({ name, key: stands.key, label: stands.label, bonus: null, cause }); continue; }
         if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; }
-        const stands = raise ? m.degree : degreeOf(carried);
-      // No Cover draws no row
-        if ( stands.key !== "none" ) measured.push({ name, key: stands.key, label: stands.label, bonus: stands.bonus });
+        // No Cover draws no row
+        if ( stands.key !== "none" ) measured.push({ name, key: stands.key, label: stands.label, bonus: stands.bonus, cause });
       }
       if ( !feat || !carried ) continue;
       t.ac = acWithoutCover(t.ac, carried);
@@ -216,9 +210,6 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
     log.error(`The attack's cover could not be put on (or taken off) the AC — judge the hit by hand.`, err);
   }
 });
-
-/** The degree a cover bonus stands for (0, 2, 5), or Total for null. */
-const degreeOf = bonus => COVER_DEGREES.find(d => d.bonus === bonus) ?? COVER_DEGREES[0];
 
 /** The cover row's colour, read for the ATTACKER: none green, Half/Three-Quarters orange, Total red. */
 const COVER_TONE = { none: TONE.good, half: TONE.pending, threeQuarters: TONE.pending, total: TONE.bad };
@@ -237,6 +228,7 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
     for ( const t of flag.targets ) {
       const d = COVER_DEGREES.find(x => x.key === t.key) ?? COVER_DEGREES.find(x => x.label === t.label) ?? COVER_DEGREES[0];
       const amount = t.bonus ? `${d.label} (+${t.bonus} AC)` : d.label;
+      const cause = t.cause ? ` · ${t.cause}` : "";
       const off = ignored?.targets?.some(i => i.name === t.name) ? ` · ${ignored.feature} ignores it` : "";
       const tone = COVER_TONE[d.key] ?? TONE.neutral;
       const row = document.createElement("div");
@@ -245,10 +237,10 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
       row.innerHTML = `<img src="${esc(d.img)}" alt="" style="width:28px;height:28px;flex:none;border:0;border-radius:3px;">`
         + `<div style="display:flex;flex-direction:column;line-height:1.2;min-width:0;">`
         + `<strong style="font-size:var(--font-size-14,14px);">${foundry.utils.escapeHTML(amount)}</strong>`
-        + `<span style="font-size:var(--font-size-11,11px);opacity:0.85;">${foundry.utils.escapeHTML(`vs ${t.name}${off}`)}</span></div>`;
+        + `<span style="font-size:var(--font-size-11,11px);opacity:0.85;">${foundry.utils.escapeHTML(`vs ${t.name}${cause}${off}`)}</span></div>`;
       box.appendChild(row);
     }
-    const words = flag.targets.map(t => `the ${t.name}: ${t.label}${t.bonus ? ` (+${t.bonus} AC)` : ""}`).join(", ");
+    const words = flag.targets.map(t => `the ${t.name}: ${t.label}${t.bonus ? ` (+${t.bonus} AC)` : ""}${t.cause ? ` · ${t.cause}` : ""}`).join(", ");
     box.dataset.bfCoverMeasured = `Cover — ${words}`;
     const header = content.querySelector(SURFACES.cardHeader);
     if ( header ) header.after(box); else content.prepend(box);
@@ -612,7 +604,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     }
     if ( range.ranged ) {
       out.push(...rangeSources({ ranged: true, distanceFeet, normalFeet: range.normalFeet, longFeet: range.longFeet,
-        targetName, cancels: feats.cancels, coverBonus: feats.cover ? coverOf(target) : 0, coverFeat: feats.cover, rules: RANGE_RULES }));
+        targetName, cancels: feats.cancels, coverBonus: feats.cover ? carriedCover(target) : 0, coverFeat: feats.cover, rules: RANGE_RULES }));
     }
     if ( attackerSheet ) {
       // Target-side rows, and attacker-side rows that hinge on THIS target (Bloodied, an ally beside it).

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  CARRIED_CAUSE,
   COVER_DEGREES,
   coverAtTheAttack,
+  coverCause,
+  coverStanding,
   degreeOfLines,
   measureCover,
   segmentCrossesRect,
@@ -118,7 +121,7 @@ describe("measured cover — the 2024 DMG's corner lines (RULINGS *Measured cove
     expect(r.degree.key).toBe("none");
   });
 
-  it("names a creature on a line a wall also blocks", () => {
+  it("names only what set the degree: a wall that reaches Half alone, not the creature also in the line", () => {
     const r = measureCover({
       attacker: sq(0, 0),
       target: sq(4, 0),
@@ -126,11 +129,50 @@ describe("measured cover — the 2024 DMG's corner lines (RULINGS *Measured cove
       creatures: [{ name: "Aster", rect: sq(3, 0) }],
       wallBlocks: wallsOf(vwall(250, -500, 80))
     });
-    expect(r.by).toEqual(["wall", "Aster"]);
+    expect(r.degree.key).toBe("half");
+    expect(r.by).toEqual(["wall"]);
+  });
+
+  it("Three-Quarters from walls names the wall, never the owl in the line (session 2026-10-27)", () => {
+    const r = measureCover({
+      attacker: sq(0, 0),
+      target: sq(4, 0),
+      grid: G,
+      creatures: [{ name: "Omen", rect: { x: 300, y: 25, w: 50, h: 50 } }],
+      wallBlocks: wallsOf(vwall(250, -1000, 45), vwall(250, 55, 1000))
+    });
+    expect(r.degree.key).toBe("threeQuarters");
+    expect(r.by).toEqual(["wall"]);
   });
 
   it("a Tiny creature's space is its own one square", () => {
     expect(squaresOf({ x: 0, y: 0, w: 50, h: 50 }, G)).toEqual([{ x: 0, y: 0, w: 50, h: 50 }]);
+  });
+});
+
+describe("the cause — one wording for the hover card and the attack card", () => {
+  it("says what is in the way", () => {
+    expect(coverCause(["wall"])).toBe("a wall in the way");
+    expect(coverCause(["Omen", "Mira"])).toBe("Omen, Mira in the way");
+    expect(coverCause([])).toBe("");
+  });
+
+  it("the standing cover: the measure, or the target's own status when that is more protective", () => {
+    const [none, half, threeQuarters, total] = COVER_DEGREES;
+    const owl = { degree: half, by: ["Omen"] };
+    expect(coverStanding(0, owl)).toEqual({ degree: half, cause: "Omen in the way" });
+    expect(coverStanding(2, owl)).toEqual({ degree: half, cause: "Omen in the way" });
+    expect(coverStanding(5, owl)).toEqual({ degree: threeQuarters, cause: CARRIED_CAUSE });
+    expect(coverStanding(5, { degree: none, by: [] })).toEqual({
+      degree: threeQuarters,
+      cause: CARRIED_CAUSE
+    });
+    expect(coverStanding(0, { degree: none, by: [] })).toEqual({ degree: none, cause: "" });
+    expect(coverStanding(5, { degree: total, by: ["wall"] })).toEqual({
+      degree: total,
+      cause: "a wall in the way"
+    });
+    expect(coverStanding(null, owl)).toEqual({ degree: total, cause: CARRIED_CAUSE });
   });
 });
 

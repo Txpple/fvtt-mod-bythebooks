@@ -1549,6 +1549,12 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   object's). The DMG counts a creature as an obstacle for the lines; lines only a creature blocks
   never lift the degree past Half. Ally or foe alike. A hidden token and a dead one are not counted.
 - **Total** is "no line reaches": every line from every corner to every square meets a wall.
+- **What is in the way names only what SET the degree** (the user, 2026-10-28, after the session's
+  owl: "making sure cards and hovers are consistent"): the wall when its lines alone reach the
+  degree, else the creatures that lifted it to Half — so a +5 from walls never reads as the owl's.
+  When the target's own cover status is more protective it stands and is named ("its own cover
+  status"). The hover card and the attack card say it in ONE wording (`decide/cover.js`
+  `coverStanding`, `coverCause`), and the hover shows the degree the attack will record.
 - **The measure is not symmetric, and stays so** (the user, 2026-09-27, the walk: Elra had Half
   against Dorian's shot while Dorian had none against Elra's; offered a symmetric bend, ruled
   "keep the DMG rule as written"). The lines run from ONE corner of the attacker's space to ALL
@@ -1581,7 +1587,7 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   should have the cover status on its attack roll"): "Cover — the Goblin: Half Cover (+2 AC)", "…: Total
   Cover" — and nothing for No Cover ("you dont need to put no cover on the card"); a hand-set status that wins is the one named. It is a ROW directly under the card's header
   (the user: "its not very prominent", "cover is like an important thing, it should be up above"):
-  the degree's picture and colour, "Half Cover (+2 AC)" in bold, "vs Sharran Acolyte" under it —
+  the degree's picture and colour, "Half Cover (+2 AC)" in bold, "vs Sharran Acolyte · Hobgoblin in the way" under it —
   "· Sharpshooter ignores it" on the same row when a feat took it off. Then Sharpshooter and
   Spell Sniper take the whole carried cover off, measured and hand-set alike (*The PHB feats —
   groups 1–3*, group 2); Total stays.

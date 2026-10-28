@@ -233,6 +233,13 @@ function spaceOf(doc, grid) {
   return { x, y, w: (doc.width ?? 1) * grid, h: (doc.height ?? 1) * grid };
 }
 
+/** The cover a creature's prepared AC carries; an AC OVERRIDE leaves cover out (`prepareArmorClass`). */
+export function carriedCover(actor) {
+  const ac = actor?.system?.attributes?.ac;
+  if ( Number.isFinite(Number(ac?.override)) && (ac?.override !== null) && (ac?.override !== "") ) return 0;
+  return Math.max(0, Number(ac?.cover) || 0);
+}
+
 /** MEASURED COVER (RULINGS *Measured cover*): walls by the MOVE collision test, creatures bar the
  * hidden and dead; null off one scene, on hex, or on a scene flagged `noCover` (the suites' lever:
  * their fixtures stand in a row).

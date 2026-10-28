@@ -1227,8 +1227,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const shot = await shoot();
           const rec = shot?.system?.targets?.[0]?.ac;
           const line = await lineSoon(shot);
-          ok(`14b. …and the attack RECORDS AC ${baseAC + 2} (base ${baseAC} + 2); the card says "Cover — the …: Half Cover (+2 AC)"`,
-            (rec === baseAC + 2) && (shot?.getFlag(MOD, 'coverMeasured')?.targets?.[0]?.bonus === 2) && /Cover — .*Half Cover \(\+2 AC\)/.test(line),
+          ok(`14b. …and the attack RECORDS AC ${baseAC + 2} (base ${baseAC} + 2); the card says "Cover — the …: Half Cover (+2 AC) · Hobgoblin in the way", the hover's words`,
+            (rec === baseAC + 2) && (shot?.getFlag(MOD, 'coverMeasured')?.targets?.[0]?.bonus === 2) && /Cover — .*Half Cover \(\+2 AC\) · .*in the way/.test(line)
+              && !!shot?.getFlag(MOD, 'coverMeasured')?.targets?.[0]?.cause && text.includes(shot.getFlag(MOD, 'coverMeasured').targets[0].cause),
             `recorded=${rec} base=${baseAC} line="${line}"`);
         }
         // 14c — the line cleared: No Cover, the base AC, no line

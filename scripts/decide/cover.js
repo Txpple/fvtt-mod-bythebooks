@@ -115,10 +115,43 @@ export function measureCover({ attacker, target, grid, creatures = [], wallBlock
   const degreeAt = i => /** @type {CoverDegree} */ (COVER_DEGREES[i]);
   if ( !best ) return { degree: degreeAt(0), lines: [], by: [] };
   const index = everyLineWalled ? 3 : best.degree;
+  // `by` names what SET the degree: the wall when its lines alone reach it, else the creatures that lifted it to Half
   const by = [];
-  if ( best.lines.some(l => l.wall) ) by.push("wall");
-  for ( const l of best.lines ) if ( (l.creature !== null) && !by.includes(l.creature) ) by.push(l.creature);
-  return { degree: degreeAt(index), lines: best.lines, by: index === 0 ? [] : by };
+  if ( index > 0 ) {
+    const walledAlone = (index === 3) ? 3 : degreeOfLines(best.lines.filter(l => l.wall).length);
+    if ( walledAlone >= index ) by.push("wall");
+    else for ( const l of best.lines ) if ( (l.creature !== null) && !l.wall && !by.includes(l.creature) ) by.push(l.creature);
+  }
+  return { degree: degreeAt(index), lines: best.lines, by };
+}
+
+/** The degree a cover bonus stands for (0, 2, 5); null is Total. */
+export function degreeOfBonus(bonus) {
+  return COVER_DEGREES.find(d => d.bonus === bonus) ?? /** @type {CoverDegree} */ (COVER_DEGREES[0]);
+}
+
+/** What a cover row says is in the way, the hover card's and the attack card's alike: "a wall in the way". */
+export function coverCause(by) {
+  return by?.length ? `${by.map(b => (b === "wall") ? "a wall" : b).join(", ")} in the way` : "";
+}
+
+/** The cause named when the target's own cover (a status or an effect on its AC) is what stands. */
+export const CARRIED_CAUSE = "its own cover status";
+
+/**
+ * The cover that STANDS at an attack and why: the measure, or the cover the target already carries when
+ * that is more protective (never added). Total from either side stands.
+ * @param {number|null} carried   the AC's cover (0, 2 or 5); null: a Total Cover status
+ * @param {{degree: CoverDegree, by: string[]}|null} measured
+ * @returns {{degree: CoverDegree, cause: string}}
+ */
+export function coverStanding(carried, measured) {
+  if ( carried === null ) return { degree: degreeOfBonus(null), cause: CARRIED_CAUSE };
+  if ( measured?.degree?.key === "total" ) return { degree: measured.degree, cause: coverCause(measured.by) };
+  const bonus = Number(measured?.degree?.bonus) || 0;
+  const own = Math.max(0, Number(carried) || 0);
+  if ( own > bonus ) return { degree: degreeOfBonus(own), cause: CARRIED_CAUSE };
+  return { degree: measured?.degree ?? degreeOfBonus(0), cause: coverCause(measured?.by) };
 }
 
 /** @param {Rect} r @param {number} d */

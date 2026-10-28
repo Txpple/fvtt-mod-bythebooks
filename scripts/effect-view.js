@@ -8,7 +8,8 @@
 import { MODULE_ID, isActiveGM, S, setting, resolveUuid, log } from "./core.js";
 import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
-import { measuredCoverBetween, tokenDocOf } from "./geometry.js";
+import { carriedCover, measuredCoverBetween, tokenDocOf } from "./geometry.js";
+import { coverStanding } from "./decide/cover.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { featureNamed, lower } from "./lookup.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -224,14 +225,16 @@ function coverHTML(token) {
   if ( (controlled.length !== 1) || (controlled[0] === token) ) return "";
   const m = measuredCoverBetween(controlled[0], token);
   if ( !m ) return "";
-  const d = m.degree;
-  // "Half Cover (+2 AC)", then what is in the way and any feat ignoring it; No and Total Cover stand alone.
+  // what the attack will record: the measure, or the target's own cover status when that is more protective
+  const carried = token.actor?.statuses?.has?.("coverTotal") ? null : carriedCover(token.actor);
+  const { degree: d, cause } = coverStanding(carried, m);
+  // "Half Cover (+2 AC)", then what is in the way and any feat ignoring it; No and Total Cover carry no AC.
   const amount = (d.bonus ? `${d.label} (+${d.bonus} AC)` : d.label);
   const ignores = ((d.key === "half") || (d.key === "threeQuarters"))
     ? Object.entries(RANGE_FEATS).filter(([name, r]) => r.cover && featureNamed(controlled[0].actor, name))
       .map(([name, r]) => `${name} ignores it (${r.scope === "spell" ? "spell attacks" : "ranged weapon attacks"})`)
     : [];
-  const why = [m.by.length ? `${m.by.map(b => (b === "wall") ? "a wall" : b).join(", ")} in the way` : "", ...ignores].filter(Boolean).join(" · ");
+  const why = [cause, ...ignores].filter(Boolean).join(" · ");
   return `<div class="bf-ev-lbl">Cover</div><div class="bf-ev-list"><span class="bf-ev-chip bf-ev-cover ${d.key}" title="${esc(d.label)}">`
     + `<img src="${esc(d.img)}" alt=""><span class="txt"><span class="nm">${esc(amount)}</span>${why ? `<span class="src">${esc(why)}</span>` : ""}</span></span></div>`;
 }
