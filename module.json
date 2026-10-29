@@ -2,7 +2,7 @@
   "id": "fvtt-mod-bythebooks",
   "title": "Open Roll 5e: By the Books",
   "description": "The 2024 D&D rules, played from the sheet. Every rule in the Player's Handbook, Dungeon Master's Guide, Monster Manual, Heroes of Faerûn, Arcana Unleashed and Ravenloft: The Horrors Within that rides a use or an effect runs itself: a hit rolls and applies its own damage, saves resolve for every target, a reaction that could change the outcome holds the chain and asks the player with the book's text and a timer, concentration, auras, cover, feats, fighting styles, masteries, maneuvers and metamagic are all in, and rests, senses, sizes and lights follow the sheet too. Every automatic step leaves a receipt and a one-click revert; the module offers, never enforces. Zero dependencies, no sockets, no patching: clients coordinate by reading the same chat log. Formerly Battle Flow.",
-  "version": "3.4.18",
+  "version": "3.4.19",
   "authors": [
     {
       "name": "Matthew Sippel"
@@ -35,7 +35,7 @@
   },
   "url": "https://github.com/Txpple/fvtt-mod-bythebooks",
   "manifest": "https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.json",
-  "download": "https://github.com/Txpple/fvtt-mod-bythebooks/releases/download/v3.4.18/fvtt-mod-bythebooks.zip",
+  "download": "https://github.com/Txpple/fvtt-mod-bythebooks/releases/download/v3.4.19/fvtt-mod-bythebooks.zip",
   "readme": "https://github.com/Txpple/fvtt-mod-bythebooks#readme",
   "license": "MIT"
 }
