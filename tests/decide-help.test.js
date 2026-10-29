@@ -27,6 +27,16 @@ describe("the Help item", () => {
     expect(activities[0]._id).toMatch(/^[a-zA-Z0-9]{16}$/);
     expect(item.flags["fvtt-mod-bythebooks"].helpItem).toBe(true);
   });
+  it("names a familiar's copy Help - Assist an Attack Roll, with its own identifier, and both names are the Help item's", () => {
+    const item = h.helpItemData({ name: h.FAMILIAR_HELP_NAME });
+    expect(item.name).toBe("Help - Assist an Attack Roll");
+    expect(item.system.identifier).toBe("help-assist-an-attack-roll");
+    expect(h.helpItemData().system.identifier).toBeUndefined();
+    expect(Object.values(item.system.activities)[0].name).toBe("Help - Assist an Attack Roll");
+    expect(h.isHelpName("Help")).toBe(true);
+    expect(h.isHelpName("help - assist an attack roll")).toBe(true);
+    expect(h.isHelpName("Helpful Homunculi")).toBe(false);
+  });
   it("points at the glossary page by CONFIG key, each facet at its own paragraph", () => {
     expect(h.HELP_RULE).toEqual({ page: "rule", key: "help" });
     expect(h.helpRuleFor("attack")).toEqual({

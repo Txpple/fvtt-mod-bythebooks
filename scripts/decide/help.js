@@ -11,6 +11,13 @@
 /** The item's name, as the sheet shows it and the machine finds it. */
 export const HELP_NAME = "Help";
 
+/** A familiar's copy, by its own name and identifier: the same action, keyed apart (`feature:help-assist-an-attack-roll`). */
+export const FAMILIAR_HELP_NAME = "Help - Assist an Attack Roll";
+export const FAMILIAR_HELP_IDENTIFIER = "help-assist-an-attack-roll";
+
+/** Is this name one of the Help item's? */
+export const isHelpName = name => [HELP_NAME, FAMILIAR_HELP_NAME].some(n => String(name ?? "").toLowerCase() === n.toLowerCase());
+
 /** The two facets, each named as the book names its paragraph. */
 export const HELP_FACETS = Object.freeze({
   attack: Object.freeze({ key: "attack", name: "Assist an Attack Roll", effect: "Helped", benefit: "Assist an Attack Roll",
@@ -33,16 +40,18 @@ export const HELP_IMG = "icons/skills/social/diplomacy-handshake-yellow.webp";
 /**
  * The Help item as document data: a feature with one Utility activity, an Action, one creature targeted.
  * `description` is the page's text (rule-text.js reads it; the data carries no book text of its own).
- * @param {{description?: string}} [facts]
+ * `name` is the sheet's: a familiar's copy is `FAMILIAR_HELP_NAME`, its identifier written so a key never hangs on dnd5e's slug.
+ * @param {{description?: string, name?: string}} [facts]
  */
-export function helpItemData({ description = "" } = {}) {
+export function helpItemData({ description = "", name = HELP_NAME } = {}) {
   return {
-    name: HELP_NAME, type: "feat", img: HELP_IMG,
+    name, type: "feat", img: HELP_IMG,
     system: {
       description: { value: description },
+      ...((name === FAMILIAR_HELP_NAME) ? { identifier: FAMILIAR_HELP_IDENTIFIER } : {}),
       activities: {
         [HELP_IDS.activity]: {
-          _id: HELP_IDS.activity, type: "utility", name: HELP_NAME, img: HELP_IMG,
+          _id: HELP_IDS.activity, type: "utility", name, img: HELP_IMG,
           activation: { type: "action", value: 1 },
           target: { affects: { type: "creature", count: "1" } }
         }

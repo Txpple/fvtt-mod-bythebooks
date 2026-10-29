@@ -9,8 +9,7 @@
  */
 import { MODULE_ID, readFlag, drivesMomentFor, queueFlagWrite, claimLanding, statContext, resolveUuid, resolveUuidAsync, isActiveGM, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower } from "./lookup.js";
-import { HELP_NAME, HELP_RULE, HELP_FACETS, helpItemData, lendable, helpRows, helpAnswer, helpEffectData, helpWords, helpRuleFor } from "./decide/help.js";
+import { HELP_NAME, HELP_RULE, HELP_FACETS, isHelpName, helpItemData, lendable, helpRows, helpAnswer, helpEffectData, helpWords, helpRuleFor } from "./decide/help.js";
 import { chipData, placeOf } from "./shared.js";
 import { chipClock } from "./decide/chips.js";
 import { bfCard, ruleLine } from "./decide/present.js";
@@ -25,8 +24,8 @@ const HELP_FLAG = "help";
 /** The popup's pick. */
 const PICK = "bf-help";
 
-/** Is this the Help item's use? The item by name, its activity a Utility. */
-const isHelpUse = activity => (lower(activity?.item?.name) === lower(HELP_NAME)) && (activity?.type === "utility");
+/** Is this the Help item's use? The item by name (a familiar's "Help - Assist an Attack Roll" too), its activity a Utility. */
+const isHelpUse = activity => isHelpName(activity?.item?.name) && (activity?.type === "utility");
 
 /** The sheet's proficiencies in the lend's shape: every skill with its rank, every tool listed; CONFIG's labels. */
 function sheetLends(actor) {
@@ -139,7 +138,7 @@ async function settleHelp(message) {
       return;
     }
     // live only: the Help item is a feature never used up, so the sheet's copy is the truth (its art, its uuid as the origin)
-    const item = helper.items.find(i => lower(i.name) === lower(HELP_NAME)) ?? null;
+    const item = helper.items.find(i => isHelpName(i.name)) ?? null;
     const data = helpEffectData({ facet, helperName: f.helperName ?? helper.name, targetName: f.target.name, lend,
       img: item?.img ?? null, description: await ruleHTML(helpRuleFor(facet)) });
     // A template on the feature, under a fixed id: a second Help from the same helper refreshes the one copy.

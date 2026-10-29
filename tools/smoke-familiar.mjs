@@ -497,9 +497,9 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       await closeDialogs();
       await set('reminderList', 'buy, effect');
       const owl = owlDoc.actor ?? null;
-      const help = owl?.items?.find(i => i.name === 'Help') ?? null;
+      const help = owl?.items?.find(i => i.name === 'Help - Assist an Attack Roll') ?? null;
       const activity = help ? [...help.system.activities][0] : null;
-      ok('§14a the landed Owl carries Help — a feature with one Utility activity, an Action',
+      ok('§14a the landed Owl carries Help - Assist an Attack Roll — a feature with one Utility activity, an Action',
         !!help && (help.type === 'feat') && (activity?.type === 'utility') && (activity?.activation?.type === 'action'),
         `help=${!!help} type=${help?.type} activity=${activity?.type}/${activity?.activation?.type}`);
       if (!activity) return;

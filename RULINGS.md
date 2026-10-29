@@ -4341,6 +4341,9 @@ glossary page and no item, so the module makes one.
 5. **No clock on the question.** The helper's own action asked on the helper's own client: a dismissed popup waits on the card
    (the card chip's precedent), never a timer that passes an Action the player took on purpose.
 6. **Flyby needs nothing**: the module detects no opportunity attacks by design (README *What it will not do*).
+7. **A familiar's copy is "Help - Assist an Attack Roll"** (the user's name, 2026-10-28): the same item and machine (both
+   facets still offered) under its own name and a written identifier, `help-assist-an-attack-roll`, so FX Studio keys it apart
+   from a PC's Help (`feature:help-assist-an-attack-roll`, on use and on the Helped effect it lands). A familiar landed before the rename keeps "Help"; both names are the Help item's.
 
 The suites: `smoke-familiar` §14 (the Owl's Help: seeded, the use refused with no target, the record's rows and lends, Assisted
 landed and spent by the Perception check, Helped landed with the Owl as its source, the attack row greyed at 15 ft);
