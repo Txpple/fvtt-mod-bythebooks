@@ -2,7 +2,7 @@
 /**
  * By the Books — DECISION layer (ARCHITECTURE.md §2): THE HELP ACTION (RULINGS *The Help action*) as
  * data. The packs ship Help as a glossary page and no item, so the module makes the item, asks which
- * of the two assists the helper lends, and writes the one effect each spends: "Helped" on the enemy
+ * of the two assists the helper lends, and writes the one effect each spends: "Distracted (Help)" on the enemy
  * (the next attack roll by an ally spends it), "Assisted — <skill>" on the ally (the next check with
  * that skill or tool spends it); both expire at the start of the helper's next turn. ⚠ PURE: no `game`,
  * no imports.
@@ -20,7 +20,7 @@ export const isHelpName = name => [HELP_NAME, FAMILIAR_HELP_NAME].some(n => Stri
 
 /** The two facets, each named as the book names its paragraph. */
 export const HELP_FACETS = Object.freeze({
-  attack: Object.freeze({ key: "attack", name: "Assist an Attack Roll", effect: "Helped", benefit: "Assist an Attack Roll",
+  attack: Object.freeze({ key: "attack", name: "Assist an Attack Roll", effect: "Distracted (Help)", benefit: "Assist an Attack Roll",
     reachFt: 5 }),
   check: Object.freeze({ key: "check", name: "Assist an Ability Check", effect: "Assisted", benefit: "Assist an Ability Check" })
 });

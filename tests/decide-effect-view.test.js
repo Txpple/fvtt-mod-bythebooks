@@ -189,11 +189,11 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
   });
 
   it('with no readable change, the bend row decides before the side (user, 2026-10-29: Helped "is a debuff, not a buff")', () => {
-    // Helped on the enemy, placed by a friendly familiar the enemy's side can read as neutral
+    // Distracted (Help) on the enemy, placed by a friendly familiar the enemy's side can read as neutral
     expect(
       toneOf(
         fact({
-          name: "Helped",
+          name: "Distracted (Help)",
           changes: [],
           bend: { attacker: null, target: "advantage" },
           hostileOrigin: null

@@ -51,7 +51,7 @@ describe("the Help item", () => {
     });
   });
   it("names the effects as the registry's rows do, under fixed ids", () => {
-    expect(h.HELP_FACETS.attack.effect).toBe("Helped");
+    expect(h.HELP_FACETS.attack.effect).toBe("Distracted (Help)");
     expect(h.HELP_FACETS.check.effect).toBe("Assisted");
     for (const id of Object.values(h.HELP_IDS)) expect(id).toMatch(/^[a-zA-Z0-9]{16}$/);
   });
@@ -156,14 +156,14 @@ describe("helpAnswer — a row's key against what was offered", () => {
 });
 
 describe("helpEffectData — the one effect each facet writes", () => {
-  it("Helped on the enemy: the row's name, no changes, no lend, the note naming both", () => {
+  it("Distracted (Help) on the enemy: the row's name, no changes, no lend, the note naming both", () => {
     const e = h.helpEffectData({
       facet: "attack",
       helperName: "Owl",
       targetName: "Goblin",
       description: "<p>rule</p>"
     });
-    expect(e.name).toBe("Helped");
+    expect(e.name).toBe("Distracted (Help)");
     expect(e._id).toBe(h.HELP_IDS.attack);
     expect(e.changes).toEqual([]);
     expect(e.transfer).toBe(false);

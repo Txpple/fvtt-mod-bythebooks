@@ -1420,7 +1420,7 @@
       "events": [
         "use"
       ],
-      "means": "the Help action landed its assist — Helped on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
+      "means": "the Help action landed its assist — Distracted (Help) on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
       "recorded": true,
       "pairs": [
         "use|help"

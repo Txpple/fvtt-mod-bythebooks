@@ -110,7 +110,7 @@ export function changeSign(change) {
 
 /**
  * What a bend row does to its BEARER: Disadvantage on its own rolls, or Advantage on the rolls against
- * it, is a penalty (Helped, Guiding Bolt, Mocked); the mirror a bonus; both at once (Reckless) nothing.
+ * it, is a penalty (Distracted (Help), Guiding Bolt, Mocked); the mirror a bonus; both at once (Reckless) nothing.
  * @param {{attacker?: string|null, target?: string|null, checks?: string|null}|null} bend
  * @returns {"penalty"|"bonus"|null}
  */

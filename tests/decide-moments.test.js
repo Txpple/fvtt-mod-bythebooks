@@ -471,7 +471,7 @@ describe("the moment registry — shape", () => {
         target: { uuid: "Actor.goblin", name: "Goblin" },
         feet: 5,
         chosen: { facet: "attack", lend: null },
-        resolved: { facet: "attack", lend: null, effectName: "Helped", at: 1 }
+        resolved: { facet: "attack", lend: null, effectName: "Distracted (Help)", at: 1 }
       },
       typePick: {
         sourceUuid: "Actor.aster",

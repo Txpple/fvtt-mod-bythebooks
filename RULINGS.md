@@ -4345,7 +4345,7 @@ glossary page and no item, so the module makes one.
    row with the reason. The record carries the question (`help`: the target, the feet, the lends, the rows as offered) and
    the popup is answered on the record, so the card's "Choose…" recalls it and a reload loses nothing.
 4. **The one effect each facet writes, by the elect** (the resumable; `applyEffectsWithReceipt`, so the card's receipt carries
-   the revert): "Helped" on the enemy — EFFECT_BENDS `target: "advantage", spend: "attack", except: "source"` (the next attack
+   the revert): "Distracted (Help)" on the enemy — EFFECT_BENDS `target: "advantage", spend: "attack", except: "source"` (the next attack
    roll at it by anyone but the helper shows the Advantage and spends it; the helper's own never does) — and "Assisted —
    <skill>" on the ally, carrying `lends` ("skill:prc", "tool:thief"), EFFECT_BENDS `checks: "advantage", checksWhen: { lends:
    true }, spend: "check"`: the check gate reads the effect's lend against the roll's own skill or tool key, and the roll's
@@ -4356,10 +4356,10 @@ glossary page and no item, so the module makes one.
 6. **Flyby needs nothing**: the module detects no opportunity attacks by design (README *What it will not do*).
 7. **A familiar's copy is "Help - Assist an Attack Roll"** (the user's name, 2026-10-28): the same item and machine (both
    facets still offered) under its own name and a written identifier, `help-assist-an-attack-roll`, so FX Studio keys it apart
-   from a PC's Help (`feature:help-assist-an-attack-roll`, on use and on the Helped effect it lands). A familiar landed before the rename keeps "Help"; both names are the Help item's.
+   from a PC's Help (`feature:help-assist-an-attack-roll`, on use and on the Distracted (Help) effect it lands). A familiar landed before the rename keeps "Help"; both names are the Help item's.
 
 The suites: `smoke-familiar` §14 (the Owl's Help: seeded, the use refused with no target, the record's rows and lends, Assisted
-landed and spent by the Perception check, Helped landed with the Owl as its source, the attack row greyed at 15 ft);
+landed and spent by the Perception check, Distracted (Help) landed with the Owl as its source, the attack row greyed at 15 ft);
 `tests/decide-help.test.js` (the item, the lends, the rows, the answer, the effects, the words), `tests/decide-reminders.test.js`
 (the `lends` facet against the roll's key, the spend on the source).
 

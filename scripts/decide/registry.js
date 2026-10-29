@@ -2766,11 +2766,11 @@ export const EFFECT_BENDS = Object.freeze({
     caveat: "listed — Disadvantage only with a weapon other than the sword",
     rule: Object.freeze({ item: "Sword of Vengeance", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfVengea" }) }),
   // --- C. spent by the next attack roll — Vex and Sap's shape ---------------------------------
-  // The Help action's two effects (help.js; RULINGS *The Help action*): "Helped" on the ENEMY, spent by the next attack
+  // The Help action's two effects (help.js; RULINGS *The Help action*): "Distracted (Help)" on the ENEMY, spent by the next attack
   // roll at it by anyone but the helper (`except: "source"`); "Assisted — <skill>" on the ALLY, Advantage on the next
   // check with the skill or tool the effect lends (`checksWhen.lends`, the roll's own key), which spends it. The book's
   // text is the glossary page, each facet its own paragraph.
-  "Helped": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "the Help action",
+  "Distracted (Help)": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "the Help action",
     rule: Object.freeze({ page: "rule", key: "help", benefit: "Assist an Attack Roll" }) }),
   "Assisted": Object.freeze({ attacker: null, target: null, scope: "any", checks: "advantage", checksWhen: Object.freeze({ lends: true }), spend: "check",
     from: "the Help action",

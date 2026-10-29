@@ -3,7 +3,7 @@
  * use: one creature targeted (any other count refuses the use before dnd5e's dialog), a popup on the helper's
  * client asking which assist — the attack roll or the ability check, each under its own paragraph of the
  * glossary — and the one effect the answer names, landed by the elect on the creature and clocked to the start
- * of the helper's next turn: "Helped" on the enemy (chip-spend.js spends it on the next ally's attack roll),
+ * of the helper's next turn: "Distracted (Help)" on the enemy (chip-spend.js spends it on the next ally's attack roll),
  * "Assisted — <skill>" on the ally (the check gate spends it on that check). The use's card says it. The
  * world's own Help item is kept by the elect at `ready`; a familiar is seeded with one as it lands (summons.js).
  */

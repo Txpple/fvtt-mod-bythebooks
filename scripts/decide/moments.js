@@ -580,7 +580,7 @@ export const MOMENT_RECORDS = Object.freeze({
 
   help: {
     events: ["use"],
-    means: "the Help action landed its assist — Helped on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
+    means: "the Help action landed its assist — Distracted (Help) on the enemy or Assisted on the ally, the effect receipted beside it (help.js); on the use's own card, resolved when `resolved` is set",
     resolved: (r, ctx) => (r?.resolved ? whole(["use"], {
       actor: source(r) ?? ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, ability: "Help",
       targets: r.target ? [row(r.target)] : [],
