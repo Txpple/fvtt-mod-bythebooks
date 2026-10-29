@@ -376,7 +376,9 @@ objection, and a spendable-actions surface was never the need.
   was tried and dropped.
 - **Tone is a PATTERN, not a list:** concentration is its own yellow and leads; a condition or a
   module mark is a debuff; else the effect's own CHANGES decide (a penalty outranks a bonus); else
-  the caster's side by disposition; else a buff.
+  its `EFFECT_BENDS` row (2026-10-29, the user: Helped "is a debuff, not a buff" — Disadvantage on the
+  bearer's rolls or Advantage on the rolls against it is a debuff, the mirror a buff, both at once
+  nothing); else the caster's side by disposition; else a buff.
 - **Order:** concentration, debuffs, buffs, the sheet rows last; the panel vertical.
 
 Not picked: a count badge, tracker chip lines, a turn-start card. Pinned by

@@ -7,7 +7,7 @@
  */
 import { MODULE_ID, isActiveGM, S, setting, resolveUuid, log } from "./core.js";
 import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
-import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
+import { EFFECT_BENDS, EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { carriedCover, measuredCoverBetween, tokenDocOf } from "./geometry.js";
 import { coverStanding } from "./decide/cover.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
@@ -49,6 +49,14 @@ function hostileOriginOf(effect) {
 
 const { rowFor: emanationRow } = tableIndex(EMANATIONS);
 
+/** The effect's EFFECT_BENDS row by its name (or the name before " — ", a chip naming its creature), its sides only. */
+const BEND_ROWS = new Map(Object.entries(EFFECT_BENDS).map(([k, r]) => [k.toLowerCase(), r]));
+function bendOf(effect) {
+  const name = lower(effect.name ?? "");
+  const row = BEND_ROWS.get(name) ?? BEND_ROWS.get(name.split(" — ")[0]);
+  return row ? { attacker: row.attacker ?? null, target: row.target ?? null, checks: row.checks ?? null } : null;
+}
+
 /** Is this the bearer's OWN standing feature aura — the pack's transfer effect on a FEATURE the Emanations
  * row names, read as emanations.js `featureSpec` reads it? A spell's emanation effect never lands here. */
 function ownAuraOf(effect) {
@@ -85,6 +93,7 @@ function factOf(effect) {
     clock: clockLabel(effect),
     origin: typeof effect.origin === "string" ? effect.origin : null,
     changes: (effect.changes ?? []).map(c => ({ key: c.key, mode: c.mode, value: c.value })),
+    bend: bendOf(effect),
     hostileOrigin: hostileOriginOf(effect)
   };
 }

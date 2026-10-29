@@ -188,6 +188,63 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     ).toBe("debuff");
   });
 
+  it('with no readable change, the bend row decides before the side (user, 2026-10-29: Helped "is a debuff, not a buff")', () => {
+    // Helped on the enemy, placed by a friendly familiar the enemy's side can read as neutral
+    expect(
+      toneOf(
+        fact({
+          name: "Helped",
+          changes: [],
+          bend: { attacker: null, target: "advantage" },
+          hostileOrigin: null
+        })
+      )
+    ).toBe("debuff");
+    expect(
+      toneOf(
+        fact({
+          name: "Mocked",
+          changes: [],
+          bend: { attacker: "disadvantage", target: null },
+          hostileOrigin: false
+        })
+      )
+    ).toBe("debuff");
+    expect(
+      toneOf(
+        fact({
+          name: "Blurred",
+          changes: [],
+          bend: { attacker: null, target: "disadvantage" },
+          hostileOrigin: true
+        })
+      )
+    ).toBe("buff");
+    expect(toneOf(fact({ name: "Assisted", changes: [], bend: { checks: "advantage" } }))).toBe(
+      "buff"
+    );
+    // both sides at once (Reckless) says nothing: the side decides
+    expect(
+      toneOf(
+        fact({
+          name: "Reckless",
+          changes: [],
+          bend: { attacker: "advantage", target: "advantage" },
+          hostileOrigin: true
+        })
+      )
+    ).toBe("debuff");
+    expect(
+      toneOf(
+        fact({
+          name: "Reckless",
+          changes: [],
+          bend: { attacker: "advantage", target: "advantage" }
+        })
+      )
+    ).toBe("buff");
+  });
+
   it("with no readable change, who put it there decides: an enemy's marker is a debuff, an ally's or your own a buff", () => {
     expect(toneOf(fact({ name: "Hunter's Mark", changes: [], hostileOrigin: true }))).toBe(
       "debuff"

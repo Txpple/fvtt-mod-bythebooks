@@ -32,6 +32,8 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * @property {string|null} [detail]  the face's hover line
  * @property {{key: string, mode: number, value: string|number}[]} [changes]
  * @property {boolean|null} [hostileOrigin]  null when unknown
+ * @property {{attacker?: string|null, target?: string|null, checks?: string|null}|null} [bend]  the effect's
+ *   bend row (EFFECT_BENDS), its sides only: what the bearer's rolls, and the rolls against it, take
  */
 
 /*
@@ -107,8 +109,23 @@ export function changeSign(change) {
 }
 
 /**
+ * What a bend row does to its BEARER: Disadvantage on its own rolls, or Advantage on the rolls against
+ * it, is a penalty (Helped, Guiding Bolt, Mocked); the mirror a bonus; both at once (Reckless) nothing.
+ * @param {{attacker?: string|null, target?: string|null, checks?: string|null}|null} bend
+ * @returns {"penalty"|"bonus"|null}
+ */
+export function bendSign(bend) {
+  if ( !bend ) return null;
+  const signs = [
+    bend.attacker === "disadvantage" || bend.checks === "disadvantage" || bend.target === "advantage" ? "penalty" : null,
+    bend.attacker === "advantage" || bend.checks === "advantage" || bend.target === "disadvantage" ? "bonus" : null
+  ].filter(Boolean);
+  return signs.length === 1 ? signs[0] : null;
+}
+
+/**
  * THE TONE, a pattern not a list: concentration; a condition or mark is a debuff; then the changes
- * (a penalty outranks a bonus); then a hostile origin is a debuff; else a buff.
+ * (a penalty outranks a bonus); then the effect's bend row; then a hostile origin is a debuff; else a buff.
  * @param {EffectFact} fact @returns {"buff"|"debuff"}
  */
 export function toneOf(fact) {
@@ -119,6 +136,8 @@ export function toneOf(fact) {
   const signs = (fact.changes ?? []).map(changeSign).filter(Boolean);
   if ( signs.includes("penalty") ) return "debuff";
   if ( signs.includes("bonus") ) return "buff";
+  const bend = bendSign(fact.bend);
+  if ( bend ) return bend === "penalty" ? "debuff" : "buff";
   if ( fact.hostileOrigin === true ) return "debuff";
   return "buff";
 }
