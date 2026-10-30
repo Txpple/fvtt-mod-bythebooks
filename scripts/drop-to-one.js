@@ -18,6 +18,7 @@ import { poolOf } from "./shared.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { closeLedger, effectsNamed, hitPointsOf, landingSteps } from "./ledger.js";
 import { applyActivityEffectsOnHit } from "./effect-riders.js";
 import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
@@ -303,8 +304,12 @@ async function rollDropSave(actor, found, { amount, source, dc, saveAct = null }
   if ( !saved && (total !== null) ) await landedZero(actor, { amount, source });
 }
 
-/** C1 — a row's `heal` (the feature's heal activity, rolled on its bearer): landed on the held creature with a receipt. */
-async function healOnHold(card, actor, found) {
+/**
+ * C1 — a row's `heal` (the feature's heal activity, rolled on its bearer): landed on the held creature with a receipt.
+ * In a ledgered landing (`steps`) the roll and the heal are steps: a re-drive heals once, by the first drive's roll.
+ */
+async function healOnHold(card, actor, found, steps = null) {
+  const once = (name, spec) => (steps ? steps.step(name, spec) : unledgered(spec));
   try {
     const item = found.item;
     const activity = item ? activityNamed(item, found.row.heal) : null;
@@ -312,13 +317,29 @@ async function healOnHold(card, actor, found) {
     const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
     if ( !raw ) { log.warn(`${found.name}: no healing part on "${found.row.heal}" — heal by hand.`); return; }
     const owner = found.keeper ?? actor;
-    const roll = await new Roll(raw, activity.getRollData?.() ?? owner.getRollData()).evaluate();
-    if ( !(roll.total > 0) ) return;
-    // RAVENLOFT — `sets` ("your Hit Points instead change to"): the held 1 counts toward the roll.
-    const value = found.row.sets ? Math.max(0, Number(roll.total) - Math.max(0, Number(actor.system?.attributes?.hp?.value ?? 0))) : Number(roll.total);
-    if ( !(value > 0) ) return;
-    await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value, type: "healing", properties: new Set() }], { note: found.name });
+    // the roll writes nothing: its witness never moves, so a roll the dead claimant never recorded is rolled again
+    const rolled = await once("heal-roll", {
+      witness: () => null,
+      run: async () => ({ total: Number((await new Roll(raw, activity.getRollData?.() ?? owner.getRollData()).evaluate()).total) })
+    });
+    const total = Number(rolled.result?.total);
+    if ( !(total > 0) ) return;
+    await once("heal", {
+      // RAVENLOFT — `sets` ("your Hit Points instead change to"): the held 1 counts toward the roll.
+      plan: () => ({ value: found.row.sets ? Math.max(0, total - Math.max(0, Number(actor.system?.attributes?.hp?.value ?? 0))) : total }),
+      witness: () => hitPointsOf(actor),
+      run: async p => {
+        if ( !(p.value > 0) ) return;
+        await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value: p.value, type: "healing", properties: new Set() }], { note: found.name });
+      }
+    });
   } catch(err) { log.error(`${found.name}'s heal failed — heal by hand.`, err); }
+}
+
+/** A step's spec run as it stands, outside a ledgered landing: the shape `steps.step` resolves. @param {any} spec */
+async function unledgered({ plan = () => null, run }) {
+  const p = plan() ?? null;
+  return { plan: p, result: (await run(p)) ?? null, how: "ran", now: null };
 }
 
 /* --- the `died` row: the death's side (Death Throes) --------------------------------------------- */
@@ -478,6 +499,8 @@ async function land(message) {
   if ( !(await claimLanding(message, DROP_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, DROP_FLAG);
   const actor = resolveUuid(flag.actorUuid);
+  // THE LEDGER (ledger.js): a re-drive over a dead claim spends the use once, sets the Hit Points once, heals once.
+  const steps = landingSteps(message, DROP_FLAG, "land");
   let fell = false;
   try {
     if ( actor instanceof Actor ) {
@@ -490,23 +513,41 @@ async function land(message) {
         const row = DROP_TO_ONE[flag.row];
         const activity = (item && row?.activity) ? activityNamed(item, row.activity) : null;
         const pool = activity ? poolOf(owner, activity) : null;
-        if ( pool ) await pool.update({ "system.uses.spent": Number(pool.system.uses?.spent ?? 0) + 1 });
-        else if ( item && row?.uses ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
-        if ( (row?.to === "roll") && activity?.roll?.formula && (Number(actor.system.attributes.hp.value) === 1) ) {
-          const to = Math.max(1, Math.floor(Number(Roll.safeEval(Roll.replaceFormulaData(String(activity.roll.formula), owner.getRollData()))) || 1));
-          await actor.update({ [HP]: Math.min(to, Number(actor.system.attributes.hp.max) || to) });
-          await queueFlagWrite(message, DROP_FLAG, current => { current.to = to; });
+        const pays = pool ?? ((item && row?.uses) ? item : null);
+        if ( pays ) await steps.step("spend", {
+          plan: () => ({ spent: Number(pays.system.uses?.spent ?? 0) + 1 }),
+          witness: () => pays.system.uses?.spent ?? null,
+          run: async p => { await pays.update({ "system.uses.spent": p.spent }); }
+        });
+        if ( (row?.to === "roll") && activity?.roll?.formula ) {
+          // the held 1 read before the write, once: a re-drive keeps the first drive's verdict
+          const raised = await steps.step("to", {
+            plan: () => {
+              if ( Number(actor.system.attributes.hp.value) !== 1 ) return { to: null };
+              const to = Math.max(1, Math.floor(Number(Roll.safeEval(Roll.replaceFormulaData(String(activity.roll.formula), owner.getRollData()))) || 1));
+              return { to, hp: Math.min(to, Number(actor.system.attributes.hp.max) || to) };
+            },
+            witness: () => hitPointsOf(actor),
+            run: async p => { if ( p.to !== null ) await actor.update({ [HP]: p.hp }); }
+          });
+          const to = raised.plan?.to ?? null;
+          // a value written, never added to: safe to repeat
+          if ( to !== null ) await queueFlagWrite(message, DROP_FLAG, current => { current.to = to; });
         }
-        if ( row?.heal ) await healOnHold(message, actor, { name: flag.row, row, item, keeper: (keeper instanceof Actor) ? keeper : null });
-      } else if ( Number(actor.system.attributes.hp.value) === 1 ) {
-        // Only the 1 the ask held: a heal in between is left alone.
-        await actor.update({ [HP]: 0 });
-        fell = true;
+        if ( row?.heal ) await healOnHold(message, actor, { name: flag.row, row, item, keeper: (keeper instanceof Actor) ? keeper : null }, steps);
+      } else {
+        // Only the 1 the ask held: a heal in between is left alone. Read before the write, once.
+        const dropped = await steps.step("fall", {
+          plan: () => ({ fall: Number(actor.system.attributes.hp.value) === 1 }),
+          witness: () => hitPointsOf(actor),
+          run: async p => { if ( p.fall ) await actor.update({ [HP]: 0 }); }
+        });
+        fell = !!dropped.plan?.fall;
       }
     }
   } finally {
     asking.delete(flag.actorUuid);
-    await queueFlagWrite(message, DROP_FLAG, current => { current.applied = true; current.applying = false; });
+    await queueFlagWrite(message, DROP_FLAG, current => { current.applied = true; current.applying = false; closeLedger(current, "land"); });
   }
   if ( fell ) await landedZero(actor, { source: flag.sourceUuid ? resolveUuid(flag.sourceUuid) : null });
 }
@@ -703,6 +744,9 @@ async function landOffer(message) {
   if ( !(await claimLanding(message, DEATH_OFFER_FLAG, current => (current.status === "resolved") && (current.answer === "use"))) ) return;
   const flag = readFlag(message, DEATH_OFFER_FLAG);
   const record = {};
+  // THE LEDGER (ledger.js): a re-drive over a dead claim spends the use once, heals once, rolls the burst once and lands
+  // it, and its effect, once on each enemy.
+  const steps = landingSteps(message, DEATH_OFFER_FLAG, "land");
   try {
     const actor = resolveUuid(flag.actorUuid);
     const keeper = resolveUuid(flag.keeperUuid);
@@ -710,33 +754,68 @@ async function landOffer(message) {
     const activity = item?.system?.activities?.get(flag.activityId) ?? null;
     const row = DROP_TO_ONE[flag.row];
     if ( !(actor instanceof Actor) || !(keeper instanceof Actor) || !item || !activity || !row ) throw new Error("the feature left the sheet");
-    if ( row.uses ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
-    // Half the maximum, as healing (a receipt on the card).
-    const max = Number(actor.system.attributes.hp.effectiveMax ?? actor.system.attributes.hp.max) || 0;
-    const heal = Math.max(1, Math.floor(max / 2) - Number(actor.system.attributes.hp.value || 0));
+    if ( row.uses ) await steps.step("spend", {
+      plan: () => ({ spent: Number(item.system.uses?.spent ?? 0) + 1 }),
+      witness: () => item.system.uses?.spent ?? null,
+      run: async p => { await item.update({ "system.uses.spent": p.spent }); }
+    });
+    // Half the maximum, as healing (a receipt on the card), read before the heal lands.
     if ( row.heal === "halfMax" ) {
-      await applyDamagesWithReceipt(message, [{ uuid: actor.uuid, name: actor.name }], [{ value: heal, type: "healing", properties: new Set() }], { note: flag.row });
-      record.healed = heal;
+      const healed = await steps.step("heal", {
+        plan: () => {
+          const max = Number(actor.system.attributes.hp.effectiveMax ?? actor.system.attributes.hp.max) || 0;
+          return { heal: Math.max(1, Math.floor(max / 2) - Number(actor.system.attributes.hp.value || 0)) };
+        },
+        witness: () => hitPointsOf(actor),
+        run: async p => { await applyDamagesWithReceipt(message, [{ uuid: actor.uuid, name: actor.name }], [{ value: p.heal, type: "healing", properties: new Set() }], { note: flag.row }); }
+      });
+      record.healed = healed.plan.heal;
     }
     // The burst: the activity's damage rolled once on the keeper, landed on every enemy of the creature within its Emanation.
-    const corpse = tokenOf(actor);
-    const feet = feetOf(Number(activity.target?.template?.size), activity.target?.template?.units || "ft");
-    const victims = (corpse && (feet > 0)) ? creaturesWithin(corpse, feet).filter(t => t.actor && (t.actor.uuid !== actor.uuid)
-      && (t.document.disposition !== corpse.document.disposition)) : [];
-    const rolls = await activity.rollDamage({}, { configure: false }, { create: false });
-    const damages = (rolls ?? []).map(r => ({ value: Number(r.total) || 0, type: r.options?.type ?? [...(r.options?.types ?? [])][0] ?? "radiant", properties: new Set(["mgc"]) }));
+    // The roll writes nothing (its witness never moves, so an unrecorded roll is rolled again); the enemies are its plan.
+    const burst = await steps.step("burst-roll", {
+      plan: () => {
+        const corpse = tokenOf(actor);
+        const feet = feetOf(Number(activity.target?.template?.size), activity.target?.template?.units || "ft");
+        const victims = (corpse && (feet > 0)) ? creaturesWithin(corpse, feet).filter(t => t.actor && (t.actor.uuid !== actor.uuid)
+          && (t.document.disposition !== corpse.document.disposition)) : [];
+        return { targets: victims.map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name })) };
+      },
+      witness: () => null,
+      run: async () => {
+        const rolls = await activity.rollDamage({}, { configure: false }, { create: false });
+        return { damages: (rolls ?? []).map(r => ({ value: Number(r.total) || 0, type: r.options?.type ?? [...(r.options?.types ?? [])][0] ?? "radiant" })) };
+      }
+    });
+    /** @type {{ uuid: string, name: string }[]} */
+    const targets = burst.plan.targets;
+    const damages = (burst.result?.damages ?? []).map(d => ({ ...d, properties: new Set(["mgc"]) }));
     record.burst = damages.reduce((n, d) => n + d.value, 0);
-    record.victims = victims.map(t => t.document?.name ?? t.actor.name);
-    if ( victims.length && damages.length ) {
-      const targets = victims.map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name }));
-      await applyDamagesWithReceipt(message, targets, damages, { note: flag.row });
-      await applyActivityEffectsOnHit(message, activity, targets, { clock: row.clock ?? null, attacker: keeper })
-        .catch(err => log.warn(`${flag.row}'s effect could not land — apply it by hand.`, err));
+    record.victims = targets.map(t => t.name);
+    if ( targets.length && damages.length ) {
+      // a step per enemy: the applier writes each in turn, so a claimant can go between two of them
+      for ( const [i, target] of targets.entries() ) {
+        const hit = resolveUuid(target.uuid);
+        await steps.step(`burst-${i}`, {
+          witness: () => hitPointsOf(hit),
+          run: async () => { await applyDamagesWithReceipt(message, [target], damages, { note: flag.row }); }
+        });
+      }
+      try {
+        const names = [...(activity.effects ?? [])].map(e => e?.effect?.name).filter(Boolean);
+        for ( const [i, target] of targets.entries() ) {
+          const hit = resolveUuid(target.uuid);
+          await steps.step(`effect-${i}`, {
+            witness: () => names.flatMap(name => effectsNamed(hit, name)),
+            run: async () => { await applyActivityEffectsOnHit(message, activity, [target], { clock: row.clock ?? null, attacker: keeper }); }
+          });
+        }
+      } catch(err) { log.warn(`${flag.row}'s effect could not land — apply it by hand.`, err); }
     }
   } catch(err) {
     log.error(`${flag.row} failed part-way — check the sheets.`, err);
   } finally {
-    await queueFlagWrite(message, DEATH_OFFER_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+    await queueFlagWrite(message, DEATH_OFFER_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); closeLedger(current, "land"); });
   }
 }
 

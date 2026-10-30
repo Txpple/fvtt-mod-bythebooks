@@ -18,6 +18,7 @@ import { nearestFeet, tokenOf, tokensOf } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
 import { openMomentPopup, registerRelay, registerResumable, armAskTimer, disarmAskTimer, subjectOwns, pendingRow, closePopup, postCard, postAnswer, pickInputs, pickedAll, pickInputAt } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { closeLedger, hitPointsOf, landingSteps } from "./ledger.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
 const GRANT_WRITES = {
@@ -465,6 +466,14 @@ registerRelay("restSongAnswer", {
   }
 });
 
+/** The meal's card: every eater's dice on ONE card (the dice show). */
+const mealCard = (flag, served, rolls, chefName) => ({
+  alias: chefName, rolls,
+  card: bfCard({ eyebrow: "Replenishing Meal", tone: "good",
+    title: served.map(s => `${s.name} +${s.total}`).join(", "),
+    subtitle: `${chefName}'s cooking — ${flag.formula} Hit Points each, on top of the Hit Dice spent` })
+});
+
 /** The meal's dice for each eater, rolled on ONE card (the dice show), healed on each sheet. */
 async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
   if ( !eaters.length ) return [];
@@ -476,12 +485,7 @@ async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
     await actor.applyDamage([{ value: roll.total, type: "healing" }]);
     served.push({ name: actor.name, total: roll.total });
   }
-  await postCard({
-    alias: chefName, rolls,
-    card: bfCard({ eyebrow: "Replenishing Meal", tone: "good",
-      title: served.map(s => `${s.name} +${s.total}`).join(", "),
-      subtitle: `${chefName}'s cooking — ${flag.formula} Hit Points each, on top of the Hit Dice spent` })
-  });
+  await postCard(mealCard(flag, served, rolls, chefName));
   return served;
 }
 
@@ -489,7 +493,7 @@ async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
  * The song's own card as it lands (a grant the table sees nowhere else: Heroic Inspiration) — who sang, who
  * received it, the rule under its tick — spoken by the singer. Nothing when nobody was given it.
  */
-async function postSongCard(flag, given) {
+async function postSongCard(flag, given, flags = undefined) {
   const row = songRowOf(flag);
   const words = songCard({ grant: flag.grant, benefit: row?.rule?.benefit ?? null, row: flag.row,
     label: GRANT_LABEL[flag.grant] ?? flag.grant, singer: flag.actorName, given });
@@ -497,7 +501,8 @@ async function postSongCard(flag, given) {
   const singer = resolveUuid(flag.actorUuid);
   await postCard({
     ...(singer ? { actor: singer } : { alias: flag.actorName }),
-    card: bfCard({ img: singer?.items?.get(flag.itemId)?.img ?? null, tone: "good", ...words, lines: [ruleLine(row?.rule)] })
+    card: bfCard({ img: singer?.items?.get(flag.itemId)?.img ?? null, tone: "good", ...words, lines: [ruleLine(row?.rule)] }),
+    flags
   });
 }
 
@@ -507,50 +512,85 @@ async function landSong(message) {
   const flag = readFlag(message, SONG_FLAG);
   const given = [];
   const waiting = [];
+  // THE LEDGER (ledger.js): one step per pick, its judgement (a larger pool kept, a meal's standing and dice) made by
+  // the first drive, so a re-drive over a dead claim spends the cost once, heals once and posts one card.
+  const steps = landingSteps(message, SONG_FLAG, "land");
+  const nameOf = target => flag.candidates.find(c => c.uuid === target.uuid)?.name ?? target.name;
   try {
-    const picked = [];
-    for ( const uuid of flag.picks ?? [] ) {
-      const target = await resolveUuidAsync(uuid);
-      if ( target instanceof Actor ) picked.push(target);
-    }
     if ( flag.distribute ) {
       // A divided hand-out: each its own number (Temporary Hit Points never stack — only a larger pool is written);
       // the cost paid once, only when something was given.
-      for ( const p of (flag.picks ?? []) ) {
+      for ( const [i, p] of (flag.picks ?? []).entries() ) {
         const target = await resolveUuidAsync(p.uuid);
         if ( !(target instanceof Actor) ) continue;
-        const name = flag.candidates.find(c => c.uuid === p.uuid)?.name ?? target.name;
-        if ( holdsTemp(target.system?.attributes?.hp?.temp, p.n) ) { given.push(`${name} (keeps more)`); continue; }
-        await target.update({ "system.attributes.hp.temp": p.n });
-        given.push(`${name} ${p.n}`);
+        const { plan } = await steps.step(`give-${i}`, {
+          plan: () => ({ keeps: holdsTemp(target.system?.attributes?.hp?.temp, p.n) }),
+          witness: () => target.system?.attributes?.hp?.temp ?? null,
+          run: async q => { if ( !q.keeps ) await target.update({ "system.attributes.hp.temp": p.n }); }
+        });
+        given.push(plan.keeps ? `${nameOf(target)} (keeps more)` : `${nameOf(target)} ${p.n}`);
       }
       const owner = (flag.picks ?? []).length ? resolveUuid(flag.actorUuid) : null;
       const pool = owner && flag.cost?.itemId ? owner.items?.get(flag.cost.itemId) : null;
-      if ( pool ) await pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 });
+      if ( pool ) {
+        await steps.step("cost", {
+          plan: () => ({ spent: Number(pool.system?.uses?.spent ?? 0) + 1 }),
+          witness: () => Number(pool.system?.uses?.spent ?? 0),
+          run: async q => { await pool.update({ "system.uses.spent": q.spent }); }
+        });
+      }
     } else if ( flag.grant === "meal" ) {
-      // Judged afresh at the landing — an eater may have finished its rest since the ask.
-      const now = [];
-      for ( const target of picked ) {
+      // Judged afresh at the landing — an eater may have finished its rest since the ask (a re-drive keeps the first
+      // drive's judgement and dice).
+      const rolls = [];
+      const served = [];
+      for ( const [i, uuid] of (flag.picks ?? []).entries() ) {
+        const target = await resolveUuidAsync(uuid);
+        if ( !(target instanceof Actor) ) continue;
         const standing = mealStanding({ rest: lastShortRestOf(target), chef: { at: flag.restAt, requestId: flag.requestId } });
-        if ( standing === "spent" ) now.push(target);
-        else if ( standing === "resting" ) {
-          await target.setFlag(MODULE_ID, FED_FLAG, { chef: flag.actorName, formula: flag.formula, at: flag.restAt,
-            requestId: flag.requestId ?? null, cardId: message.id });
-          waiting.push(target.name);
-        }
+        const fresh = (standing === "spent") ? await new Roll(flag.formula).evaluate() : null;
+        const { plan } = await steps.step(`eat-${i}`, {
+          plan: () => ({ standing, roll: fresh?.toJSON() ?? null }),
+          witness: q => ((q.standing === "spent") ? hitPointsOf(target) : (q.standing === "resting") ? (readFlag(target, FED_FLAG) ?? null) : null),
+          run: async q => {
+            if ( q.standing === "spent" ) await target.applyDamage([{ value: q.roll.total, type: "healing" }]);
+            else if ( q.standing === "resting" ) {
+              await target.setFlag(MODULE_ID, FED_FLAG, { chef: flag.actorName, formula: flag.formula, at: flag.restAt,
+                requestId: flag.requestId ?? null, cardId: message.id });
+            }
+          }
+        });
+        if ( plan.standing === "spent" ) {
+          const roll = Roll.fromData(plan.roll);
+          rolls.push(roll);
+          served.push({ name: target.name, total: roll.total });
+        } else if ( plan.standing === "resting" ) waiting.push(target.name);
       }
-      given.push(...(await serveMeal(flag, now)).map(s => `${s.name} +${s.total}`));
+      if ( served.length ) {
+        await steps.step("meal", {
+          witness: () => steps.made(game.messages, "meal"),
+          run: async () => { await postCard({ ...mealCard(flag, served, rolls, flag.actorName), flags: steps.stamp("meal") }); }
+        });
+      }
+      given.push(...served.map(s => `${s.name} +${s.total}`));
     } else {
-      for ( const target of picked ) {
-        const write = (flag.grant === "temphp")
-          ? (holdsTemp(target.system?.attributes?.hp?.temp, flag.amount) ? null : { "system.attributes.hp.temp": flag.amount })
-          : GRANT_WRITES[flag.grant]?.(target);
-        if ( write ) await target.update(write);
+      for ( const [i, uuid] of (flag.picks ?? []).entries() ) {
+        const target = await resolveUuidAsync(uuid);
+        if ( !(target instanceof Actor) ) continue;
+        const { plan } = await steps.step(`give-${i}`, {
+          plan: () => ({ write: ((flag.grant === "temphp")
+            ? (holdsTemp(target.system?.attributes?.hp?.temp, flag.amount) ? null : { "system.attributes.hp.temp": flag.amount })
+            : GRANT_WRITES[flag.grant]?.(target)) ?? null }),
+          witness: q => Object.keys(q.write ?? {}).map(k => foundry.utils.getProperty(target, k) ?? null),
+          run: async q => { if ( q.write ) await target.update(q.write); }
+        });
         // Temp HP names only those who gained them (a pool that grew since the ask keeps its own).
-        if ( write || (flag.grant !== "temphp") ) given.push(flag.candidates.find(c => c.uuid === target.uuid)?.name ?? target.name);
+        if ( plan.write || (flag.grant !== "temphp") ) given.push(nameOf(target));
       }
-      await postSongCard(flag, given)
-        .catch(err => log.warn(`${flag.row}'s card could not be posted — the sheets are written.`, err));
+      await steps.step("card", {
+        witness: () => steps.made(game.messages, "card"),
+        run: async () => { await postSongCard(flag, given, steps.stamp("card")); }
+      }).catch(err => log.warn(`${flag.row}'s card could not be posted — the sheets are written.`, err));
     }
   } catch(err) {
     log.error(`${flag.row}'s grant failed part-way — check the sheets.`, err);
@@ -558,6 +598,7 @@ async function landSong(message) {
     await queueFlagWrite(message, SONG_FLAG, current => {
       current.applied = true; current.applying = false; current.given = given;
       if ( waiting.length ) current.waiting = waiting;
+      closeLedger(current, "land");
     });
   }
 }

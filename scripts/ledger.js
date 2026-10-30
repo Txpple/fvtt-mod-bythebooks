@@ -23,11 +23,12 @@ export const LEDGER_STAMP_FLAG = "ledgerStamp";
  * @param {string} scope  the run: one ledger per scope, closed when the run ends
  */
 export function landingSteps(message, key, scope) {
-  const entryOf = name => readFlag(message, key)?.ledger?.[scope]?.[name] ?? null;
+  const run = slotOf(scope);
+  const entryOf = name => readFlag(message, key)?.ledger?.[run]?.[slotOf(name)] ?? null;
   const write = (name, entry) => queueFlagWrite(message, key, current => {
     current.ledger ??= {};
-    current.ledger[scope] ??= {};
-    current.ledger[scope][name] = entry;
+    current.ledger[run] ??= {};
+    current.ledger[run][slotOf(name)] = entry;
   });
   return {
     /** The flags a document made by step `name` carries. @param {string} name */
@@ -59,10 +60,17 @@ export function landingSteps(message, key, scope) {
   };
 }
 
+/**
+ * A step's or a run's key in the record. ⚠ Foundry expands a dotted key in an update (`drop.chest` lands as
+ * `{ drop: { chest } }`), so a dot never reaches a key: a step read back under its own name would never be found.
+ * @param {string} name
+ */
+const slotOf = name => String(name).replaceAll(".", "-");
+
 /** In a run's final flag write: the scope's ledger goes with the run. @param {any} current @param {string} scope */
 export function closeLedger(current, scope) {
   if ( !current?.ledger ) return;
-  delete current.ledger[scope];
+  delete current.ledger[slotOf(scope)];
   if ( !Object.keys(current.ledger).length ) delete current.ledger;
 }
 

@@ -7,7 +7,7 @@
  * sheet edits are never held (RULINGS *Where the table bends the rule*). Order: save multiplier,
  * reduction, resistances.
  */
-import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log, claimLanding, claimHolds } from "./core.js";
 import { lower, itemNamed, reductionFor, holdsFor, featureNamed, activityNamed, bystanderRows, bystanderDie } from "./lookup.js";
 import { alliesWithin, nearestFeet, tokenOf } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
@@ -19,6 +19,7 @@ import { reductionRise } from "./decide/dice-chips.js";
 import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage,
   bystanderMuted, muteBystander, muteScopesFor, holdTargets } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
+import { closeLedger, effectsNamed, hitPointsOf, landingSteps } from "./ledger.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer, choicePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -179,6 +180,9 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const key = `${receiptMessage.id}|${target.uuid}`;
   const at = claimedShares.get(key);
   if ( at && ((Date.now() - at) < CLAIM_WINDOW_MS) ) return true;
+  // ⚠ A share whose hold card stands unlanded is that card's, whoever stamped it: the claim above dies with its client,
+  // and a landing re-driven over a dead claim (ledger.js) reaches here again with the same share.
+  if ( heldOnCard(receiptMessage.id, target.uuid) ) return true;
   if ( !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) ) return false;
   const attack = resolveAttackMessage(receiptMessage);
   // An attack hit the attack hold already asked this target about stays the hold's.
@@ -207,6 +211,12 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
       await applyDamagesWithReceipt(receiptMessage, [target], damages, { multiplier, ...(note ? { note } : {}), held: true });
     });
   return true;
+});
+
+/** Is this receipt's share to this creature already held on an unlanded hold card (the recent log)? */
+const heldOnCard = (receiptId, uuid) => game.messages.contents.slice(-200).some(m => {
+  const h = readFlag(m, HOLD_FLAG);
+  return !!h && (h.receiptId === receiptId) && (h.target?.uuid === uuid) && !h.applied;
 });
 
 const listed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.any
@@ -398,17 +408,25 @@ async function landHeld(message) {
     applyMultiplier = 1;
     note = `${note ? `${note} · ` : ""}${flag.label ?? flag.reaction}${flag.guards?.length ? ` (${flag.actorName})` : ""} — reduced by ${by}`;
   }
+  // THE LEDGER (ledger.js): a re-drive over a dead claim lands the share and its typed effect once.
+  const steps = landingSteps(message, HOLD_FLAG, "land");
   try {
-    await applyDamagesWithReceipt(receipt, [flag.target], damages, { multiplier: applyMultiplier, ...(note ? { note } : {}), held: true });
+    const target = await resolveUuidAsync(flag.target?.uuid);
+    await steps.step("damage", {
+      witness: () => hitPointsOf(target),
+      run: async () => { await applyDamagesWithReceipt(receipt, [flag.target], damages, { multiplier: applyMultiplier, ...(note ? { note } : {}), held: true }); }
+    });
     // C1 — the multiplier's typed effect (Superior Hunter's Defense): the Resistance of that type on the reactor, for the turn.
     if ( (flag.answer === "cast") && flag.lands ) {
       const actor = resolveUuid(flag.actorUuid);
       const item = actor?.items?.get(flag.itemId) ?? null;
-      if ( item ) await applyItemEffectOnHit(receipt, item, flag.lands, [flag.target], { clock: flag.clock ?? null, attacker: actor })
-        .catch(err => log.warn(`${flag.reaction}'s effect could not land — apply it by hand.`, err));
+      if ( item ) await steps.step("effect", {
+        witness: () => effectsNamed(target, flag.lands.name),
+        run: async () => { await applyItemEffectOnHit(receipt, item, flag.lands, [flag.target], { clock: flag.clock ?? null, attacker: actor }); }
+      }).catch(err => log.warn(`${flag.reaction}'s effect could not land — apply it by hand.`, err));
     }
   } finally {
-    await queueFlagWrite(message, HOLD_FLAG, current => { current.applied = true; current.applying = false; });
+    await queueFlagWrite(message, HOLD_FLAG, current => { current.applied = true; current.applying = false; closeLedger(current, "land"); });
   }
 }
 

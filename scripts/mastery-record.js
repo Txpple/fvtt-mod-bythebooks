@@ -12,12 +12,13 @@
  */
 import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, gmIds, resolveUuid, log, claimLanding, claimHolds } from "./core.js";
 import { cardItem, lower } from "./lookup.js";
-import { allowanceOf, fillPicks, recordState, missingPick, restList, trimList } from "./decide/mastery-record.js";
+import { allowanceOf, fillPicks, recordState, missingPick, swapLanding } from "./decide/mastery-record.js";
 import { TONE, bfCard, esc, foldedRuleHTML, pickInputHTML } from "./decide/present.js";
 import { CARD, isCard, masteryOf } from "./decide/card.js";
 import { isPartyMember, masteryLabel } from "./shared.js";
 import { openMomentPopup, registerRelay, registerResumable, acknowledgeMoment, momentAcknowledged, pendingRow, postCard, postAnswer, pickInputs, picked, pickedAll, closePopup } from "./ui.js";
 import { messageActivity } from "./effect-riders.js";
+import { closeLedger, landingSteps } from "./ledger.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -361,15 +362,21 @@ async function landSwap(message) {
   const flag = readFlag(message, MASTERY_SWAP_FLAG);
   let outcome = "kept";
   let after = null;
+  // THE LEDGER (ledger.js): the list is judged once, so a re-drive over a dead claim neither judges the list it already
+  // wrote (stale) nor writes it again.
+  const steps = landingSteps(message, MASTERY_SWAP_FLAG, "land");
   try {
     const actor = resolveUuid(flag.actorUuid);
     if ( !flag.declined && (actor instanceof Actor) ) {
-      const r = recordOf(actor);
-      const list = flag.drop ? trimList({ chosen: r.chosen, drop: flag.drop, allowance: r.allowance })
-        : restList({ chosen: r.chosen, adds: flag.adds ?? [], out: flag.out, into: flag.into, allowance: r.allowance });
-      if ( list && (JSON.stringify(list) !== JSON.stringify(r.chosen)) ) { await actor.update({ [LIST]: list }); outcome = flag.drop ? "trimmed" : "changed"; }
-      else if ( list ) outcome = "kept";
-      else outcome = "stale";
+      const swap = await steps.step("list", {
+        plan: () => {
+          const r = recordOf(actor);
+          return swapLanding({ chosen: r.chosen, allowance: r.allowance, drop: flag.drop ?? null, adds: flag.adds ?? null, out: flag.out ?? null, into: flag.into ?? null });
+        },
+        witness: () => chosenOf(actor),
+        run: async p => { if ( p.list ) await actor.update({ [LIST]: p.list }); }
+      });
+      outcome = swap.plan.outcome;
     }
     if ( actor instanceof Actor ) after = kindRows(recordOf(actor));
   } catch(err) {
@@ -379,6 +386,7 @@ async function landSwap(message) {
     await queueFlagWrite(message, MASTERY_SWAP_FLAG, current => {
       current.applied = true; current.applying = false; current.outcome = outcome;
       if ( after ) current.after = after;
+      closeLedger(current, "land");
     });
   }
 }

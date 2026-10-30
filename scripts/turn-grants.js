@@ -28,6 +28,7 @@ import { grantRowFor, grantDue, grantTitle, featureGrantRows, blockingTypes, dam
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { applyDamagesWithReceipt, receiptEntries } from "./auto-apply.js";
+import { closeLedger, landingSteps } from "./ledger.js";
 import { askHandOut } from "./rest-grants.js";
 import { listen } from "./dispatch.js";
 
@@ -299,6 +300,8 @@ async function landEnd(message) {
   if ( !(await claimLanding(message, END_FLAG, current => (current.status === "resolved") && (current.answer !== "keep"))) ) return;
   const flag = readFlag(message, END_FLAG);
   const record = {};
+  // THE LEDGER (ledger.js): a re-drive over a dead claim pays the activity once and names every effect it ended.
+  const steps = landingSteps(message, END_FLAG, "land");
   try {
     const actor = resolveUuid(flag.actorUuid), bearer = resolveUuid(flag.bearerUuid);
     const item = actor?.items?.get(flag.itemId);
@@ -306,13 +309,32 @@ async function landEnd(message) {
     if ( !(actor instanceof Actor) || !(bearer instanceof Actor) || !item || !option ) throw new Error("the feature or the condition left the sheet");
     const activity = flag.activityId ? item.system?.activities?.get(flag.activityId) : null;
     if ( flag.activityId && !activity ) throw new Error("the activity left the sheet");
-    if ( activity ) await activity.use({ subsequentActions: false }, { configure: false }, {});
+    if ( activity ) {
+      // its card carries the step's stamp; the use's spend is read too, landing before the card does
+      const pool = poolOf(actor, activity);
+      await steps.step("use", {
+        witness: () => ({ made: steps.made(game.messages, "use"),
+          spent: [item.system?.uses?.spent ?? null, activity.uses?.spent ?? null, pool?.system?.uses?.spent ?? pool?.uses?.spent ?? null] }),
+        run: async () => { await activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: steps.stamp("use") } }); }
+      });
+    }
     const gone = [];
-    for ( const uuid of option.effectIds ) {
-      const effect = resolveUuid(uuid);
-      if ( !effect ) continue;
-      if ( effect.parent === bearer ) { await effect.delete(); gone.push(effect.name); }
-      else { await effect.update({ disabled: true }); gone.push(effect.name); }
+    // a step per effect, its name and its fate read before the write: one gone already is still named
+    for ( const [i, uuid] of option.effectIds.entries() ) {
+      const ended = await steps.step(`end-${i}`, {
+        plan: () => {
+          const effect = resolveUuid(uuid);
+          return effect ? { name: effect.name, remove: effect.parent === bearer } : null;
+        },
+        witness: () => { const effect = resolveUuid(uuid); return effect ? !!effect.disabled : "gone"; },
+        run: async p => {
+          const effect = p ? resolveUuid(uuid) : null;
+          if ( !effect ) return;
+          if ( p.remove ) await effect.delete();
+          else await effect.update({ disabled: true });
+        }
+      });
+      if ( ended.plan ) gone.push(ended.plan.name);
     }
     record.ended = option.status;
     record.gone = gone;
@@ -320,7 +342,7 @@ async function landEnd(message) {
     log.error(`${flag.row} failed part-way — check the sheet.`, err);
     record.failed = true;
   } finally {
-    await queueFlagWrite(message, END_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+    await queueFlagWrite(message, END_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); closeLedger(current, "land"); });
   }
 }
 

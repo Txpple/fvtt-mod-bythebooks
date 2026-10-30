@@ -8,8 +8,25 @@ import { canonical, ledgerStamp, stepAction, witnessMoved } from "../scripts/dec
  * between any two of its writes.
  */
 
-/** Foundry's flag merge as the card stores it: nested objects merged, `-=key` deleting. */
-function merge(into, patch) {
+/** Foundry's dotted keys expanded, as an update expands them (`a.b` → `{ a: { b } }`). */
+function expand(patch) {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) return patch;
+  const out = {};
+  for (const [k, v] of Object.entries(patch)) {
+    const keys = k.startsWith("-=") ? [k] : k.split(".");
+    const last = keys.pop();
+    const at = keys.reduce((o, p) => {
+      o[p] ??= {};
+      return o[p];
+    }, out);
+    at[last] = expand(v);
+  }
+  return out;
+}
+
+/** Foundry's flag merge as the card stores it: dotted keys expanded, nested objects merged, `-=key` deleting. */
+function merge(into, raw) {
+  const patch = expand(raw);
   for (const [k, v] of Object.entries(patch)) {
     if (k.startsWith("-=")) delete into[k.slice(2)];
     else if (
@@ -157,6 +174,25 @@ describe("landingSteps — a re-drive over a claimant dead between any two write
     ];
     expect(docs[0].flags[MODULE_ID][LEDGER_STAMP_FLAG]).toBe("m9.rec.land.chest");
     expect(steps.made(docs, "chest")).toEqual(["a"]);
+  });
+
+  it("a dotted step or run name is stored and found again (Foundry expands dotted keys in an update)", async () => {
+    const m = card();
+    let runs = 0;
+    const spec = {
+      witness: () => 0,
+      run: async () => {
+        runs++;
+      }
+    };
+    await landingSteps(m, "rec", "errand.away").step("drop.chest", spec);
+    const again = await landingSteps(m, "rec", "errand.away").step("drop.chest", spec);
+    expect(again.how).toBe("done");
+    expect(runs).toBe(1);
+    expect(Object.keys(m.flags[MODULE_ID].rec.ledger)).toEqual(["errand-away"]);
+    const current = structuredClone(m.flags[MODULE_ID].rec);
+    closeLedger(current, "errand.away");
+    expect(current.ledger).toBeUndefined();
   });
 
   it("closeLedger drops the run's ledger, and the whole ledger with its last run", () => {

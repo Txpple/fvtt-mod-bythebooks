@@ -69,3 +69,34 @@ export function initiativeGrantLine(flag) {
   const heal = flag.formula ? ` and ${flag.formula} Hit Points` : "";
   return `${flag.row} — regain ${Number(flag.back) || 0} ${unit}${heal}? (once per Long Rest)`;
 }
+
+/**
+ * A ceiling row's write (`upTo`, Perfect Focus): the regained item's expended count that leaves its uses at the
+ * ceiling, and how many come back; null when they already stand there.
+ * @param {{value: number, max: number}} regain @param {number|null|undefined} upTo
+ * @returns {{spent: number, regained: number}|null}
+ */
+export function ceilingRegain(regain, upTo) {
+  const u = Number(upTo) || 0;
+  if ( !(regain.value < u) ) return null;
+  return { spent: Math.max(0, regain.max - u), regained: Math.min(u, regain.max) - regain.value };
+}
+
+/**
+ * A Yes's (or a plain row's) sheet writes, judged once off the sheet before any lands: the regained item's expended
+ * count (null: no write), the feature's own (null: no use to spend), and what the card says came back.
+ * @param {{regain: {value: number, max: number, spent: number}, own: {max: number, spent: number}, upTo?: number|null, count?: number|null}} facts
+ * @returns {{regainSpent: number|null, ownSpent: number|null, regained: number, max: number}}
+ */
+export function grantRegain({ regain, own, upTo = null, count = null }) {
+  if ( upTo ) {
+    const c = ceilingRegain(regain, upTo);
+    return { regainSpent: c?.spent ?? null, ownSpent: null, regained: Math.max(0, c?.regained ?? 0), max: regain.max };
+  }
+  const ownSpent = (own.max > 0) ? own.spent + 1 : null;
+  if ( count ) {
+    const back = Math.max(0, Math.min(Number(count), regain.spent));
+    return { regainSpent: back ? regain.spent - back : null, ownSpent, regained: back, max: regain.max };
+  }
+  return { regainSpent: 0, ownSpent, regained: Math.min(regain.spent, regain.max), max: regain.max };
+}

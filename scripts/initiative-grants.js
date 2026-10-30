@@ -10,11 +10,12 @@ import { activityNamed, featureNamed, lower } from "./lookup.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
 import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide/registry.js";
-import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
+import { ceilingRegain, grantRegain, initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML } from "./decide/present.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { closeLedger, hitPointsOf, landingSteps } from "./ledger.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -195,20 +196,25 @@ registerRelay("initiativeGrantAnswer", {
 /** C1 — the fallback row (Perfect Focus under Uncanny Metabolism's No): its own ceiling, landed on the host's card. */
 async function landFallback(message, flag) {
   const record = {};
+  // THE LEDGER (ledger.js): the ceiling judged once, so a re-drive over a dead claim says what came back.
+  const steps = landingSteps(message, INITIATIVE_GRANT_FLAG, "fallback");
   try {
     const actor = resolveUuid(flag.actorUuid);
     const regain = actor?.items?.get(flag.fallback.regainId);
     if ( !(actor instanceof Actor) || !regain ) throw new Error("the feature left the sheet");
-    const r = usesOf(regain);
-    const upTo = Number(flag.fallback.upTo) || 0;
-    if ( r.value < upTo ) {
-      await regain.update({ "system.uses.spent": Math.max(0, r.max - upTo) });
-      record.fallbackRegained = Math.min(upTo, r.max) - r.value;
-    }
+    const back = await steps.step("regain", {
+      plan: () => ceilingRegain(usesOf(regain), flag.fallback.upTo),
+      witness: () => usesOf(regain).spent,
+      run: async p => { if ( p ) await regain.update({ "system.uses.spent": p.spent }); }
+    });
+    if ( back.plan ) record.fallbackRegained = back.plan.regained;
   } catch(err) {
     log.error(`${flag.fallback?.row} failed — check the sheet.`, err);
   } finally {
-    await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => { Object.assign(current, record, { fallbackApplied: true }); });
+    await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => {
+      Object.assign(current, record, { fallbackApplied: true });
+      closeLedger(current, "fallback");
+    });
   }
 }
 
@@ -220,54 +226,66 @@ async function landGrant(message) {
   if ( !(await claimLanding(message, INITIATIVE_GRANT_FLAG, current => (current.status === "resolved") && (current.answer !== "no"))) ) return;
   const flag = readFlag(message, INITIATIVE_GRANT_FLAG);
   const record = {};
+  // THE LEDGER (ledger.js): a re-drive over a dead claim spends no use twice, moves no Initiative twice and heals once;
+  // a run already begun passed the use's gate, which its own spend would now fail.
+  const steps = landingSteps(message, INITIATIVE_GRANT_FLAG, "land");
+  const begun = !!flag.ledger?.land;
   try {
     const actor = resolveUuid(flag.actorUuid);
     const item = actor?.items?.get(flag.itemId);
-    if ( flag.give ) { Object.assign(record, await giveToAllies(flag, actor, item)); return; }
+    if ( flag.give ) { Object.assign(record, await giveToAllies(flag, actor, item, steps, begun)); return; }
     // RAVENLOFT — `reroll` (Hypervigilance): the combatant's Initiative rolled again, the new roll stands (the read is latched).
     if ( flag.reroll ) {
       const combat = game.combats.get(flag.combatId);
       const c = combat?.combatants.get(flag.combatantId);
       if ( !c ) throw new Error("the combatant is gone");
-      await combat.rollInitiative([c.id], { updateTurn: false });
+      // its roll card stamped too: a reroll that lands on the same number still moved the witness
+      await steps.step("reroll", {
+        witness: () => ({ initiative: combat.combatants.get(c.id)?.initiative ?? null, made: steps.made(game.messages, "reroll") }),
+        run: async () => { await combat.rollInitiative([c.id], { updateTurn: false, messageOptions: { flags: steps.stamp("reroll") } }); }
+      });
       record.rerolled = { from: flag.reroll.from, to: Number(combat.combatants.get(c.id)?.initiative) };
       return;
     }
     const regain = actor?.items?.get(flag.regainId);
     if ( !(actor instanceof Actor) || !item || !regain ) throw new Error("the feature left the sheet");
     const own = usesOf(item);
-    if ( (own.max > 0) && !(own.value > 0) ) { record.spentAlready = true; return; }
-    const r = usesOf(regain);
-    // C1 — `upTo` (Perfect Focus): back to the ceiling, never past it.
-    if ( flag.upTo ) {
-      if ( r.value < flag.upTo ) await regain.update({ "system.uses.spent": Math.max(0, r.max - Number(flag.upTo)) });
-      record.regained = Math.max(0, Math.min(Number(flag.upTo), r.max) - r.value);
-      record.max = r.max;
-      return;
+    if ( !begun && (own.max > 0) && !(own.value > 0) ) { record.spentAlready = true; return; }
+    // C1 — `upTo` (Perfect Focus): back to the ceiling, never past it. `count` (Ever-Ready Shot): that many expended uses
+    // back, never more than are spent. Either way the feature's own use is spent with it, save the ceiling's.
+    const g = await steps.step("regain", {
+      plan: () => grantRegain({ regain: usesOf(regain), own, upTo: flag.upTo ?? null, count: flag.count ?? null }),
+      witness: () => usesOf(regain).spent,
+      run: async p => { if ( p.regainSpent !== null ) await regain.update({ "system.uses.spent": p.regainSpent }); }
+    });
+    if ( g.plan.ownSpent !== null ) {
+      await steps.step("spend", {
+        witness: () => usesOf(item).spent,
+        run: async () => { await item.update({ "system.uses.spent": g.plan.ownSpent }); }
+      });
     }
-    // `count` (Ever-Ready Shot): that many expended uses back, never more than are spent; the feature's own use spent with it.
-    if ( flag.count ) {
-      const back = Math.max(0, Math.min(Number(flag.count), r.spent));
-      if ( back ) await regain.update({ "system.uses.spent": r.spent - back });
-      if ( own.max > 0 ) await item.update({ "system.uses.spent": own.spent + 1 });
-      record.regained = back;
-      record.max = r.max;
-      return;
-    }
-    await regain.update({ "system.uses.spent": 0 });
-    if ( own.max > 0 ) await item.update({ "system.uses.spent": own.spent + 1 });
-    record.regained = Math.min(r.spent, r.max);
-    record.max = r.max;
-    if ( flag.formula ) {
+    record.regained = g.plan.regained;
+    record.max = g.plan.max;
+    if ( flag.formula && !flag.upTo && !flag.count ) {
+      // rolled on every drive, the first drive's total kept on the ledger
       const roll = await new Roll(flag.formula).evaluate();
-      record.healed = roll.total;
-      await applyDamagesWithReceipt(message, [{ uuid: actor.uuid, name: actor.name }], [{ value: roll.total, type: "healing", properties: new Set() }],
-        { note: flag.row });
+      const heal = await steps.step("heal", {
+        plan: () => ({ total: roll.total }),
+        witness: () => hitPointsOf(actor),
+        run: async p => {
+          await applyDamagesWithReceipt(message, [{ uuid: actor.uuid, name: actor.name }], [{ value: p.total, type: "healing", properties: new Set() }],
+            { note: flag.row });
+        }
+      });
+      record.healed = heal.plan.total;
     }
   } catch(err) {
     log.error(`${flag.row} failed part-way — check the sheet.`, err);
   } finally {
-    await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+    await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => {
+      Object.assign(current, record, { applied: true, applying: false });
+      closeLedger(current, "land");
+    });
   }
 }
 
@@ -280,17 +298,32 @@ registerResumable(INITIATIVE_GRANT_FLAG, {
 
 /* --- B4 — the gift to allies (Tandem Footwork): one roll, every ally's Initiative within reach ------------ */
 
-/** The GM lands a `to: "allies"` Yes: the die rolled once, the pool's use spent, the rolled allies moved, the rest noted. */
-async function giveToAllies(flag, actor, item) {
+/**
+ * The GM lands a `to: "allies"` Yes: the die rolled once, the pool's use spent, the rolled allies moved, the rest noted.
+ * Each a ledgered step (`begun`: a re-drive, past the pool's gate already).
+ * @param {any} flag @param {any} actor @param {any} item @param {ReturnType<typeof landingSteps>} steps @param {boolean} begun
+ */
+async function giveToAllies(flag, actor, item, steps, begun) {
   if ( !(actor instanceof Actor) || !item ) throw new Error("the feature left the sheet");
   const pool = actor.items.get(flag.poolId) ?? item;
-  if ( !(Number(pool.system?.uses?.value ?? 0) > 0) ) return { spentAlready: true };
+  if ( !begun && !(Number(pool.system?.uses?.value ?? 0) > 0) ) return { spentAlready: true };
   const combat = game.combats.get(flag.combatId);
   if ( !combat ) throw new Error("the combat is gone");
-  const roll = await new Roll(String(flag.formula)).evaluate();
-  const n = Math.max(0, Number(roll.total) || 0);
-  await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.row} — the die for allies within ${flag.reach ?? 30} ft` });
-  await spendPoolUses(actor, pool, flag.row, 1, (pool === item) ? null : pool.name);
+  // rolled on every drive, the first drive's roll kept on the ledger and shown once
+  const fresh = await new Roll(String(flag.formula)).evaluate();
+  const die = await steps.step("die", {
+    plan: () => ({ roll: fresh.toJSON() }),
+    witness: () => steps.made(game.messages, "die"),
+    run: async p => {
+      await Roll.fromData(p.roll).toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.row} — the die for allies within ${flag.reach ?? 30} ft`,
+        flags: steps.stamp("die") });
+    }
+  });
+  const n = Math.max(0, Number(die.plan.roll.total) || 0);
+  await steps.step("pool", {
+    witness: () => usesOf(pool).spent,
+    run: async () => { await spendPoolUses(actor, pool, flag.row, 1, (pool === item) ? null : pool.name); }
+  });
   const own = combat.combatants.get(flag.combatantId)?.token?.object ?? tokenOf(actor.uuid);
   const side = own?.document?.disposition;
   const given = [], due = [];
@@ -299,14 +332,24 @@ async function giveToAllies(flag, actor, item) {
     if ( !token || !c.actor || (token.document?.disposition !== side) ) continue;
     const feet = (c.actor.uuid === actor.uuid) ? 0 : nearestFeet(own, token);
     if ( (feet === null) || (feet > (flag.reach ?? 30)) ) continue;
-    if ( (c.initiative === null) || (c.initiative === undefined) ) { due.push(c.id); continue; }
-    const from = Number(c.initiative);
-    await c.update({ initiative: from + n }).catch(err => log.warn(`${flag.row}: could not move ${c.name}'s Initiative.`, err));
-    given.push({ id: c.id, name: c.name, from, to: from + n });
+    const { plan } = await steps.step(`ally.${c.id}`, {
+      plan: () => (((c.initiative === null) || (c.initiative === undefined)) ? { due: true } : { from: Number(c.initiative), to: Number(c.initiative) + n }),
+      witness: () => c.initiative ?? null,
+      run: async p => {
+        if ( !p.due ) await c.update({ initiative: p.to }).catch(err => log.warn(`${flag.row}: could not move ${c.name}'s Initiative.`, err));
+      }
+    });
+    if ( plan.due ) due.push(c.id);
+    else given.push({ id: c.id, name: c.name, from: plan.from, to: plan.to });
   }
   if ( due.length ) {
-    await combat.update(Object.fromEntries(due.map(id => [`flags.${MODULE_ID}.${BONUS_DUE_FLAG}.${id}`, { n, row: flag.row, from: actor.name }])))
-      .catch(err => log.warn(`${flag.row}: the bonus due to late rollers could not be noted.`, err));
+    await steps.step("due", {
+      witness: () => due.map(id => readFlag(combat, BONUS_DUE_FLAG)?.[id] ?? null),
+      run: async () => {
+        await combat.update(Object.fromEntries(due.map(id => [`flags.${MODULE_ID}.${BONUS_DUE_FLAG}.${id}`, { n, row: flag.row, from: actor.name }])))
+          .catch(err => log.warn(`${flag.row}: the bonus due to late rollers could not be noted.`, err));
+      }
+    });
   }
   return { rolled: n, given, due };
 }

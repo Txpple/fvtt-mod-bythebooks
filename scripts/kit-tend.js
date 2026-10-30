@@ -15,6 +15,7 @@ import { withTargets } from "./shared.js";
 import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRelay, registerResumable, pendingRow, closePopup, postAnswer, picked, pickInputs } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
+import { closeLedger, landingSteps } from "./ledger.js";
 
 const TEND_FLAG = "kitTend";
 const timers = new Map();
@@ -124,6 +125,9 @@ registerRelay("kitTendAnswer", {
 async function landTend(message) {
   if ( !(await claimLanding(message, TEND_FLAG, current => (current.status === "resolved") && (current.answer === "tend"))) ) return;
   const flag = readFlag(message, TEND_FLAG);
+  // THE LEDGER (ledger.js): a re-drive over a dead claim spends the die once and rolls the heal once; the heal lands
+  // off its roll's own card (cast.js `healPending`, once by its receipt), so the roll's card is the heal's witness.
+  const steps = landingSteps(message, TEND_FLAG, "land");
   const record = {};
   try {
     const actor = resolveUuid(flag.actorUuid);
@@ -134,25 +138,39 @@ async function landTend(message) {
     if ( !(target instanceof Actor) || !pool || !activity || !token ) return;
     // The die first — the rule's order; a client that may not write the creature says so, and rolls anyway.
     if ( canApplyTo(target) ) {
-      if ( pool.key === "npc" ) {
-        await target.update({ "system.attributes.hd.spent": (Number(target.system.attributes.hd.spent) || 0) + 1 });
-      } else {
-        const cls = target.items.get(pool.key);
-        if ( cls ) await cls.update({ "system.hd.spent": (Number(cls.system.hd.spent) || 0) + 1 });
-      }
+      const cls = (pool.key === "npc") ? null : target.items.get(pool.key);
+      const spentOf = () => ((pool.key === "npc") ? (Number(target.system.attributes.hd.spent) || 0) : cls ? (Number(cls.system.hd.spent) || 0) : null);
+      // the count spent is read once, onto the plan: a re-drive writes the first drive's count, never one more
+      await steps.step("die", {
+        plan: () => ({ spent: (spentOf() ?? 0) + 1 }),
+        witness: () => spentOf(),
+        run: async p => {
+          if ( pool.key === "npc" ) await target.update({ "system.attributes.hd.spent": p.spent });
+          else if ( cls ) await cls.update({ "system.hd.spent": p.spent });
+        }
+      });
       record.spent = true;
     } else {
+      // a notice on this client, not a consequence: a re-drive may say it again
       await whisperNoGM(`${flag.targetName}'s d${pool.faces} Hit Point Die`, "Spend it on the sheet by hand.");
     }
+    /** @param {string} name */
+    const flags = name => foundry.utils.mergeObject({ [MODULE_ID]: { kitTendFor: message.id } }, steps.stamp(name));
     await withTargets([token], async () => {
-      await activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { kitTendFor: message.id } } } });
-      await activity.rollDamage({}, { configure: false }, { data: { flags: { [MODULE_ID]: { kitTendFor: message.id } } } });
+      await steps.step("use", {
+        witness: () => steps.made(game.messages, "use"),
+        run: async () => { await activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: flags("use") } }); }
+      });
+      await steps.step("roll", {
+        witness: () => steps.made(game.messages, "roll"),
+        run: async () => { await activity.rollDamage({}, { configure: false }, { data: { flags: flags("roll") } }); }
+      });
     });
     record.faces = pool.faces;
   } catch(err) {
     log.error(`${flag.row}'s tending failed — spend the die and use its Heal activity by hand.`, err);
   } finally {
-    await queueFlagWrite(message, TEND_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+    await queueFlagWrite(message, TEND_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); closeLedger(current, "land"); });
   }
 }
 

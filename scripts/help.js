@@ -19,6 +19,7 @@ import { nearestFeet, tokenOf } from "./geometry.js";
 import { targetsOf } from "./decide/card.js";
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { closeLedger, effectsNamed, landingSteps } from "./ledger.js";
 
 const HELP_FLAG = "help";
 /** The popup's pick. */
@@ -123,8 +124,10 @@ async function answerHelp(message, key) {
 async function settleHelp(message) {
   const f = readFlag(message, HELP_FLAG);
   if ( !f?.chosen || f.resolved || !drivesMomentFor(f.sourceUuid ?? null) ) return;
-  const claim = await claimLanding(message, HELP_FLAG, current => !!current.chosen && !current.resolved, { field: "landing", done: "resolved" });
-  if ( !claim ) return;
+  if ( !(await claimLanding(message, HELP_FLAG, current => !!current.chosen && !current.resolved, { field: "landing", done: "resolved" })) ) return;
+  // THE LEDGER (ledger.js): a re-drive over a dead claim finds the effect landed. The write is a refresh anyway (the
+  // template's fixed id: one copy, re-clocked), so a step run again lands no second copy.
+  const steps = landingSteps(message, HELP_FLAG, "land");
   try {
     const helper = await resolveUuidAsync(f.sourceUuid ?? "");
     if ( !(helper instanceof Actor) ) throw new Error("the helper is gone");
@@ -134,6 +137,7 @@ async function settleHelp(message) {
       await queueFlagWrite(message, HELP_FLAG, current => {
         current.resolved = { facet, lend: null, effectName: null, at: Date.now() };
         delete current.landing;
+        closeLedger(current, "land");
       });
       return;
     }
@@ -144,11 +148,18 @@ async function settleHelp(message) {
     // A template on the feature, under a fixed id: a second Help from the same helper refreshes the one copy.
     const template = new ActiveEffect.implementation(data, { parent: item ?? helper });
     const clock = chipClock("sap", placeOf(helper));
-    await applyEffectsWithReceipt(message, [template], [{ uuid: f.target.uuid, name: f.target.name }],
-      { source: helper.uuid, clock: clock ? chipData(clock) : null, marker: "helpDone" });
+    const target = await resolveUuidAsync(f.target.uuid);
+    await steps.step("effect", {
+      witness: () => effectsNamed(target, data.name),
+      run: async () => {
+        await applyEffectsWithReceipt(message, [template], [{ uuid: f.target.uuid, name: f.target.name }],
+          { source: helper.uuid, clock: clock ? chipData(clock) : null, marker: "helpDone" });
+      }
+    });
     await queueFlagWrite(message, HELP_FLAG, current => {
       current.resolved = { facet, lend, effectName: data.name, at: Date.now() };
       delete current.landing;
+      closeLedger(current, "land");
     });
   } catch(err) {
     log.error(`The Help action could not land its effect — apply the Advantage by hand.`, err);

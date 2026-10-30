@@ -136,3 +136,17 @@ export function restList({ chosen, adds = [], out = null, into = null, allowance
   }
   return list;
 }
+
+/**
+ * The Long Rest's answer judged against the list as it stands: the list to write (null: none) and the card's word —
+ * `trimmed` or `changed` when it moves, `kept` when nothing would, `stale` when the answer no longer fits the list.
+ * Judged once, before the write: a re-driven landing finds the list it already wrote and says what it did.
+ * @param {{ chosen: string[], allowance: number, drop?: string[]|null, adds?: string[]|null, out?: string|null, into?: string|null }} facts
+ * @returns {{ list: string[]|null, outcome: "trimmed"|"changed"|"kept"|"stale" }}
+ */
+export function swapLanding({ chosen, allowance, drop = null, adds = null, out = null, into = null }) {
+  const list = drop ? trimList({ chosen, drop, allowance }) : restList({ chosen, adds: adds ?? [], out, into, allowance });
+  if ( !list ) return { list: null, outcome: "stale" };
+  if ( JSON.stringify(list) === JSON.stringify(chosen) ) return { list: null, outcome: "kept" };
+  return { list, outcome: drop ? "trimmed" : "changed" };
+}

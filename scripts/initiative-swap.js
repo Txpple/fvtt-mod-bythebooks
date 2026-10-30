@@ -14,6 +14,7 @@ import { openMomentPopup, armAskTimer, disarmAskTimer, subjectOwns, registerRela
 import { SURFACES } from "./surfaces.js";
 import { listen, listenOnce } from "./dispatch.js";
 import { tokenOf } from "./geometry.js";
+import { closeLedger, landingSteps } from "./ledger.js";
 
 const SWAP_FLAG = "initiativeSwap";
 /** The combat's own latch — which combatants were already asked (once per combat). */
@@ -152,22 +153,28 @@ registerRelay("initiativeSwapAnswer", {
 async function landSwap(message) {
   if ( !(await claimLanding(message, SWAP_FLAG, current => (current.status === "resolved") && (current.answer === "swap"))) ) return;
   const flag = readFlag(message, SWAP_FLAG);
+  // THE LEDGER (ledger.js): the two numbers are read once, onto the plan, so a re-drive over a dead claim writes the
+  // first drive's swap and never swaps them back.
+  const steps = landingSteps(message, SWAP_FLAG, "land");
   const record = {};
   try {
     const combat = game.combats.get(flag.combatId);
     const own = combat?.combatants.get(flag.combatantId);
     const ally = combat?.combatants.get(flag.pick);
     if ( own && ally && (own.initiative !== null) && (ally.initiative !== null) ) {
-      record.from = own.initiative;
-      record.to = ally.initiative;
-      await combat.updateEmbeddedDocuments("Combatant", [
-        { _id: own.id, initiative: ally.initiative }, { _id: ally.id, initiative: own.initiative }]);
-      record.allyName = ally.name;
+      const swap = await steps.step("swap", {
+        plan: () => ({ from: own.initiative, to: ally.initiative, allyName: ally.name }),
+        witness: () => [own.initiative ?? null, ally.initiative ?? null],
+        run: async p => {
+          await combat.updateEmbeddedDocuments("Combatant", [{ _id: own.id, initiative: p.to }, { _id: ally.id, initiative: p.from }]);
+        }
+      });
+      Object.assign(record, swap.plan);
     }
   } catch(err) {
     log.error(`${flag.row}'s swap failed — swap it in the tracker by hand.`, err);
   } finally {
-    await queueFlagWrite(message, SWAP_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+    await queueFlagWrite(message, SWAP_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); closeLedger(current, "land"); });
   }
 }
 

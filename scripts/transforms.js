@@ -26,6 +26,7 @@ import { momentButton, registerRelay, registerResumable, acknowledgeMoment, mome
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 import { tokenDocOf, tokensOf } from "./geometry.js";
+import { closeLedger, landingSteps } from "./ledger.js";
 
 const TRANSFORM_FLAG = "transform";
 const FORM_SWAP_FLAG = "formSwap";
@@ -290,31 +291,97 @@ async function wearFormArt(landed, formName) {
   if ( !landed.isToken ) await landed.update({ "prototypeToken.texture.src": art.token });
 }
 
+/** The world actors dnd5e's transform made of `actor` (their `originalActor` names it), by id. */
+const copiesOf = actor => (actor ? game.actors.filter(a => a.getFlag("dnd5e", "originalActor") === actor.id).map(a => a.id).sort() : []);
+
+/** What a transform changes: an unlinked token's actor, in place; a world actor's copies, one more. */
+const shapeOf = actor => (actor?.isToken ? { polymorphed: !!actor.isPolymorphed, name: actor.name } : copiesOf(actor));
+
+/** What came out of a transform of `target`: the token's actor itself, else the copy its plan did not know. */
+const landedOf = (target, p) => (target?.isToken ? target
+  : (game.actors.find(a => !(p?.prior ?? []).includes(a.id) && (a.getFlag("dnd5e", "originalActor") === target?.id)) ?? null));
+
 /**
- * One creature into the form: a standing form of ours reverted first ("until you use Wild Shape
- * again"), then dnd5e's own `transformInto` with the activity's own settings, then the form effect on
- * what came out. Returns the transformed actor's facts.
+ * A creature as it stands before its revert: whether a form of ours is reverted, and how to find what the revert
+ * brings back (a world actor's original; an unlinked token's new token, dnd5e's revert making one where it stood).
  */
-async function transformOne(subject, source, { activity, settings, flag, pick, message }) {
-  let target = subject;
-  if ( formEffectOn(target) && target.isPolymorphed ) {
-    const back = await target.revertOriginalForm({ renderSheet: false });
-    target = (back instanceof Actor) ? back : (back?.actor ?? originalOf(target));
-  }
-  const before = new Set(game.actors.map(a => a.id));
-  await target.transformInto(source, settings, { renderSheet: false });
-  const landed = target.isToken ? target : (game.actors.find(a => !before.has(a.id) && (a.getFlag("dnd5e", "originalActor") === target.id)) ?? null);
-  if ( !landed ) throw new Error(`${target.name} was not transformed`);
+function revertPlanOf(subject) {
+  const reverts = !!(formEffectOn(subject) && subject.isPolymorphed);
+  const token = subject.isToken ? subject.token : null;
+  return { actorUuid: subject.uuid, reverts,
+    originalUuid: (reverts && !token) ? (originalOf(subject)?.uuid ?? null) : null,
+    token: (reverts && token) ? { sceneId: token.parent?.id ?? null, actorId: token.actorId, x: token.x, y: token.y,
+      priorIds: token.parent?.tokens.filter(t => t.actorId === token.actorId).map(t => t.id) ?? [] } : null };
+}
+
+/** The creature a revert step leaves: its result, else (the dead claimant's revert unrecorded) found off its plan. */
+function backOf(p, result = null) {
+  if ( result ) return resolveUuid(result);
+  if ( !p?.reverts ) return resolveUuid(p?.actorUuid);
+  if ( p.originalUuid ) return resolveUuid(p.originalUuid);
+  const made = game.scenes.get(p.token?.sceneId)?.tokens.filter(t => (t.actorId === p.token.actorId) && !p.token.priorIds.includes(t.id)) ?? [];
+  return (made.find(t => (t.x === p.token.x) && (t.y === p.token.y)) ?? made[0])?.actor ?? null;
+}
+
+/**
+ * On a re-drive, what a dead claimant's revert brought back of the creature at `uuid`, or null. The run's ledger is
+ * read by step name: the per-creature steps carry no dot, so a name is its own key in the record.
+ */
+function revertedFrom(ledger, uuid) {
+  const entry = Object.entries(ledger ?? {}).find(([name, e]) => name.startsWith("revert-") && (e?.plan?.actorUuid === uuid))?.[1] ?? null;
+  return entry ? backOf(entry.plan, entry.result ?? null) : null;
+}
+
+/**
+ * One creature into the form, as steps (ledger.js): a standing form of ours reverted first ("until you use Wild
+ * Shape again"), then dnd5e's own `transformInto` with the activity's own settings, then the form effect on what
+ * came out. A re-drive finds the creature through the revert's plan, takes a transform whose shape moved as made,
+ * and makes the form effect once (stamped). Returns the transformed actor's facts.
+ * @param {ReturnType<typeof landingSteps>} steps @param {number} n   the creature's place on the record
+ */
+async function transformOne(steps, n, subject, source, { activity, settings, flag, pick, message }) {
+  const revert = await steps.step(`revert-${n}`, {
+    plan: () => revertPlanOf(subject),
+    witness: p => (p.reverts ? !!resolveUuid(p.actorUuid)?.isPolymorphed : false),
+    run: async p => {
+      if ( !p.reverts ) return null;
+      const standing = resolveUuid(p.actorUuid);
+      const back = await standing.revertOriginalForm({ renderSheet: false });
+      return ((back instanceof Actor) ? back : (back?.actor ?? originalOf(standing)))?.uuid ?? null;
+    }
+  });
+  const before = backOf(revert.plan, revert.result);
+  const shape = await steps.step(`transform-${n}`, {
+    plan: () => ({ targetUuid: before?.uuid ?? null, prior: before?.isToken ? null : copiesOf(before) }),
+    witness: p => shapeOf(resolveUuid(p.targetUuid)),
+    run: async p => {
+      if ( !before ) throw new Error(`${subject?.name ?? "the creature"} could not be found after its revert`);
+      await before.transformInto(source, settings, { renderSheet: false });
+      return landedOf(before, p)?.uuid ?? null;
+    }
+  });
+  const target = resolveUuid(shape.plan.targetUuid) ?? before;
+  const landed = resolveUuid(shape.result) ?? landedOf(target, shape.plan);
+  if ( !landed ) throw new Error(`${target?.name ?? subject?.name ?? "the creature"} was not transformed`);
+  // the art is set, never added: a re-drive sets the same
   await wearFormArt(landed, pick.name);
   const row = TRANSFORMS[flag.key];
   const caster = resolveUuid(flag.sourceUuid);
   const concentration = (row.clock === "concentration") ? concentrationFor(caster, flag) : null;
   const duration = concentration ? { ...(concentration._source?.duration ?? {}) } : (row.clock === "activity") ? (activity?.duration?.getEffectData?.() ?? {}) : {};
   if ( row.clock || (row.ends ?? []).length ) {
-    const data = formEffectData({ itemName: flag.itemName, formName: pick.name, img: pick.img ?? source.img ?? null, origin: flag.itemUuid,
-      duration, messageId: message.id, originalId: target.id, key: flag.key, dependentOn: concentration?.uuid ?? null,
-      description: `<p>${esc(flag.sourceName)}'s ${esc(flag.itemName)}: ${esc(target.name)} in the form of ${esc(articleOf(pick.name))} ${esc(pick.name)}. Removing this ends the form.</p>` });
-    await landed.createEmbeddedDocuments("ActiveEffect", [data]);
+    const name = `effect-${n}`;
+    await steps.step(name, {
+      plan: () => ({ actorUuid: landed.uuid }),
+      witness: p => steps.made(resolveUuid(p.actorUuid)?.effects, name),
+      run: async () => {
+        const data = formEffectData({ itemName: flag.itemName, formName: pick.name, img: pick.img ?? source.img ?? null, origin: flag.itemUuid,
+          duration, messageId: message.id, originalId: target.id, key: flag.key, dependentOn: concentration?.uuid ?? null,
+          description: `<p>${esc(flag.sourceName)}'s ${esc(flag.itemName)}: ${esc(target.name)} in the form of ${esc(articleOf(pick.name))} ${esc(pick.name)}. Removing this ends the form.</p>` });
+        foundry.utils.mergeObject(data, { flags: steps.stamp(name) });
+        await landed.createEmbeddedDocuments("ActiveEffect", [data]);
+      }
+    });
   }
   return { actorUuid: landed.uuid, originalUuid: target.uuid, name: landed.name, tokenName: landed.isToken ? landed.token?.name : null };
 }
@@ -335,7 +402,7 @@ function settingClass() {
  * companion's name back on the creature and its token, its art, ring and sight on the token; the caster's effect for the spell's life, and the form
  * effect dependent on it. Returns the landed facts (RULINGS *Summons*, the Battle Familiar pass).
  */
-async function empowerOne(subject, source, { activity, flag, message }) {
+async function empowerOne(steps, subject, source, { activity, flag, message }) {
   const row = TRANSFORMS[flag.key];
   const Setting = settingClass();
   if ( !Setting ) throw new Error("dnd5e's TransformationSetting was not found");
@@ -343,34 +410,57 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   if ( !(caster instanceof Actor) ) throw new Error("the caster could not be read off the card");
   const profile = activity.profiles?.find(p => p._id === flag.profile?.id) ?? activity.availableProfiles?.[0] ?? null;
   if ( !profile ) throw new Error(`no form ${flag.profile?.id ?? ""} on ${flag.itemName}`);
+  const token = subject.token;
+  // the name, the Temporary Hit Points and its own look are read before the transform and kept on the step's plan:
+  // a re-drive after the transform would read the form's
   const rollData = { ...(activity.getRollData?.() ?? {}), summon: subject.getRollData?.() ?? {} };
   let hpBonus = 0;
   if ( activity.bonuses?.hp ) { const r = await new Roll(String(activity.bonuses.hp), rollData).evaluate(); hpBonus = Number(r.total) || 0; }
-  const tempHp = empowerTempHp({ formHpMax: source.system?.attributes?.hp?.max ?? 0, hpBonus });
-  const name = flag.empower?.name || subject.token?.name || subject.name;
-  const token = subject.token;
-  // its own look, read before the transform: dnd5e's transform wears the form's token art and portrait
-  // read off the STORED token (the prepared texture can lag behind the store on this platform)
-  const look = { texture: flag.empower?.look?.texture ?? token?._source?.texture?.src ?? token?.texture?.src ?? null, img: flag.empower?.look?.img ?? subject.img ?? null,
-    ring: flag.empower?.look?.ring ?? (token?._source?.ring ? foundry.utils.deepClone(token._source.ring) : null),
-    // its sight: dnd5e's transform takes the world actor's prototype's, which the packs ship off
-    sight: flag.empower?.look?.sight ?? !!token?._source?.sight?.enabled };
-  await subject.transformInto(source, new Setting(empowerSetting(row, tempHp)), { renderSheet: false });
+  const before = {
+    name: flag.empower?.name || token?.name || subject.name,
+    tempHp: empowerTempHp({ formHpMax: source.system?.attributes?.hp?.max ?? 0, hpBonus }),
+    // its own look: dnd5e's transform wears the form's token art and portrait
+    // read off the STORED token (the prepared texture can lag behind the store on this platform)
+    look: { texture: flag.empower?.look?.texture ?? token?._source?.texture?.src ?? token?.texture?.src ?? null, img: flag.empower?.look?.img ?? subject.img ?? null,
+      ring: flag.empower?.look?.ring ?? (token?._source?.ring ? foundry.utils.deepClone(token._source.ring) : null),
+      // its sight: dnd5e's transform takes the world actor's prototype's, which the packs ship off
+      sight: flag.empower?.look?.sight ?? !!token?._source?.sight?.enabled }
+  };
+  const shape = await steps.step("empower.transform", {
+    plan: () => before,
+    witness: () => shapeOf(resolveUuid(subject.uuid)),
+    run: async p => { await subject.transformInto(source, new Setting(empowerSetting(row, p.tempHp)), { renderSheet: false }); }
+  });
+  const { name, tempHp, look } = shape.plan;
   const landed = token?.actor ?? subject;
   if ( !landed?.isPolymorphed ) throw new Error(`${name} was not transformed`);
-  // the spell's own bonuses, as the summon landing applies them; the type and the Hit Points stay the familiar's
+  // the spell's own bonuses, as the summon landing applies them; the type and the Hit Points stay the familiar's.
+  // dnd5e's changes add to what stands (the AC), so they are read once, onto the plan: its values are set and its
+  // effects keep their ids, so a begun step runs again whole (a dotted key comes back nested: the same update)
   const changes = await activity.getChanges(landed, profile, { profile: profile._id });
-  const plan = empowerUpdates(changes.actorUpdates ?? {});
-  if ( Object.keys(plan.updates).length ) await landed.update(plan.updates);
-  const items = plan.items.filter(i => i?._id && landed.items.has(i._id));
-  if ( items.length ) await landed.updateEmbeddedDocuments("Item", items);
-  if ( plan.effects.length ) await landed.createEmbeddedDocuments("ActiveEffect", plan.effects, { keepId: true });
-  // dnd5e's own transform Proficiency override: the form's PB, blank for a stat block with no CR
+  const bonuses = await steps.step("empower.bonuses", {
+    plan: () => {
+      const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
+      delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height; delete tokenUpdates.ring;
+      return { ...empowerUpdates(changes.actorUpdates ?? {}), tokenUpdates };
+    },
+    witness: () => null,
+    run: async p => {
+      if ( Object.keys(p.updates).length ) await landed.update(p.updates);
+      const items = p.items.filter(i => i?._id && landed.items.has(i._id));
+      if ( items.length ) await landed.updateEmbeddedDocuments("Item", items);
+      const effects = p.effects.filter(e => !(e?._id && landed.effects.has(e._id)));
+      if ( effects.length ) await landed.createEmbeddedDocuments("ActiveEffect", effects, { keepId: true });
+    }
+  });
+  // dnd5e's own transform Proficiency override: the form's PB, blank for a stat block with no CR (a delete of what is
+  // found: a re-drive finds it gone)
   const profId = globalThis.dnd5e?.utils?.staticID?.("dnd5eTransformProf") ?? null;
   const profEffect = landed.effects.find(e => (e.id === profId) || ((e.name === "Proficiency") && e.changes?.some(c => c.key === "system.attributes.prof") && !e.flags?.dnd5e?.summon));
   if ( profEffect && (profEffect.id !== (globalThis.dnd5e?.utils?.staticID?.("dnd5eMatchProficiency") ?? "")) ) await profEffect.delete();
   // its own name, art and portrait back (an empowered Crab is still the Crab), Medium for the hour — the form's one
-  // square at scale 1, not a Tiny beast's doubled texture (RULINGS *Summons*, the Battle Familiar pass)
+  // square at scale 1, not a Tiny beast's doubled texture (RULINGS *Summons*, the Battle Familiar pass); values set,
+  // so a re-drive sets the same
   await landed.update({ name, ...(look.img ? { img: look.img } : {}) });
   // snapped to its square's origin first, so a Tiny token growing to a square fills the square it stood in
   const grid = token?.parent?.grid;
@@ -380,24 +470,37 @@ async function empowerOne(subject, source, { activity, flag, message }) {
   if ( token ) await token.update({ name, lockRotation: false, width: 1, height: 1, ...origin,
     ...(look.texture ? { "texture.src": look.texture } : {}), "texture.scaleX": 1, "texture.scaleY": 1,
     ...(look.ring ? foundry.utils.flattenObject({ ring: look.ring }) : {}), ...(look.sight ? { "sight.enabled": true } : {}) });
-  const tokenUpdates = { ...(changes.tokenUpdates ?? {}) };
-  delete tokenUpdates.name; delete tokenUpdates.texture; delete tokenUpdates.width; delete tokenUpdates.height; delete tokenUpdates.ring;
+  const tokenUpdates = bonuses.plan.tokenUpdates ?? {};
   if ( token && Object.keys(tokenUpdates).length ) await token.update(tokenUpdates);
   // the caster's effect for the spell's life — the lever (a hand, its clock, a rest); the form effect depends on it
   const duration = activity.duration?.getEffectData?.() ?? {};
   const effectName = summonEffectName({ itemName: flag.itemName, creatureName: name });
-  const [casterEffect] = await caster.createEmbeddedDocuments("ActiveEffect", [{
-    name: effectName, img: activity.item?.img ?? source.img ?? null,
-    type: "base", transfer: false, disabled: false, origin: flag.itemUuid,
-    description: `<p>${esc(name)} is empowered by ${esc(flag.itemName)} while this effect stands: remove it to end the spell.</p>`,
-    duration: { ...duration }, flags: { [MODULE_ID]: { empowerEffect: message.id } }
-  }]);
+  const held = await steps.step("empower.caster", {
+    witness: () => steps.made(caster.effects, "empower.caster"),
+    run: async () => {
+      const [made] = await caster.createEmbeddedDocuments("ActiveEffect", [{
+        name: effectName, img: activity.item?.img ?? source.img ?? null,
+        type: "base", transfer: false, disabled: false, origin: flag.itemUuid,
+        description: `<p>${esc(name)} is empowered by ${esc(flag.itemName)} while this effect stands: remove it to end the spell.</p>`,
+        duration: { ...duration }, flags: foundry.utils.mergeObject({ [MODULE_ID]: { empowerEffect: message.id } }, steps.stamp("empower.caster"))
+      }]);
+      return made?.id ?? null;
+    }
+  });
+  const casterEffect = caster.effects.get(held.result ?? held.now?.[0]) ?? null;
   // the form effect wears the SPELL's icon, as the caster's does (the form's token art is a creature, not a status)
-  const data = formEffectData({ itemName: flag.itemName, formName: flag.pick?.name ?? source.name, img: activity.item?.img ?? source.img ?? null, origin: flag.itemUuid,
-    duration, messageId: message.id, originalId: landed.id, key: flag.key, dependentOn: casterEffect?.uuid ?? null,
-    description: `<p>${esc(flag.sourceName)}'s ${esc(flag.itemName)}: ${esc(name)} empowered in the form of ${esc(articleOf(flag.pick?.name ?? source.name))} ${esc(flag.pick?.name ?? source.name)}, ${tempHp} Temporary Hit Points. Removing this ends the spell.</p>` });
-  await landed.createEmbeddedDocuments("ActiveEffect", [data]);
-  // the companion's own record knows it is empowered (its dismissal ends the spell with no form left to revert)
+  await steps.step("empower.form", {
+    witness: () => steps.made(landed.effects, "empower.form"),
+    run: async () => {
+      const data = formEffectData({ itemName: flag.itemName, formName: flag.pick?.name ?? source.name, img: activity.item?.img ?? source.img ?? null, origin: flag.itemUuid,
+        duration, messageId: message.id, originalId: landed.id, key: flag.key, dependentOn: casterEffect?.uuid ?? null,
+        description: `<p>${esc(flag.sourceName)}'s ${esc(flag.itemName)}: ${esc(name)} empowered in the form of ${esc(articleOf(flag.pick?.name ?? source.name))} ${esc(flag.pick?.name ?? source.name)}, ${tempHp} Temporary Hit Points. Removing this ends the spell.</p>` });
+      foundry.utils.mergeObject(data, { flags: steps.stamp("empower.form") });
+      await landed.createEmbeddedDocuments("ActiveEffect", [data]);
+    }
+  });
+  // the companion's own record knows it is empowered (its dismissal ends the spell with no form left to revert); a
+  // value set, so a re-drive sets the same
   const companionMessage = game.messages.get(flag.empower?.companionMessageId);
   if ( companionMessage ) await queueFlagWrite(companionMessage, "summon", current => {
     if ( !current.companion ) return false;
@@ -410,12 +513,16 @@ async function empowerOne(subject, source, { activity, flag, message }) {
 async function landTransform(message) {
   if ( !(await claimLanding(message, TRANSFORM_FLAG, current => current.status === "picked")) ) return;
   const flag = readFlag(message, TRANSFORM_FLAG);
+  // THE LEDGER (ledger.js): a re-drive over a dead claim learns the form once, transforms each creature once and
+  // makes one form effect on it.
+  const steps = landingSteps(message, TRANSFORM_FLAG, "land");
   const landed = [];
   let outcome = "landed";
   let failure = null;
   let learned = null;
   try {
-    const caster = resolveUuid(flag.sourceUuid);
+    // the caster as the card names it, else (a dead claimant's revert took that creature) what its revert brought back
+    const caster = resolveUuid(flag.sourceUuid) ?? revertedFrom(flag.ledger?.land, flag.sourceUuid);
     if ( !(caster instanceof Actor) ) throw new Error("the caster could not be read off the card");
     const source = await resolveUuidAsync(flag.pick?.uuid);
     if ( !(source instanceof Actor) ) throw new Error(`no creature at ${flag.pick?.uuid}`);
@@ -425,9 +532,14 @@ async function landTransform(message) {
     // The learned form first, on the original's own item — the copy a transform makes would lose it.
     if ( flag.learn?.uuid ) {
       const holder = knownHolderItem(original, flag.key);
-      const list = holder ? learnedList({ known: knownOf(holder), slots: Number(flag.slots) || 0, learn: flag.learn }) : null;
-      if ( holder && list ) { await holder.setFlag(MODULE_ID, KNOWN_FORMS_FLAG, list); learned = { ...flag.learn }; }
+      const learn = await steps.step("learn", {
+        plan: () => (holder ? learnedList({ known: knownOf(holder), slots: Number(flag.slots) || 0, learn: flag.learn }) : null),
+        witness: () => knownOf(holder),
+        run: async list => { if ( holder && list ) await holder.setFlag(MODULE_ID, KNOWN_FORMS_FLAG, list); }
+      });
+      if ( learn.plan ) learned = { ...flag.learn };
     }
+    // the last form is set, never added: a re-drive sets the same
     const holder = knownHolderItem(original, flag.key);
     if ( holder && (Number(flag.slots) > 0) ) await holder.setFlag(MODULE_ID, LAST_FORM_FLAG, flag.pick.uuid);
     const settings = activity.settings ?? undefined;
@@ -435,12 +547,13 @@ async function landTransform(message) {
       // the familiar empowered (a SUMMON_EMPOWERS cast): the companion's token actor, the spell's own bonuses on top
       const subject = resolveUuid(flag.targets?.[0]?.uuid);
       if ( !(subject instanceof Actor) || !subject.isToken ) throw new Error(`${flag.targets?.[0]?.name ?? "the companion"} is no longer on the table`);
-      landed.push(await empowerOne(subject, source, { activity, flag, message }));
+      landed.push(await empowerOne(steps, subject, source, { activity, flag, message }));
     }
-    else for ( const t of flag.targets ?? [] ) {
+    else for ( const [n, t] of (flag.targets ?? []).entries() ) {
       const subject = resolveUuid(t.uuid);
-      if ( !(subject instanceof Actor) ) { failure = `${t.name} is not on any scene`; continue; }
-      landed.push(await transformOne(subject, source, { activity, settings, flag, pick: flag.pick, message }));
+      // a creature gone is passed over, unless a dead claimant's revert replaced it (its step's plan finds what came back)
+      if ( !(subject instanceof Actor) && !flag.ledger?.land?.[`revert-${n}`] ) { failure = `${t.name} is not on any scene`; continue; }
+      landed.push(await transformOne(steps, n, subject, source, { activity, settings, flag, pick: flag.pick, message }));
     }
     if ( !landed.length ) throw new Error(failure ?? "nobody to transform");
   } catch(err) {
@@ -452,6 +565,7 @@ async function landTransform(message) {
       current.applied = true; current.applying = false; current.outcome = outcome; current.landed = landed;
       if ( failure ) current.failure = failure;
       if ( learned ) current.learned = learned;
+      closeLedger(current, "land");
     });
   }
 }
@@ -461,18 +575,20 @@ async function changeTransform(message) {
   if ( !(await claimLanding(message, TRANSFORM_FLAG, current => !!current.applied && !current.ended && !!current.changeAsked, { field: "changing", done: null })) ) return;
   const flag = readFlag(message, TRANSFORM_FLAG);
   const pick = { uuid: flag.changeAsked.uuid, name: flag.changeAsked.name, img: flag.changeAsked.img ?? null };
+  // THE LEDGER (ledger.js): a re-drive over a dead claim reverts and transforms each creature once, one form effect.
+  const steps = landingSteps(message, TRANSFORM_FLAG, "change");
   const landed = [];
   let failure = null;
   try {
     const source = await resolveUuidAsync(pick.uuid);
     if ( !(source instanceof Actor) ) throw new Error(`no creature at ${pick.uuid}`);
-    const caster = resolveUuid(flag.sourceUuid);
-    for ( const l of flag.landed ?? [] ) {
-      const current = resolveUuid(l.actorUuid) ?? resolveUuid(l.originalUuid);
-      if ( !(current instanceof Actor) ) continue;
-      const original = originalOf(current);
+    const caster = resolveUuid(flag.sourceUuid) ?? revertedFrom(flag.ledger?.change, flag.sourceUuid);
+    for ( const [n, l] of (flag.landed ?? []).entries() ) {
+      const current = resolveUuid(l.actorUuid) ?? revertedFrom(flag.ledger?.change, l.actorUuid) ?? resolveUuid(l.originalUuid);
+      if ( !(current instanceof Actor) && !flag.ledger?.change?.[`revert-${n}`] ) continue;
+      const original = current ? originalOf(current) : null;
       const activity = activityFor(originalOf(caster) ?? original, flag, message);
-      landed.push(await transformOne(current, source, { activity, settings: activity?.settings, flag, pick, message }));
+      landed.push(await transformOne(steps, n, current, source, { activity, settings: activity?.settings, flag, pick, message }));
     }
   } catch(err) {
     log.error(`The form could not be changed — transform by hand.`, err);
@@ -483,6 +599,7 @@ async function changeTransform(message) {
       current.changed = [...(current.changed ?? []), { from: current.pick, to: pick, at: Date.now(), ...(failure ? { failure } : {}) }];
       if ( !failure ) { current.pick = pick; current.landed = landed; }
       delete current.changeAsked;
+      closeLedger(current, "change");
     });
   }
 }
@@ -765,10 +882,13 @@ registerRelay("formSwapAnswer", {
   }
 });
 
-/** The elect lands the answer on the item, judged against the list as it stands now. */
+/** The elect lands the answer on the item, judged against the list as it stands at the first drive. */
 async function landFormSwap(message) {
   if ( !(await claimLanding(message, FORM_SWAP_FLAG, current => current.status === "resolved")) ) return;
   const flag = readFlag(message, FORM_SWAP_FLAG);
+  // THE LEDGER (ledger.js): the list is judged once, so a re-drive over a dead claim neither changes it twice nor
+  // calls a change it already made stale.
+  const steps = landingSteps(message, FORM_SWAP_FLAG, "land");
   let outcome = "kept";
   let after = null;
   try {
@@ -776,11 +896,16 @@ async function landFormSwap(message) {
     // live only: the Known Forms are a flag on the sheet's own Wild Shape item, which a Long Rest never uses up
     const item = resolveUuid(flag.itemUuid) ?? ((actor instanceof Actor) ? featureNamed(actor, flag.key) : null);
     if ( !flag.declined && item ) {
-      const known = knownOf(item);
-      const list = restKnownList({ known, slots: Number(flag.slots) || 0, out: flag.out, into: flag.into, adds: flag.adds ?? [] });
-      if ( list && (JSON.stringify(list) !== JSON.stringify(known)) ) { await item.setFlag(MODULE_ID, KNOWN_FORMS_FLAG, list); outcome = "changed"; }
-      else if ( list ) outcome = "kept";
-      else outcome = "stale";
+      const swap = await steps.step("list", {
+        plan: () => {
+          const known = knownOf(item);
+          const list = restKnownList({ known, slots: Number(flag.slots) || 0, out: flag.out, into: flag.into, adds: flag.adds ?? [] });
+          return { list, changed: !!list && (JSON.stringify(list) !== JSON.stringify(known)) };
+        },
+        witness: () => knownOf(item),
+        run: async p => { if ( p.changed ) await item.setFlag(MODULE_ID, KNOWN_FORMS_FLAG, p.list); }
+      });
+      outcome = swap.plan.changed ? "changed" : swap.plan.list ? "kept" : "stale";
     }
     if ( item ) after = knownOf(item);
   } catch(err) {
@@ -790,6 +915,7 @@ async function landFormSwap(message) {
     await queueFlagWrite(message, FORM_SWAP_FLAG, current => {
       current.applied = true; current.applying = false; current.outcome = outcome;
       if ( after ) current.after = after;
+      closeLedger(current, "land");
     });
   }
 }
