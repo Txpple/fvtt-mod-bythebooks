@@ -818,6 +818,7 @@ export const STATE_KEYS = Object.freeze({
   reduceBy: "an envelope field beside respondsTo — Parry's roll, carried to the fold",
   bent: "an envelope field beside respondsTo — a `roll` answer's bent d20 (Slice A), carried to the fold",
   rescue: "an envelope field beside respondsTo — which `roll` row bent the roll (Slice A), carried to the fold",
+  ledgerStamp: "provenance — a document a landing's step made (ledger.js): the card, the record, the run and the step, so a re-drive over a dead claim finds it instead of making it twice",
   weaponRolls: "provenance — how many of an attack's damage rolls are the activity's own, counted before any rider (auto-damage.js); Savage Attacker rerolls those",
   sweepAnswer: "an envelope — the sweep's pick; the fold onto sweepCard is the resolve",
   saveChoiceAnswer: "an envelope — a save-side choice; the fold onto the saves flag is the resolve",

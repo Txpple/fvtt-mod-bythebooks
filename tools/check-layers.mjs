@@ -119,6 +119,7 @@ export const LAYER_OF = {
   // SPINE — how a moment is presented, and the shared EDGE readers
   "ui.js": "spine",
   "shared.js": "spine",
+  "ledger.js": "spine",     // the landing ledger — a landing's writes as steps, each made once over a re-drive (issue #22)
   "geometry.js": "spine",
   "settings.js": "spine",
   "holds.js": "spine",     // the hold registry — what other modules ask before they play
@@ -180,6 +181,7 @@ export const LAYER_OF = {
   "decide/demand.js": "decision",
   "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data
   "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision
+  "decide/ledger.js": "decision",      // the ledger's judgement: a step skipped, landed or run again, off its witness
   "decide/changes.js": "decision",     // an effect change's kind: Foundry 14's string type, never the deprecated numeric mode
   "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned
   "decide/card.js": "decision",

@@ -3,7 +3,7 @@
  * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
  * spent, a save goes through the saves machine.
  */
-import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, selfIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, claimLanding, claimHolds, statContext, decisionWindow, selfIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveDie, superiorityStandIn } from "./lookup.js";
@@ -23,6 +23,7 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
 import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer, pickInputs, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { closeLedger, hitPointsOf, landingSteps } from "./ledger.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /*
@@ -707,34 +708,48 @@ async function settleSweep(card) {
   const sc = readFlag(card, "sweepCard");
   if ( !sc?.chosen || sc.resolved ) return;
   if ( !drivesMomentFor(sc.sourceUuid ?? null) ) return;
+  if ( !(await claimLanding(card, "sweepCard", current => !!current.chosen, { field: "resolving", done: "resolved" })) ) return;
+  if ( sc.chosen === "none" ) {
+    await queueFlagWrite(card, "sweepCard", current => { current.resolving = false; current.resolved = { none: true }; });
+    return;
+  }
+  // THE LEDGER (ledger.js): a re-drive over a dead claim neither rolls the die again nor deals its damage twice.
+  const steps = landingSteps(card, "sweepCard", "resolve");
+  /** @type {Record<string, any>} */
+  let resolved = { failed: true };
   try {
-    let claimed = false;
-    await queueFlagWrite(card, "sweepCard", current => {
-      if ( current.resolved || current.resolving ) return false;
-      current.resolving = true;
-      claimed = true;
-    });
-    if ( !claimed ) return;
-    if ( sc.chosen === "none" ) {
-      await queueFlagWrite(card, "sweepCard", current => { current.resolving = false; current.resolved = { none: true }; });
-      return;
-    }
     const pick = sc.candidates.find(c => c.uuid === sc.chosen);
     const actor = pick ? resolveUuid(pick.uuid) : null;
     const attacker = resolveUuid(sc.sourceUuid);
-    const roll = await new Roll(sc.formula || "1d8").evaluate();
-    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: attacker }), flavor: `${sc.feature} — the die, at ${pick?.name ?? "the second creature"}` });
-    const verdict = sweepVerdict({ ...(sc.attackRoll ?? { total: 0 }), ac: actor?.system?.attributes?.ac?.value ?? null });
-    if ( (verdict === "hit") && pick ) {
-      await applyDamagesWithReceipt(card, [{ uuid: pick.uuid, name: pick.name }],
-        [{ value: roll.total, type: sc.type ?? null, properties: new Set() }], { note: sc.feature });
-    }
-    await queueFlagWrite(card, "sweepCard", current => {
-      current.resolving = false;
-      current.resolved = { rolled: roll.total, verdict, name: pick?.name ?? null, ac: actor?.system?.attributes?.ac?.value ?? null };
+    const die = await steps.step("die", {
+      witness: () => steps.made(game.messages, "die"),
+      run: async () => {
+        const roll = await new Roll(sc.formula || "1d8").evaluate();
+        await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: attacker }), flavor: `${sc.feature} — the die, at ${pick?.name ?? "the second creature"}`,
+          flags: steps.stamp("die") });
+        return { total: roll.total };
+      }
     });
+    const rolled = die.result?.total ?? game.messages.get(die.now?.[0])?.rolls?.[0]?.total ?? null;
+    if ( rolled === null ) throw new Error("the die's roll could not be found");
+    const ac = actor?.system?.attributes?.ac?.value ?? null;
+    const verdict = sweepVerdict({ ...(sc.attackRoll ?? { total: 0 }), ac });
+    if ( (verdict === "hit") && pick ) {
+      await steps.step("damage", {
+        witness: () => hitPointsOf(actor),
+        run: async () => { await applyDamagesWithReceipt(card, [{ uuid: pick.uuid, name: pick.name }],
+          [{ value: rolled, type: sc.type ?? null, properties: new Set() }], { note: sc.feature }); }
+      });
+    }
+    resolved = { rolled, verdict, name: pick?.name ?? null, ac };
   } catch(err) {
     log.error(`The sweep failed to resolve — roll the die by hand.`, err);
+  } finally {
+    await queueFlagWrite(card, "sweepCard", current => {
+      current.resolving = false;
+      current.resolved = resolved;
+      closeLedger(current, "resolve");
+    });
   }
 }
 
@@ -750,7 +765,7 @@ registerResumable("hitManeuverCard", {
   drive: settleHitFollowups
 });
 registerResumable("sweepCard", {
-  pending: (flag, _message, cause) => (cause !== "create") && !!flag.chosen && !flag.resolved,
+  pending: (flag, _message, cause) => (cause !== "create") && !!flag.chosen && !flag.resolved && !claimHolds(flag.resolving),
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleSweep
 });
@@ -802,6 +817,7 @@ listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
     line.innerHTML = bfCard({
       img: sc.itemImg ?? null, eyebrow: `Maneuver — ${sc.feature}`, tone: r ? ((r.verdict === "hit") ? "good" : "neutral") : "pending",
       title: r?.none ? `${sc.feature} — nobody swept${sc.timedOut ? " (timer)" : ""}; the die was spent`
+        : r?.failed ? `${sc.feature} — the sweep could not be resolved; roll the die and apply it by hand`
         : r ? `${sc.feature} — ${r.name ?? chosenName}: the die rolled ${r.rolled}, ${r.verdict === "hit" ? "the attack would hit — applied" : r.verdict === "miss" ? "the attack would miss" : "its AC could not be read"}${(r.ac !== null && r.ac !== undefined) ? ` (AC ${r.ac})` : ""}`
         : chosenName ? `${sc.feature} — ${chosenName}: rolling the die` : sc.candidates?.length ? `${sc.feature} — pick the second creature` : `${sc.feature} — no creature within 5 feet of ${sc.targetName} and within your reach${sc.outOfReach?.length ? ` (out of reach: ${sc.outOfReach.join(", ")})` : ""}; the die was spent`,
       subtitle: (!r && sc.candidates?.length && !chosenName) ? `within 5 feet of ${sc.targetName} and within your reach` : "",

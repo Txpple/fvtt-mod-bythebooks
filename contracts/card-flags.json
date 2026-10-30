@@ -11920,6 +11920,19 @@
         "type": "string"
       }
     },
+    "ledgerStamp": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a document a landing's step made (ledger.js): the card, the record, the run and the step, so a re-drive over a dead claim finds it instead of making it twice",
+      "writers": [
+        "ledger.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
     "lends": {
       "class": "state",
       "family": "state",

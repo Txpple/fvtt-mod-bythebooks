@@ -458,13 +458,7 @@ async function landTransform(message) {
 
 /** The GM's change: every landed creature reverted and transformed again into the new pick. */
 async function changeTransform(message) {
-  let claimed = false;
-  await queueFlagWrite(message, TRANSFORM_FLAG, current => {
-    if ( !current.applied || current.ended || !current.changeAsked || current.changing ) return false;
-    current.changing = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, TRANSFORM_FLAG, current => !!current.applied && !current.ended && !!current.changeAsked, { field: "changing", done: null })) ) return;
   const flag = readFlag(message, TRANSFORM_FLAG);
   const pick = { uuid: flag.changeAsked.uuid, name: flag.changeAsked.name, img: flag.changeAsked.img ?? null };
   const landed = [];
@@ -649,7 +643,7 @@ async function driveRevert(message) {
 
 registerResumable(TRANSFORM_FLAG, {
   pending: flag => !!flag && (((flag.status === "picked") && !flag.applied && !claimHolds(flag.applying))
-    || (flag.applied && !flag.ended && ((flag.revertAsked === true) || (!!flag.changeAsked && !flag.changing)))),
+    || (flag.applied && !flag.ended && ((flag.revertAsked === true) || (!!flag.changeAsked && !claimHolds(flag.changing))))),
   drives: () => isActiveGM(),
   drive: async message => {
     const flag = readFlag(message, TRANSFORM_FLAG);

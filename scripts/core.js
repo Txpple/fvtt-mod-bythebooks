@@ -408,19 +408,21 @@ export function claimHolds(claim, now = claimClock()) {
  * Claim a record's landing, through the serializer: `due(current)` says the record waits for its landing, and a
  * record already landed (`done`) or claimed by a claim that holds (`field`) is refused; a dead claim is written
  * over. Resolves `{ over }` (the dead claim replaced, or null) when this client claimed, null when it did not.
+ * `field` and `done` are paths into the record (`companion.acting`); `done: null` for a step whose own `due` ends it.
  * @param {any} message
  * @param {string} key
  * @param {(current: any) => boolean} due
- * @param {{ field?: string, done?: string }} [opts]
+ * @param {{ field?: string, done?: string|null }} [opts]
  * @returns {Promise<{ over: any }|null>}
  */
 export async function claimLanding(message, key, due, { field = "applying", done = "applied" } = {}) {
   /** @type {{ over: any }|null} */
   let taken = null;
+  const { getProperty, setProperty } = foundry.utils;
   await queueFlagWrite(message, key, current => {
-    if ( !due(current) || current[done] || claimHolds(current[field]) ) return false;
-    taken = { over: current[field] || null };
-    current[field] = claimStamp();
+    if ( !due(current) || (done && getProperty(current, done)) || claimHolds(getProperty(current, field)) ) return false;
+    taken = { over: getProperty(current, field) || null };
+    setProperty(current, field, claimStamp());
   });
   return taken;
 }

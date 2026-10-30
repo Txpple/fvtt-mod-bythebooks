@@ -339,6 +339,20 @@ the elect), never an overlap. Four pieces keep a record landing once across it:
   the caster's shared resistance carry the card (`summonCard`), its standing effect (`summonEffect`) and its
   companion effect (`companion`) are keyed by it too; summons.js `sweepDeadLanding` removes those (and the tokens'
   seats) before landing again.
+- **The steps claim as landings do** (issue #21). A summon's dismissal (`dismissing`), a companion's errand
+  (`companion.acting`), a change of form (`changing`) and a sweep's or a switch's resolve (`resolving`) are claimed
+  by `claimLanding` with a path for the field and `done: null` where the step's own `due` ends it; `pending` reads
+  each through `claimHolds`, and `npm run gmsites` fails a raw `true` or a bare read of any of them.
+- **The ledger** ([ledger.js](scripts/ledger.js), [decide/ledger.js](scripts/decide/ledger.js); issue #22). A
+  landing's world writes, and a claimed step's, go through `landingSteps(message, key, scope).step(name, { plan,
+  witness, run })`: before the write the record holds the step's PLAN (what it will do, computed once) and its
+  WITNESS (what it will change, as it stands: Hit Points, an effect list, the stamped documents); after it, the step
+  is done. A re-drive over a dead claim reads each step: done is skipped, a begun step whose witness moved landed (the
+  dead claimant's write went through), one whose witness did not is run again on the dead claimant's plan, never one
+  recomputed off the world it already changed. A document a step makes carries `flags.<module>.ledgerStamp`
+  (`stamp`), so its witness is the stamped documents (`made`). The run's final flag write drops its ledger
+  (`closeLedger`). What is left is the step's own write itself: a claimant gone between a write and the record of it
+  is caught by the witness, so a write lands once unless something else moved its witness in that same instant.
 
 **Every `isGM` read is tagged** (`npm run gmsites`, [tools/check-gm-sites.mjs](tools/check-gm-sites.mjs)):
 `game.user.isGM` is true on every GM client, so a site behind it runs once per GM screen — right for what a screen

@@ -3,7 +3,7 @@
  * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
  * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
-import { MODULE_ID, readFlag, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow, stampedSourceOf, resolveUuid, resolveUuidAsync, log } from "./core.js";
+import { MODULE_ID, readFlag, canAnswerFor, drivesMomentFor, queueFlagWrite, claimLanding, claimHolds, statContext, decisionWindow, stampedSourceOf, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
@@ -16,6 +16,7 @@ import { armAskTimer, subjectOwns, openMomentPopup, registerResumable, registerO
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { closeLedger, effectsNamed, landingSteps } from "./ledger.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 
@@ -192,24 +193,37 @@ async function settleBait(card) {
   const bs = readFlag(card, "baitSwitch");
   if ( !bs?.chosen || bs.resolved ) return;
   if ( !drivesMomentFor(bs.sourceUuid ?? null) ) return;
+  if ( !(await claimLanding(card, "baitSwitch", current => !!current.chosen, { field: "resolving", done: "resolved" })) ) return;
+  // THE LEDGER (ledger.js): a re-drive over a dead claim lands the AC bonus once.
+  const steps = landingSteps(card, "baitSwitch", "resolve");
+  const who = bs.options.find(o => o.uuid === bs.chosen) ?? null;
+  let applied = false;
   try {
-    let claimed = false;
-    await queueFlagWrite(card, "baitSwitch", current => { if ( current.resolved || current.resolving ) return false; current.resolving = true; claimed = true; });
-    if ( !claimed ) return;
     // live only: Bait and Switch is a maneuver FEATURE — never used up, so the sheet is the truth
     const item = bs.itemUuid ? await resolveUuidAsync(bs.itemUuid) : null;
     const effect = item?.effects.find(e => lower(e.name) === lower(bs.effectName)) ?? null;
-    const who = bs.options.find(o => o.uuid === bs.chosen) ?? null;
-    if ( effect && who ) await applyEffectsWithReceipt(card, [effect], [{ uuid: who.uuid, name: who.name }], { source: bs.sourceUuid ?? null, marker: "baitDone" });
-    await queueFlagWrite(card, "baitSwitch", current => { current.resolving = false; current.resolved = { name: who?.name ?? null, applied: !!(effect && who), effectName: bs.effectName }; });
+    if ( effect && who ) {
+      const target = resolveUuid(who.uuid);
+      await steps.step("effect", {
+        witness: () => effectsNamed(target, effect.name),
+        run: async () => { await applyEffectsWithReceipt(card, [effect], [{ uuid: who.uuid, name: who.name }], { source: bs.sourceUuid ?? null, marker: "baitDone" }); }
+      });
+      applied = true;
+    }
   } catch(err) {
     log.error(`Bait and Switch failed to apply — apply the AC bonus by hand.`, err);
+  } finally {
+    await queueFlagWrite(card, "baitSwitch", current => {
+      current.resolving = false;
+      current.resolved = { name: who?.name ?? null, applied, effectName: bs.effectName };
+      closeLedger(current, "resolve");
+    });
   }
 }
 
 // The answer's write (or the timer's) settles it; the spine's resumable registry resumes it on render.
 registerResumable("baitSwitch", {
-  pending: flag => !!flag.chosen && !flag.resolved,
+  pending: flag => !!flag.chosen && !flag.resolved && !claimHolds(flag.resolving),
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleBait
 });

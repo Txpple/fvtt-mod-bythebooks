@@ -24,7 +24,8 @@
 // THE LANDING CLAIM, beside it: a record's claim (`applying`, `fallbackApplying`) is the stamp core.js
 // `claimLanding` writes, naming its claimant, and a claim whose claimant left is dead (`claimHolds`). Outside
 // core.js a claim field is only released (`= false`, `applying: false`) or read through `claimHolds`: a raw
-// `applying = true` is a claim nobody can re-drive, and a bare `!flag.applying` reads a dead claim as live.
+// `applying = true` is a claim nobody can re-drive, and a bare `!flag.applying` reads a dead claim as live. The
+// re-driven steps claim the same way: `dismissing`, `companion.acting`, `changing`, `resolving` (issue #21).
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
@@ -67,7 +68,7 @@ const seen = new Map();
 const lines = [];
 
 /** The claim fields core.js `claimLanding` stamps. */
-const CLAIM_FIELDS = new Set(["applying", "fallbackApplying"]);
+const CLAIM_FIELDS = new Set(["applying", "fallbackApplying", "landing", "dismissing", "acting", "changing", "resolving"]);
 let claimSites = 0;
 
 const isFn = n => ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
@@ -124,6 +125,7 @@ function claimSite(node, rel, sf) {
     return;
   }
   if (ts.isCallExpression(p) && ts.isIdentifier(p.expression) && (p.expression.text === "claimHolds") && (p.arguments[0] === node)) return;
+  if (ts.isDeleteExpression(p)) return;   // a release, as `= false` is
   failures.push(`${at()} reads the claim \`${node.name.text}\` bare (${p.getText().slice(0, 60)}) — read it through core.js claimHolds, so a claim whose claimant left reads as none`);
 }
 

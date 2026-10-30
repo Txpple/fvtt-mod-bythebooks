@@ -34,6 +34,7 @@ import { describeCreature, openPicker, pickSpots, poolFromPacks, poolRuleOf, sum
 import { CONCENTRATION_ASKED } from "./shared.js";
 import { momentButton, registerResumable, pendingRow, confirmPopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { closeLedger, landingSteps } from "./ledger.js";
 import { listen, listenOnce } from "./dispatch.js";
 import { tokenDocOf, tokenOnScene, tokensOf } from "./geometry.js";
 
@@ -1105,26 +1106,23 @@ async function landBoon(changes, actor, caster, boon) {
 
 /** Dismiss: the elect deletes what it made; concentration's dependents go with the effect, the rest by hand here. */
 async function dismissSummon(message) {
-  let claimed = false;
-  await queueFlagWrite(message, SUMMON_FLAG, current => {
-    if ( !current.applied || !current.dismissAsked || current.dismissed || current.dismissing ) return false;
-    current.dismissing = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, SUMMON_FLAG, current => !!current.applied && !!current.dismissAsked, { field: "dismissing", done: "dismissed" })) ) return;
   const flag = readFlag(message, SUMMON_FLAG);
+  // THE LEDGER (ledger.js): a re-drive over a dead claim drops the gear once and floats the leave once; the deletes
+  // below find what is left and are safe to repeat.
+  const steps = landingSteps(message, SUMMON_FLAG, "dismiss");
   try {
     const caster = resolveUuid(flag.sourceUuid);
     const doc = flag.companion ? liveToken(flag) : null;
     if ( doc ) {
-      await dropCarried(doc, flag.companion.baseItems);
-      await queueFlagWrite(message, SUMMON_FLAG, current => { current.companion.events = [...(current.companion.events ?? []), companionEvent("leave", doc, flag.companion, caster)]; });
+      await dropCarried(doc, flag.companion.baseItems, steps);
+      await beatOnce(message, steps, "companion.events", () => companionEvent("leave", doc, flag.companion, caster));
       await pause(LEAVE_MS);
     } else if ( flag.standing ) {
       const at = liveToken(flag);
       // what it carried stays where it stood (SUMMON_FALLS `drops`), however it goes
-      if ( at && flag.standing.baseItems ) await dropCarried(at, flag.standing.baseItems);
-      if ( at ) await queueFlagWrite(message, SUMMON_FLAG, current => { current.events = [...(current.events ?? []), ownerEvent("leave", at, caster, flag.standing.name)]; });
+      if ( at && flag.standing.baseItems ) await dropCarried(at, flag.standing.baseItems, steps);
+      if ( at ) await beatOnce(message, steps, "events", () => ownerEvent("leave", at, caster, flag.standing.name));
     }
     const byScene = new Map();
     for ( const l of flag.landed ?? [] ) byScene.set(l.sceneId, [...(byScene.get(l.sceneId) ?? []), l.tokenId]);
@@ -1147,6 +1145,7 @@ async function dismissSummon(message) {
     await queueFlagWrite(message, SUMMON_FLAG, current => {
       current.dismissed = true; current.dismissing = false; current.dismissedAt = Date.now();
       if ( current.companion ) { current.companion.state = "gone"; current.companion.snapshot = null; }
+      closeLedger(current, "dismiss");
     });
     // the world copies nothing stands on any more go with it (a dismissed record holds none)
     await sweepSummonCopies().catch(err => log.warn(`Could not sweep the summoned creatures' world copies.`, err));
@@ -1154,8 +1153,9 @@ async function dismissSummon(message) {
 }
 
 registerResumable(SUMMON_FLAG, {
-  pending: flag => (flag?.status === "placed") && ((!flag.applied && !claimHolds(flag.applying)) || (flag.applied && flag.dismissAsked && !flag.dismissed && !flag.dismissing)
-    || (flag.applied && !flag.dismissAsked && !!flag.companion?.ask && !flag.companion.acting)),
+  pending: flag => (flag?.status === "placed") && ((!flag.applied && !claimHolds(flag.applying))
+    || (flag.applied && flag.dismissAsked && !flag.dismissed && !claimHolds(flag.dismissing))
+    || (flag.applied && !flag.dismissAsked && !!flag.companion?.ask && !claimHolds(flag.companion.acting))),
   drives: () => isActiveGM(),
   drive: async message => {
     const flag = readFlag(message, SUMMON_FLAG);
@@ -1359,22 +1359,46 @@ async function showCompanionMenu(message) {
  * where it stood when Loot Shelf is active (`createLootContainer`, ephemeral: gone once emptied), else
  * lost (RULINGS *Summons*). Loot Shelf is detected, never required.
  */
-async function dropCarried(doc, baseItems) {
+async function dropCarried(doc, baseItems, steps = null) {
   const actor = doc?.actor;
   if ( !actor ) return [];
-  const ids = carriedItemIds(actor.items.contents.map(i => ({ id: i.id, type: i.type })), baseItems ?? []);
+  const carried = () => carriedItemIds(actor.items.contents.map(i => ({ id: i.id, type: i.type })), baseItems ?? []);
+  const ids = carried();
   if ( !ids.length ) return [];
+  // in a ledgered run, the chest and the unloading are two steps: a re-drive between them never makes a second chest
+  const once = (name, witness, run) => (steps ? steps.step(name, { witness, run }) : run());
   const shelf = game.modules.get("fvtt-mod-lootshelf");
   if ( shelf?.active && shelf.api?.createLootContainer ) {
     try {
-      const items = ids.map(id => actor.items.get(id)?.toObject()).filter(Boolean);
-      const chest = await shelf.api.createLootContainer({ name: `${doc.name}'s gear`, img: items[0]?.img ?? undefined, items, ephemeral: true });
-      const token = await chest.getTokenDocument({ x: doc.x, y: doc.y, elevation: doc.elevation ?? 0 });
-      await doc.parent.createEmbeddedDocuments("Token", [token.toObject()]);
+      await once("drop.chest", () => steps.made(doc.parent.tokens, "drop.chest"), async () => {
+        const items = ids.map(id => actor.items.get(id)?.toObject()).filter(Boolean);
+        const chest = await shelf.api.createLootContainer({ name: `${doc.name}'s gear`, img: items[0]?.img ?? undefined, items, ephemeral: true });
+        const token = (await chest.getTokenDocument({ x: doc.x, y: doc.y, elevation: doc.elevation ?? 0 })).toObject();
+        if ( steps ) foundry.utils.mergeObject(token, { flags: steps.stamp("drop.chest") });
+        await doc.parent.createEmbeddedDocuments("Token", [token]);
+      });
     } catch(err) { log.warn(`Loot Shelf could not take what it carried — the items are lost.`, err); }
   }
-  await actor.deleteEmbeddedDocuments("Item", ids);
+  await once("drop.unload", () => carried(), async () => { await actor.deleteEmbeddedDocuments("Item", ids); });
   return ids;
+}
+
+/**
+ * A beat appended to the record's `path` list once: a ledgered step, its beat (and so its id) made by the first drive.
+ * @param {any} message @param {ReturnType<typeof landingSteps>} steps @param {"events"|"companion.events"} path
+ * @param {() => any} beat
+ */
+function beatOnce(message, steps, path, beat) {
+  const has = ev => (foundry.utils.getProperty(readFlag(message, SUMMON_FLAG) ?? {}, path) ?? []).some(e => e.id === ev?.id);
+  return steps.step(`beat.${path}`, {
+    plan: beat,
+    witness: ev => has(ev),
+    run: ev => queueFlagWrite(message, SUMMON_FLAG, current => {
+      const list = foundry.utils.getProperty(current, path) ?? [];
+      if ( list.some(e => e.id === ev.id) ) return false;
+      foundry.utils.setProperty(current, path, [...list, ev]);
+    })
+  });
 }
 
 /**
@@ -1423,38 +1447,46 @@ async function renameCompanionEffect(caster, companion, pocket) {
 
 /** The elect answers a companion ask: into the pocket (the token kept as a snapshot) or back from it. */
 async function actCompanion(message) {
-  let claimed = false;
-  await queueFlagWrite(message, SUMMON_FLAG, current => {
-    if ( !current.companion?.ask || current.companion.acting ) return false;
-    current.companion.acting = true;
-    claimed = true;
-  });
-  if ( !claimed ) return;
+  if ( !(await claimLanding(message, SUMMON_FLAG, current => !!current.companion?.ask, { field: "companion.acting", done: null })) ) return;
   const flag = readFlag(message, SUMMON_FLAG);
   const companion = flag.companion;
   const caster = resolveUuid(flag.sourceUuid);
   const patch = { ask: null, acting: false };
+  // THE LEDGER (ledger.js): one per errand, so a re-drive over a dead claim neither drops the gear twice nor loses
+  // the snapshot of a token already gone, nor calls back a second token.
+  const scope = companion.ask.kind;
+  const steps = landingSteps(message, SUMMON_FLAG, scope);
   try {
     if ( companion.ask.kind === "away" ) {
       const doc = liveToken(flag);
       // no token of it on any scene: nothing to snapshot, so nothing to call back — refused, its state unchanged
-      if ( !doc ) throw new Error("no token of it stands on any scene");
+      // (unless a dead claimant's errand already took it: its snapshot is on the ledger)
+      if ( !doc && !flag.ledger?.[scope]?.remove ) throw new Error("no token of it stands on any scene");
       if ( doc ) {
-        await dropCarried(doc, companion.baseItems);
-        const snapshot = doc.toObject();
-        delete snapshot._id;
-        await queueFlagWrite(message, SUMMON_FLAG, current => { current.companion.events = [...(current.companion.events ?? []), companionEvent("leave", doc, companion, caster)]; });
+        await dropCarried(doc, companion.baseItems, steps);
+        await beatOnce(message, steps, "companion.events", () => companionEvent("leave", doc, companion, caster));
         await pause(LEAVE_MS);
-        // its seat goes with it (a deleted token keeps its combatant), the Initiative kept for the way back
-        const seat = game.combat?.combatants.find(c => (c.tokenId === doc.id) && (c.sceneId === doc.parent.id)) ?? null;
-        patch.seat = seat ? { combatId: game.combat.id, initiative: seat.initiative ?? null } : null;
-        for ( const combat of game.combats ) {
-          const seats = combat.combatants.filter(c => (c.tokenId === doc.id) && (c.sceneId === doc.parent.id)).map(c => c.id);
-          if ( seats.length ) await combat.deleteEmbeddedDocuments("Combatant", seats);
-        }
-        await doc.delete({ [MODULE_ID]: { companionEnd: true } });
-        patch.snapshot = snapshot;
       }
+      // its seat goes with it (a deleted token keeps its combatant), the Initiative kept for the way back
+      const removed = await steps.step("remove", {
+        plan: () => {
+          const snapshot = doc.toObject();
+          delete snapshot._id;
+          const seat = game.combat?.combatants.find(c => (c.tokenId === doc.id) && (c.sceneId === doc.parent.id)) ?? null;
+          return { snapshot, tokenId: doc.id, sceneId: doc.parent.id,
+            seat: seat ? { combatId: game.combat.id, initiative: seat.initiative ?? null } : null };
+        },
+        witness: p => !!game.scenes.get(p.sceneId)?.tokens.get(p.tokenId),
+        run: async p => {
+          for ( const combat of game.combats ) {
+            const seats = combat.combatants.filter(c => (c.tokenId === p.tokenId) && (c.sceneId === p.sceneId)).map(c => c.id);
+            if ( seats.length ) await combat.deleteEmbeddedDocuments("Combatant", seats);
+          }
+          await game.scenes.get(p.sceneId)?.tokens.get(p.tokenId)?.delete({ [MODULE_ID]: { companionEnd: true } });
+        }
+      });
+      patch.seat = removed.plan.seat;
+      patch.snapshot = removed.plan.snapshot;
       patch.state = "pocket";
       await renameCompanionEffect(caster, companion, true);
     } else if ( companion.ask.kind === "recall" ) {
@@ -1466,7 +1498,13 @@ async function actCompanion(message) {
       if ( at.level ) data.level = at.level;
       // it comes back seeing, whatever the snapshot kept (one put away with its sight off)
       if ( seesOf(game.actors.get(companion.snapshot.actorId), flag) ) foundry.utils.setProperty(data, "sight.enabled", true);
-      const [doc] = await scene.createEmbeddedDocuments("Token", [data]);
+      foundry.utils.mergeObject(data, { flags: steps.stamp("arrive") });
+      const arrived = await steps.step("arrive", {
+        witness: () => steps.made(scene.tokens, "arrive"),
+        run: async () => (await scene.createEmbeddedDocuments("Token", [data]))[0]?.id ?? null
+      });
+      const doc = scene.tokens.get(arrived.result ?? arrived.now?.[0]);
+      if ( !doc ) throw new Error("its token did not land");
       patch.state = "present";
       patch.snapshot = null;
       patch.events = [...(companion.events ?? []), companionEvent("appear", doc, companion, caster)];
@@ -1477,10 +1515,20 @@ async function actCompanion(message) {
       const combat = activeCombatFor(caster);
       if ( combat ) {
         const own = listedNames(summonOwnInitiativeEntries()).has(lower(rulesName(flag.itemName)));
-        const { initiative, roll } = recallSeat(companion.seat, { combatId: combat.id, own,
-          casterInitiative: combat.getCombatantsByActor(caster)[0]?.initiative ?? null });
-        const seated = await combat.createEmbeddedDocuments("Combatant", [{ tokenId: doc.id, sceneId: scene.id, actorId: doc.actorId, initiative }]);
-        if ( roll && seated.length ) await combat.rollInitiative(seated.map(c => c.id));
+        const seat = await steps.step("seat", {
+          plan: () => recallSeat(companion.seat, { combatId: combat.id, own,
+            casterInitiative: combat.getCombatantsByActor(caster)[0]?.initiative ?? null }),
+          witness: () => combat.combatants.filter(c => c.tokenId === doc.id).map(c => c.id).sort(),
+          run: async p => (await combat.createEmbeddedDocuments("Combatant", [{ tokenId: doc.id, sceneId: scene.id, actorId: doc.actorId, initiative: p.initiative }]))
+            .map(c => c.id)
+        });
+        const seated = seat.result ?? seat.now ?? [];
+        if ( seat.plan.roll && seated.length ) {
+          await steps.step("initiative", {
+            witness: () => seated.map(id => combat.combatants.get(id)?.initiative ?? null),
+            run: async () => { await combat.rollInitiative(seated); }
+          });
+        }
       }
       patch.seat = null;
     }
@@ -1488,7 +1536,7 @@ async function actCompanion(message) {
     log.error(`The ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"}.`, err);
     ui.notifications?.error(`${TITLE}: the ${lower(companion.noun)} could not ${companion.ask.kind === "away" ? "go to its pocket" : "come back"} (${err?.message ?? err}).`);
   } finally {
-    await queueFlagWrite(message, SUMMON_FLAG, current => { Object.assign(current.companion, patch); });
+    await queueFlagWrite(message, SUMMON_FLAG, current => { Object.assign(current.companion, patch); closeLedger(current, scope); });
   }
 }
 

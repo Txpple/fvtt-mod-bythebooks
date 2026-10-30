@@ -31,7 +31,19 @@ const world = {
 };
 Object.assign(globalThis, {
   game: world,
-  foundry: { utils: { deepClone: v => structuredClone(v) } },
+  foundry: {
+    utils: {
+      deepClone: v => structuredClone(v),
+      getProperty: (o, path) => path.split(".").reduce((v, k) => v?.[k], o),
+      setProperty: (o, path, value) => {
+        const keys = path.split(".");
+        const last = keys.pop();
+        const at = keys.reduce((v, k) => (v[k] ??= {}), o);
+        at[last] = value;
+        return true;
+      }
+    }
+  },
   window: { addEventListener: () => {} },
   document: { addEventListener: () => {} },
   HTMLElement: class {}
@@ -151,6 +163,22 @@ describe("claimLanding — the claim taken, refused, or written over a dead one"
     expect(m.record.applying).toBeUndefined();
     m.record.fallbackApplied = true;
     await expect(claimLanding(m, "landProbe", c => c.answer === "no", opts)).resolves.toBeNull();
+  });
+
+  it("claims a nested field, and a step its own due ends (done: null; summons' companion errand, issue #21)", async () => {
+    const opts = { field: "companion.acting", done: null };
+    const due = c => !!c.companion?.ask;
+    const m = card("c8", { status: "placed", companion: { ask: { kind: "away" }, acting: false } });
+    await expect(claimLanding(m, "landProbe", due, opts)).resolves.toEqual({ over: null });
+    expect(m.record.companion.acting.by).toBe("me");
+    expect(m.record.companion.ask).toEqual({ kind: "away" });
+    // a live claim holds; a claim whose user left is written over
+    await expect(claimLanding(m, "landProbe", due, opts)).resolves.toBeNull();
+    const dead = { by: "gone", window: "gw", at: 999_000 };
+    m.record.companion.acting = dead;
+    await expect(claimLanding(m, "landProbe", due, opts)).resolves.toEqual({ over: dead });
+    m.record.companion = { ask: null, acting: false };
+    await expect(claimLanding(m, "landProbe", due, opts)).resolves.toBeNull();
   });
 });
 
