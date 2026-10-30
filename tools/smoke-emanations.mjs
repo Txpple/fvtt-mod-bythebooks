@@ -1382,8 +1382,9 @@ const prepHandoff = async ({ xName }) => {
   H.elsewhere = await Scene.create({ name: 'BTB Test Elsewhere (hand-off)', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
   await H.elsewhere.activate();
   await until(() => game.scenes.active?.id === H.elsewhere.id, { label: 'the other scene active' });
-  // The activation's own view first, so the range's view lands after it.
-  await viewScene(H.elsewhere);
+  // The activation's own draw first, so the range's view lands after it. ⚠ Waited for, never raced with a second
+  // `view()`: two draws in flight leave the canvas on neither.
+  await until(() => canvas.ready && (canvas.scene?.id === H.elsewhere.id), { timeout: 15000, label: 'the other scene drawn by its activation' });
   await viewScene(scene);
   await rgrTok.update({ x: palTok.x, y: palTok.y - 2 * scene.grid.size }, { teleport: true, animate: false });
   const KEYS = ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'];
