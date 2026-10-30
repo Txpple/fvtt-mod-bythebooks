@@ -4,7 +4,13 @@
 // or turn end. Fixtures (tools/fixture-suite.mjs): BTB Test Paladin, Cleric, Ranger, Victim.
 // Harness discipline: settings restored; regions, templates, combats and messages deleted;
 // member effects and chits cleared; tokens go home. Sections: `--section 3`, `--list`.
-import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
+//
+// §30 holds TWO GM CLIENTS: the assistant identity joins beside the suite's while the range's rings stand on a
+// scene only the suite views, takes the lead and hangs up again; the rings, their effects and their cards stay
+// as they were (tools/gm-clients.mjs `joinGm`).
+import { awaitGone, hangUp, joinGm, race } from './gm-clients.mjs';
+import { announcePlan, connectSuite, finish, loadEnv, sectionArg, sectionPlan } from './harness.mjs';
+import { gmIdentity } from './target.mjs';
 
 // The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
 // ⚠ NEVER import a suite: it connects on evaluation.
@@ -13,6 +19,9 @@ export const COVERS = [
   'saves/demand.js',        // §7 — the demand on enter and on turn end
   'saves/areas.js'          // §6 / §7 — the placed area the demand is judged against
 ];
+
+// §30's second GM client (target.mjs GM_IDENTITIES): the preflight allows exactly these.
+export const GM_CLIENTS = ['suite', 'assistant'];
 
 const SECTIONS = {
   1: 'the behaviour type is registered at init, and the sweep raises the Paladin\'s aura: a Region attached to the token, the class\'s own 10 feet, the Paladin\'s +3 resolved into the effect',
@@ -42,7 +51,8 @@ const SECTIONS = {
   26: "THE PHB CLASSES — B5 (2026-09-30) Branches of the Tree: lent to the Ranger, no ring without a Rage; a Rage effect standing raises an invisible 30-ft harmful ring (no card); the hostile STARTING its turn inside raises Hew's reminder 'Branches of the Tree' on the rager (cause turnStart); the Rage gone, the ring goes",
   27: "Inspiring Movement: an invisible 5-ft harmful ring (no card); the enemy ENDING its turn beside the bard raises the reminder 'Inspiring Movement' (cause turnEnd — new to the alert vocabulary); a turn ended 20 ft away raises nothing",
   28: "Wrath of the Sea: the Cleric lent the Druid class, Circle of the Sea and the feature; no ring until 'Manifesting Ocean Spray' stands, then a 5-ft ring off @scale.sea.wrath-range (reach all, no member effect) with a card; at the druid's turn start a card lists the creatures inside with a button each; the Victim picked is demanded the Constitution save at the spell DC with the cold rolled, the push named; the card records the pick and the demand (once this turn); the spray gone, the ring goes",
-  29: "Aura of Devotion: Aura of Courage's row — the ring at the Paladin's aura scale, the ally inside wears 'Devoted — BTB Test Paladin', the hostile nothing; the feature gone, the ring and the effect go"
+  29: "Aura of Devotion: Aura of Courage's row — the ring at the Paladin's aura scale, the ally inside wears 'Devoted — BTB Test Paladin', the hostile nothing; the feature gone, the ring and the effect go",
+  30: "TWO GM CLIENTS, THE ELECT HANDED OFF (an Assistant GM beside the suite's; a Gamemaster beside an Assistant waits for the gm2 user): another scene active, the range only VIEWED by the suite, the Paladin's three rings standing and the Ranger inside wearing them; the assistant client arrives and takes the lead, then hangs up and hands it back — no ring taken down or raised, no effect lifted or made, no emanation card posted, the same three regions and three effects standing"
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 11: [1] };
 
@@ -1344,5 +1354,168 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));
+
+/* --- §30: the elect handed off while the rings stand ------------------------------------------- */
+
+/** §30's prep on the suite's page: the range viewed, not active; its rings up, the Ranger inside; the ledger armed. */
+const prepHandoff = async ({ xName }) => {
+  const MOD = 'fvtt-mod-bythebooks';
+  const { until, watch, viewScene, snapshotSettings } = window.__btb;
+  const scene = game.scenes.getName('By the Books Test Range');
+  const paladin = game.actors.getName('BTB Test Paladin');
+  const ranger = game.actors.getName('BTB Test Ranger');
+  if (!scene || !paladin || !ranger) return { fatal: 'missing fixture: the range, BTB Test Paladin or BTB Test Ranger — run tools/fixture-suite.mjs' };
+  const palTok = scene.tokens.find(t => t.actorId === paladin.id);
+  const rgrTok = scene.tokens.find(t => t.actorId === ranger.id);
+  if (!palTok || !rgrTok) return { fatal: 'the Paladin or the Ranger has no token on the range — run tools/fixture-suite.mjs' };
+  const xUser = game.users.getName(xName);
+  if (!xUser) return { fatal: `no world user "${xName}" for the assistant identity — run tools/seed-gm-identities.mjs` };
+  // A GM's view counts only with no player connected (decide/emanations.js liveScenes).
+  const players = game.users.filter(u => u.active && !u.isGM).map(u => u.name);
+  if (players.length) return { fatal: `a player is connected (${players.join(', ')}): the suite's view of the range would not count` };
+  const settings = snapshotSettings(['emanations', 'emanationList']);
+  const H = { settings, priorActive: game.scenes.active?.id ?? null, rgrHome: { x: rgrTok.x, y: rgrTok.y }, since: Date.now(), elsewhere: null, events: [], mark: null, closed: false, ids: [] };
+  window.__handoff = H;
+  await settings.set('emanations', true);
+  await settings.set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding');
+  // Another scene active: the newcomer draws it, so the range is live on its page only once it hears the suite's view.
+  H.elsewhere = await Scene.create({ name: 'BTB Test Elsewhere (hand-off)', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
+  await H.elsewhere.activate();
+  await until(() => game.scenes.active?.id === H.elsewhere.id, { label: 'the other scene active' });
+  // The activation's own view first, so the range's view lands after it.
+  await viewScene(H.elsewhere);
+  await viewScene(scene);
+  await rgrTok.update({ x: palTok.x, y: palTok.y - 2 * scene.grid.size }, { teleport: true, animate: false });
+  const KEYS = ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'];
+  const rings = () => scene.regions.filter(r => { const f = r.getFlag(MOD, 'emanation'); return (f?.kind === 'feature') && (f.tokenId === palTok.id) && KEYS.includes(f.key); });
+  const worn = () => ranger.effects.filter(e => KEYS.includes(e.getFlag(MOD, 'emanation')?.key));
+  const up = await until(() => ((rings().length === 3) && (worn().length === 3)) ? true : null,
+    { timeout: 15000, label: 'the three rings up on the viewed range, the Ranger wearing them' }).catch(() => null);
+  if (!up) return { fatal: `the rings did not stand on the viewed range (rings=${rings().length} worn=${worn().length})`, armed: true };
+  // The window a trailing sweep of the setup, if one were queued, would write in.
+  await watch(() => (rings().length !== 3) || (worn().length !== 3), { ms: 1500 });
+  const push = e => { if (!H.closed) H.events.push({ t: Date.now(), phase: H.mark ? 'leaving' : 'arriving', ...e }); };
+  const hooks = [
+    ['createRegion', (r, _o, userId) => { if ((r.parent?.id === scene.id) && r.getFlag(MOD, 'emanation')) push({ kind: 'region made', by: userId, id: r.id }); }],
+    ['deleteRegion', (r, _o, userId) => { if ((r.parent?.id === scene.id) && r.getFlag(MOD, 'emanation')) push({ kind: 'region deleted', by: userId, id: r.id }); }],
+    ['createActiveEffect', (e, _o, userId) => { if ((e.parent?.id === ranger.id) && e.getFlag(MOD, 'emanation')) push({ kind: 'effect made', by: userId, id: e.id }); }],
+    ['deleteActiveEffect', (e, _o, userId) => { if ((e.parent?.id === ranger.id) && e.getFlag(MOD, 'emanation')) push({ kind: 'effect lifted', by: userId, id: e.id }); }],
+    ['createChatMessage', (m, _o, userId) => { const c = m.getFlag(MOD, 'emanationCard'); if (c) push({ kind: 'card', by: userId, id: m.id, key: c.key }); }]
+  ];
+  H.ids = hooks.map(([hook, fn]) => [hook, Hooks.on(hook, fn)]);
+  return { sceneId: scene.id, rangerId: ranger.id, xUserId: xUser.id, regionIds: rings().map(r => r.id).sort(), effectIds: worn().map(e => e.id).sort() };
+};
+
+/** The newcomer's page, ready: whether it leads and has heard the suite's view of the range. */
+const newcomerLeads = async ({ sceneId }) => {
+  const { until } = window.__btb;
+  const core = await import('/modules/fvtt-mod-bythebooks/scripts/core.js');
+  const elect = await until(() => core.isActiveGM(), { timeout: 10000, label: 'the newcomer leads' }).catch(() => false);
+  const heard = await until(() => game.users.some(u => u.active && !u.isSelf && (u.viewedScene === sceneId)),
+    { timeout: 10000, label: 'the newcomer hears the range viewed' }).catch(() => false);
+  return { elect: !!elect, heard: !!heard, viewing: game.scenes.get(game.user.viewedScene)?.name ?? null };
+};
+
+/** The suite's page: the window a re-raise would land in (the newcomer's grace and its sweeps past it). */
+const holdWindow = async ({ ms }) => {
+  const { watch } = window.__btb;
+  await watch(() => window.__handoff.events.some(e => e.kind === 'card'), { ms });
+  return window.__handoff.events.length;
+};
+
+/** The suite's page, the newcomer gone: the suite leads again, then the window its own sweep would write in. */
+const leadsAgain = async ({ ms }) => {
+  const { until, watch } = window.__btb;
+  const core = await import('/modules/fvtt-mod-bythebooks/scripts/core.js');
+  const elect = await until(() => core.isActiveGM(), { timeout: 10000, label: 'the suite leads again' }).catch(() => false);
+  await watch(() => window.__handoff.events.some(e => (e.phase === 'leaving') && (e.kind === 'card')), { ms });
+  return !!elect;
+};
+
+/**
+ * §30 judged on the suite's page (`run.prep` null: the prep failed, only the put-away runs), then put away: the
+ * Ranger home, the other scene gone, the prior scene back, the settings restored, the cards since the prep deleted.
+ */
+const judgeHandoff = async ({ sections, titles, run }) => {
+  const MOD = 'fvtt-mod-bythebooks';
+  const { until } = window.__btb;
+  const { results, log, skips, ok, section } = window.__btb.begin({ sections, titles });
+  const H = window.__handoff;
+  if (!H) return { results, log, skips };
+  const { prep, joined, newcomer, suiteLeads, gone } = run;
+  const scene = game.scenes.getName('By the Books Test Range');
+  const ranger = game.actors.getName('BTB Test Ranger');
+  const name = uid => game.users.get(uid)?.name ?? uid;
+  H.closed = true;
+  for (const [hook, id] of H.ids) Hooks.off(hook, id);
+  const ev = H.events;
+  const say = list => list.map(e => `${e.kind} ${e.id}${e.key ? ` (${e.key})` : ''} by ${name(e.by)} +${e.t - H.since} ms`).join('; ') || 'nothing';
+  if (prep) await section(30, async () => {
+    log.push(`§30 the second GM client ${joined?.ok ? 'joined' : `did not join (${joined?.err})`}; on its page: ${JSON.stringify(newcomer)}; the ledger: ${say(ev)}`);
+    ok('§30a the assistant client joined, took the lead and heard the suite viewing the range', !!joined?.ok && !!newcomer?.elect && !!newcomer?.heard,
+      JSON.stringify({ joined: joined?.ok ? true : joined?.err, newcomer }));
+    const arriving = ev.filter(e => e.phase === 'arriving');
+    ok('§30b while it arrived and led: no ring taken down or raised, no effect lifted or made, no card posted', arriving.length === 0, say(arriving));
+    ok('§30c it hung up and the suite led again', (gone === true) && (suiteLeads === true), JSON.stringify({ gone, suiteLeads }));
+    const leaving = ev.filter(e => e.phase === 'leaving');
+    ok('§30d as the lead came back: no ring taken down or raised, no effect lifted or made, no card posted', leaving.length === 0, say(leaving));
+    const regionIds = scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').map(r => r.id).sort();
+    const effectIds = ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).map(e => e.id).sort();
+    ok('§30e the same three regions stand and the Ranger wears the same three effects',
+      (JSON.stringify(regionIds) === JSON.stringify(prep.regionIds)) && (JSON.stringify(effectIds) === JSON.stringify(prep.effectIds)),
+      JSON.stringify({ before: { regions: prep.regionIds, effects: prep.effectIds }, after: { regions: regionIds, effects: effectIds } }));
+  });
+  // put away, whatever the asserts said
+  try {
+    const rgrTok = scene?.tokens.find(t => t.actorId === ranger?.id);
+    if (rgrTok) await rgrTok.update(H.rgrHome, { teleport: true, animate: false });
+    const back = H.priorActive ? game.scenes.get(H.priorActive) : null;
+    if (back && (game.scenes.active?.id !== back.id)) await back.activate();
+    if (back && (back.id !== scene?.id)) {
+      await until(() => !scene.regions.some(r => r.getFlag(MOD, 'emanation')?.kind === 'feature'), { timeout: 10000, label: 'the range\'s rings down' }).catch(() => null);
+    }
+    if (H.elsewhere && game.scenes.get(H.elsewhere.id)) await H.elsewhere.delete();
+    for (const failed of await H.settings.restore()) log.push(`§30 TEARDOWN settings ERROR: ${failed}`);
+    const left = (ranger?.effects ?? []).filter(e => e.getFlag(MOD, 'emanation')).map(e => e.id);
+    if (left.length) await ranger.deleteEmbeddedDocuments('ActiveEffect', left).catch(() => {});
+    const mine = game.messages.filter(m => (m.timestamp >= H.since) && Object.keys(m.flags?.[MOD] ?? {}).length);
+    if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
+  } catch (err) { log.push(`§30 TEARDOWN ERROR: ${err?.message ?? err}`); }
+  return { results, log, skips };
+};
+
+if (!out?.fatal && (!plan || plan.includes('30'))) {
+  const env = loadEnv();
+  const assistant = gmIdentity(env, 'assistant');
+  if (!assistant) {
+    out.results.push({ name: '§30 the assistant identity is named in the .env (FOUNDRY_ASSISTANT_USER)', pass: false, detail: 'tools/README.md, the live tier\'s table' });
+  } else {
+    const prep = await f.evaluate(prepHandoff, { xName: assistant.user });
+    if (!prep || prep.fatal) {
+      out.results.push({ name: `§30 armed — ${prep?.fatal ?? 'the prep answered nothing'}`, pass: false });
+      const put = await f.evaluate(judgeHandoff, { ...sectionArg(plan, SECTIONS), run: { prep: null } });
+      out.log.push(...put.log);
+    } else {
+      const x = joinGm(env, 'assistant', { tag: 'emanations:assistant' });
+      let joined = { ok: false, err: 'not joined' };
+      let newcomer = null;
+      try {
+        const j = await race(x.ready, 120_000);
+        joined = j.settled ? j.value : { ok: false, err: 'the second client did not join in 120 s' };
+        if (joined.ok) newcomer = await x.client.evaluate(newcomerLeads, { sceneId: prep.sceneId }).catch(err => ({ error: String(err?.message ?? err) }));
+        await f.evaluate(holdWindow, { ms: 6000 });
+      } finally {
+        await f.evaluate(() => { window.__handoff.mark = Date.now(); }, null).catch(() => {});
+        await hangUp(x.client);
+      }
+      const gone = await f.evaluate(awaitGone, { userId: prep.xUserId });
+      const suiteLeads = await f.evaluate(leadsAgain, { ms: 4000 });
+      const judged = await f.evaluate(judgeHandoff, { ...sectionArg(plan, SECTIONS), run: { prep, joined, newcomer, suiteLeads, gone } });
+      out.results.push(...judged.results);
+      out.log.push(...judged.log);
+    }
+  }
+  out.skips.push('§30 a Gamemaster beside an Assistant GM — waits for the gm2 user (HANDOFF §7 item 1)');
+} else if (!out?.fatal) out.skips.push(`§30 ${SECTIONS[30]}`);
 
 await finish({ tag: 'emanations', out, plan, f });

@@ -212,7 +212,7 @@ first client sees its claim; the first client, the elect again, must find the cl
 the newcomer's claim then its own, the newcomer's token removed, one token and one companion effect standing. Their
 own table; about 13 s a cycle. A probe, not a battery suite: no `COVERS`, not in ORDER.
 
-**The two-GM suite sections: `smoke-companions` §9 and `smoke-summons` §10.** Each declares `GM_CLIENTS =
+**The two-GM suite sections: `smoke-companions` §9, `smoke-summons` §10 and `smoke-emanations` §30.** Each declares `GM_CLIENTS =
 ["suite", "assistant"]` and, after its single-client body, joins the `assistant` identity
 ([gm-clients.mjs](gm-clients.mjs) `joinGm`: `gmConfig`, the prelude on its page, an init script that counts the
 card's moments from the first script) while a summon record (Find Familiar as an Owl; Summon Beast as the Land
@@ -220,7 +220,9 @@ spirit) is answered the moment the suite's page hears it connect, then asserts o
 one token made and standing, the companion effects expected, no other effect on the caster, one moment over both
 pages, no extra card, the second client hung up (`armArrival` / `awaitArrival` / `judgeArrival`, the
 **arrival landing**). The Gamemaster beside an Assistant GM waits for the `gm2` user (HANDOFF §7 item 1); each
-section names it in its title and a SKIP line.
+section names it in its title and a SKIP line. `smoke-emanations` §30 is the elect handed off with no record in flight: the range only viewed by
+the suite (another scene active), the Paladin's rings up and the Ranger inside; the `assistant` client joins
+and takes the lead, then hangs up; nothing on the range is taken down, raised or announced either way.
 
 ⚠ **A slow run and a hung run must not look the same** (2026-10-10, issue #12: a harness script
 outlived its 400 s watchdog by an hour, and another printed nothing for five minutes). The harness

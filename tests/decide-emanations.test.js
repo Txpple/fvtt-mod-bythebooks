@@ -416,6 +416,134 @@ describe("appliesOnScene — only a LIVE scene's emanations apply (user, 2026-09
     expect(em.appliesOnScene("field", new Map()).applies).toBe(false);
     expect(em.appliesOnScene(null, em.liveScenes("field", [])).applies).toBe(false);
   });
+  it("before the views are heard a standing ring is kept, whatever the live set says; a ring on no scene still applies nothing", () => {
+    const early = em.liveScenes("elsewhere", [
+      { sceneId: "elsewhere", name: "Newcomer", isGM: true }
+    ]);
+    expect(em.appliesOnScene("range", early).applies).toBe(false);
+    expect(em.appliesOnScene("range", early, { heard: false }).applies).toBe(true);
+    expect(em.appliesOnScene(null, early, { heard: false }).applies).toBe(false);
+  });
+});
+
+describe("viewsHeard — the elect hand-off: a client arriving reads no other user's view until the server's activity lands", () => {
+  const T = 1_000_000;
+  it("before its own ready nothing is heard, even alone", () => {
+    expect(
+      em.viewsHeard({
+        readyAt: null,
+        now: T,
+        graceMs: 3000,
+        viewers: [{ self: true, sceneId: "field" }]
+      }).heard
+    ).toBe(false);
+  });
+  it("one GM alone is heard at ready: a single-GM world raises on first need, no wait", () => {
+    expect(
+      em.viewsHeard({
+        readyAt: T,
+        now: T,
+        graceMs: 3000,
+        viewers: [{ self: true, sceneId: "field" }]
+      }).heard
+    ).toBe(true);
+    expect(
+      em.viewsHeard({ readyAt: T, now: T, graceMs: 3000, viewers: [{ self: true, sceneId: null }] })
+        .heard
+    ).toBe(true);
+  });
+  it("the newcomer: the other GM's view still null at ready — not heard; once it lands, heard", () => {
+    const before = [
+      { self: true, sceneId: "elsewhere" },
+      { self: false, sceneId: null }
+    ];
+    expect(em.viewsHeard({ readyAt: T, now: T + 50, graceMs: 3000, viewers: before }).heard).toBe(
+      false
+    );
+    const after = [
+      { self: true, sceneId: "elsewhere" },
+      { self: false, sceneId: "range" }
+    ];
+    expect(em.viewsHeard({ readyAt: T, now: T + 60, graceMs: 3000, viewers: after }).heard).toBe(
+      true
+    );
+  });
+  it("a user who never sends a view (no canvas) holds it only until the grace ends", () => {
+    const quiet = [
+      { self: true, sceneId: "field" },
+      { self: false, sceneId: null }
+    ];
+    expect(em.viewsHeard({ readyAt: T, now: T + 2999, graceMs: 3000, viewers: quiet }).heard).toBe(
+      false
+    );
+    expect(em.viewsHeard({ readyAt: T, now: T + 3000, graceMs: 3000, viewers: quiet }).heard).toBe(
+      true
+    );
+  });
+  it("why the gate: the live set read before the views lands drops the scene only the other GM views", () => {
+    const early = em.liveScenes("elsewhere", [
+      { sceneId: "elsewhere", name: "Newcomer", isGM: true },
+      { sceneId: null, name: "Suite", isGM: true }
+    ]);
+    const heard = em.liveScenes("elsewhere", [
+      { sceneId: "elsewhere", name: "Newcomer", isGM: true },
+      { sceneId: "range", name: "Suite", isGM: true }
+    ]);
+    expect(early.has("range")).toBe(false);
+    expect(heard.has("range")).toBe(true);
+  });
+});
+
+describe("ringCardDue — a feature ring taken down and put back says nothing again", () => {
+  const T = 1_000_000;
+  const quietMs = 10_000;
+  it("a ring with no card of its own: due", () => {
+    expect(em.ringCardDue({ last: null, range: 10, fellAt: T, now: T + 100, quietMs }).due).toBe(
+      true
+    );
+  });
+  it("put back moments after it fell, its card saying it stands at that range: not due", () => {
+    expect(
+      em.ringCardDue({
+        last: { verb: "stands", range: 10 },
+        range: 10,
+        fellAt: T,
+        now: T + 2400,
+        quietMs
+      }).due
+    ).toBe(false);
+  });
+  it("risen anew long after it fell, or never seen falling here: due", () => {
+    expect(
+      em.ringCardDue({
+        last: { verb: "stands", range: 10 },
+        range: 10,
+        fellAt: T,
+        now: T + quietMs + 1,
+        quietMs
+      }).due
+    ).toBe(true);
+    expect(
+      em.ringCardDue({
+        last: { verb: "stands", range: 10 },
+        range: 10,
+        fellAt: null,
+        now: T,
+        quietMs
+      }).due
+    ).toBe(true);
+  });
+  it("a new range is news: due", () => {
+    expect(
+      em.ringCardDue({
+        last: { verb: "stands", range: 10 },
+        range: 30,
+        fellAt: T,
+        now: T + 100,
+        quietMs
+      }).due
+    ).toBe(true);
+  });
 });
 
 describe("emanationGroup — one aura however many scenes it stands on", () => {

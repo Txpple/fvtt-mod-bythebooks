@@ -196,15 +196,49 @@ export function liveScenes(activeSceneId, viewers = []) {
 
 /**
  * Does an emanation on this scene apply now? Only on a LIVE scene: a linked actor spans scenes.
+ * Before this client has heard who views what (`viewsHeard`), a standing ring is kept: the elect that raised it read
+ * the views, and this client cannot yet.
  * @param {string|null} regionSceneId
  * @param {Map<string, string>|null} live   `liveScenes`' answer
+ * @param {{ heard?: boolean }} [opts]
  * @returns {{ applies: boolean, why: string }}
  */
-export function appliesOnScene(regionSceneId, live) {
+export function appliesOnScene(regionSceneId, live, { heard = true } = {}) {
   if ( !regionSceneId ) return { applies: false, why: "no scene" };
+  if ( !heard ) return { applies: true, why: "the views not yet heard: the standing ring is kept" };
   const why = live?.get(regionSceneId) ?? null;
   if ( !why ) return { applies: false, why: "nobody is playing on this scene" };
   return { applies: true, why };
+}
+
+/**
+ * Has this client heard who views what? Its own view is set at its draw; every other connected user's arrives as
+ * activity just after `ready` and reads null until then. ⚠ `liveScenes` read before that names too few scenes, and a
+ * sweep on it takes a standing ring down. Heard once every other connected user's view is known, or `graceMs` after
+ * `ready` (a client with no canvas never sends one).
+ * @param {{ readyAt: number|null, now: number, graceMs: number,
+ *   viewers?: Array<{ self?: boolean, sceneId: string|null }> }} facts   CONNECTED users only
+ * @returns {{ heard: boolean, why: string }}
+ */
+export function viewsHeard({ readyAt, now, graceMs, viewers = [] }) {
+  if ( !Number.isFinite(readyAt) ) return { heard: false, why: "not ready" };
+  const unheard = (viewers ?? []).filter(v => v && !v.self && !v.sceneId).length;
+  if ( !unheard ) return { heard: true, why: "every connected user's view is known" };
+  if ( (now - Number(readyAt)) >= graceMs ) return { heard: true, why: `${unheard} view(s) unknown ${graceMs} ms after ready: read as none` };
+  return { heard: false, why: `${unheard} connected user(s) not yet heard` };
+}
+
+/**
+ * Does a feature ring's raise post its card? Not when the same ring fell moments ago and the newest card for it
+ * already says it stands at this range: a ring taken down and put back is no news.
+ * @param {{ last: { verb: string, range: number|null }|null, range: number|null, fellAt: number|null,
+ *   now: number, quietMs: number }} facts
+ * @returns {{ due: boolean, why: string }}
+ */
+export function ringCardDue({ last, range, fellAt, now, quietMs }) {
+  if ( !last || (last.verb !== "stands") || (Number(last.range) !== Number(range)) ) return { due: true, why: "no card says it stands at this range" };
+  if ( !Number.isFinite(fellAt) || ((now - Number(fellAt)) > quietMs) ) return { due: true, why: "it rises anew" };
+  return { due: false, why: "put back moments after it fell: its card stands" };
 }
 
 /**

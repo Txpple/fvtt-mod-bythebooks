@@ -299,6 +299,15 @@ a different scene"; `userConnected` covers only the connection half. emanations.
 set on that render (and on an activation) and sweeps only when it changed. Measured with two
 clients: the GM heard a player's navigation within 2 s, one render.
 
+⚠ **A client arriving reads every other user's view as null until just after its `ready`.** Its canvas
+draw asks the server for the users' activity (board.mjs `#initializeUserActivity`, `getUserActivity`) and
+`Game#activateSocketListeners` asks again at `ready` (game.mjs:2011); the answers sit in the socket buffer
+until then or arrive after, and `canvasReady` fires before either. A GM arriving as the elect that sweeps
+on that read sees only the active scene and its own view live: it took down the rings on a scene only the
+other GM viewed, then raised them again with their cards once the views landed. emanations.js sweeps
+nothing until every other connected user's view is known (`viewsHeard`, a 3 s grace after `ready` for a
+client that never sends one); smoke-emanations §30.
+
 ⚠ **An Assistant GM cannot pull a player to a scene.** The server forwards `pullToScene` only when
 the sender `isGM` on the SERVER, which a role-3 user is not (dist/database/documents/scene.mjs,
 14.368): `Scene#pullUsers` from the suite identity was dropped silently. A suite that

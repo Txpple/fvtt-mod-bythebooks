@@ -17,7 +17,7 @@ import { changeCopy } from "./decide/changes.js";
 import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine, esc, pickInputHTML } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
-import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers,
+import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, viewsHeard, ringCardDue, emanationGroup, groupMembers,
   awaySide, bandShape, bandOptions, askDefaults, creatureTypeOf, typeAdmits, movePayout, alertPhrase, alertKeysOnTurn, pickCandidates } from "./decide/emanations.js";
 import { feetOf } from "./geometry.js";
 import { canAnswerFor } from "./core.js";
@@ -126,8 +126,19 @@ function gmHandles(event) {
 const liveNow = () => liveScenes(game.scenes.active?.id ?? null,
   game.users.filter(u => u.active).map(u => ({ sceneId: u.viewedScene ?? null, name: u.name, isGM: u.isGM })));
 
-/** Only a LIVE scene's emanations apply (decide/emanations.js appliesOnScene). */
-const appliesHere = (region, scenes = liveNow()) => appliesOnScene(region?.parent?.id ?? null, scenes).applies;
+/** When this client's `ready` ran; until then no other user's view has reached it. */
+let readyAt = null;
+const VIEWS_GRACE_MS = 3000;
+/**
+ * Has this client heard who views what (decide/emanations.js viewsHeard)? ⚠ A client arriving as the elect reads
+ * every other user's `viewedScene` as null until the activity the server sends after its `ready` lands: a sweep
+ * before that takes down every ring on a scene only another user views, and the next one raises them anew.
+ */
+const viewsKnown = () => viewsHeard({ readyAt, now: Date.now(), graceMs: VIEWS_GRACE_MS,
+  viewers: game.users.filter(u => u.active).map(u => ({ self: u.isSelf, sceneId: u.viewedScene ?? null })) }).heard;
+
+/** Only a LIVE scene's emanations apply (decide/emanations.js appliesOnScene); a standing ring is kept until the views are heard. */
+const appliesHere = (region, scenes = liveNow()) => appliesOnScene(region?.parent?.id ?? null, scenes, { heard: viewsKnown() }).applies;
 
 /** The aura a region carries, as one thing across every scene it stands on (decide/emanations.js emanationGroup). */
 const groupOf = region => {
@@ -965,9 +976,25 @@ function scheduleScene(scene) {
 /** Every scene that has a token of this actor on it. */
 const scenesWith = actor => (actor instanceof Actor) ? game.scenes.filter(s => s.tokens.some(t => (t.actorId === actor.id) || (t.actor === actor))) : [];
 
+/** A feature ring's identity on its card and in `ringFell`: the scene, the token, the row. */
+const ringOf = (sceneId, tokenId, key) => `${sceneId}|${tokenId}|${key}`;
+/** When each feature ring last fell, heard on every client (deleteRegion): a raise moments later is no news. */
+const ringFell = new Map();
+const RING_QUIET_MS = 10_000;
+/** The newest card for a ring, as `{ verb, range }`, or null. */
+function lastRingCard(ring) {
+  const all = game.messages.contents;
+  for ( let i = all.length - 1; i >= 0; i-- ) {
+    const c = readFlag(all[i], "emanationCard");
+    if ( c?.ring === ring ) return { verb: c.verb, range: c.range ?? null };
+  }
+  return null;
+}
+
 /** Make this scene's feature emanations true: one region per standing (token, row); spell regions only re-floored. */
 async function reconcileScene(scene) {
-  if ( !isActiveGM() || !scene ) return;
+  // Not before the views are heard: the sweep that hears them (watchLive) runs this again.
+  if ( !isActiveGM() || !scene || !viewsKnown() ) return;
   const names = listed();
   const wanted = new Map();
   // ⚠ Only a LIVE scene raises a ring: a party leaves tokens on every scene it has visited.
@@ -1009,6 +1036,8 @@ async function reconcileScene(scene) {
   }
   for ( const w of wanted.values() ) {
     try {
+      // Another client's ring for it landed during this sweep: it stands; the next sweep reconciles it.
+      if ( scene.regions.some(r => (flagOf(r)?.kind === "feature") && (flagOf(r).tokenId === w.tok.id) && (flagOf(r).key === w.row.key)) ) continue;
       // ⚠ No dnd5e flags: the saves machine's area adoption must never see a feature's aura as an area.
       const [region] = await scene.createEmbeddedDocuments("Region", [{
         name: `${w.row.key} [${w.actor.name}]`, color: colorFor(w.row.reach),
@@ -1021,7 +1050,10 @@ async function reconcileScene(scene) {
       if ( !region ) { log.error(`${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
       await adoptRegion(region, { kind: "feature", key: w.row.key, tok: w.tok, itemUuid: w.item.uuid, reach: w.row.reach, effect: w.effect, disabled: w.disabled,
         source: w.sourceTok ?? null });
-      await announce(w.row, w.actor, w.item, w.range, w.effect, "stands");
+      const ring = ringOf(scene.id, w.tok.id, w.row.key);
+      if ( ringCardDue({ last: lastRingCard(ring), range: w.range, fellAt: ringFell.get(ring) ?? null, now: Date.now(), quietMs: RING_QUIET_MS }).due ) {
+        await announce(w.row, w.actor, w.item, w.range, w.effect, "stands", { ring });
+      }
       await reconcileMembers(scene.regions.get(region.id) ?? region);
     } catch(err) {
       log.error(`Could not raise ${w.row.key} around ${w.actor.name}.`, err);
@@ -1401,7 +1433,7 @@ function describeChanges(changes) {
 /** The types a save activity's first damage part offers, in the pack's order. */
 const partTypesOf = activity => [...(activity?.damage?.parts?.[0]?.types ?? [])].map(t => String(t).toLowerCase());
 
-async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null, sceneId = null, band = null, picks = null } = {}) {
+async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null, sceneId = null, band = null, picks = null, ring = null } = {}) {
   if ( row.quiet ) return;   // a ring that follows what is held says nothing as it rises and falls
   try {
     const reach = (row.reach === "helpful") ? "allies and neutrals inside" : (row.reach === "all") ? "every creature inside" : "enemies inside";
@@ -1430,7 +1462,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
       }),
       flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null, regionId, ...(sceneId ? { sceneId } : {}),
         ...(choice ? { types: choice.types, activityUuid: choice.activityUuid, damageType: choice.type, damageWhy: choice.why, chosen: false } : {}),
-        ...(band ? { band } : {}), ...(picks ? { picks } : {}) } } }
+        ...(band ? { band } : {}), ...(picks ? { picks } : {}), ...(ring ? { ring } : {}) } } }
     });
   } catch(err) {
     log.warn(`Could not post the emanation card.`, err);
@@ -1520,7 +1552,6 @@ const sweepEverywhere = () => {
   const scenes = liveNow();
   for ( const s of game.scenes ) if ( scenes.has(s.id) || s.regions.some(r => flagOf(r)) ) scheduleScene(s);
 };
-listenOnce("ready", "emanations", sweepEverywhere);
 listen(`${MODULE_ID}.emanationsChanged`, "emanations", sweepEverywhere);
 
 /**
@@ -1529,12 +1560,18 @@ listen(`${MODULE_ID}.emanationsChanged`, "emanations", sweepEverywhere);
  */
 let liveKey = null;
 const watchLive = () => {
-  if ( !isActiveGM() ) { liveKey = null; return; }
+  if ( !isActiveGM() || !viewsKnown() ) { liveKey = null; return; }
   const key = [...liveNow().keys()].sort().join("|");
   if ( key === liveKey ) return;
   liveKey = key;
   sweepEverywhere();
 };
+// The first sweep waits for the views (viewsKnown): heard on the navigation's render, else at the grace's end.
+listenOnce("ready", "emanations", () => {
+  readyAt = Date.now();
+  watchLive();
+  setTimeout(watchLive, VIEWS_GRACE_MS + 100);
+});
 listen("updateScene", "emanations", (_scene, changes) => { if ( "active" in changes ) watchLive(); });
 listen("renderSceneNavigation", "emanations", watchLive);
 listen("canvasReady", "emanations", canvasObj => { scheduleScene(canvasObj?.scene ?? game.scenes.viewed); watchLive(); });
@@ -1559,6 +1596,7 @@ listen("updateRegion", "emanations", (region, changes) => {
 listen("createRegion", "emanations", region => { if ( isActiveGM() ) void adoptSpellRegion(region); });
 listen("deleteRegion", "emanations", region => {
   const f = flagOf(region);
+  if ( f?.kind === "feature" ) ringFell.set(ringOf(region.parent?.id ?? null, f.tokenId, f.key), Date.now());
   if ( !isActiveGM() || !f ) return;
   void reconcileMembers(region, { gone: region });
   // A feature's aura deleted by hand stands again: its switch is the setting or the list, not the region.
