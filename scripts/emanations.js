@@ -13,6 +13,7 @@ import { reactionSpent, turnChitStands, writeTurnChit, savesOf } from "./shared.
 import { riderPartFormula } from "./decide/clock.js";
 import { tokensInRegions, tokenDocOf, tokenOnScene } from "./geometry.js";
 import { emanationShapeData } from "./decide/geometry.js";
+import { changeCopy } from "./decide/changes.js";
 import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine, esc, pickInputHTML } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
@@ -941,7 +942,7 @@ function featureSpec(tok, row) {
     effect: { name: row.effect, img: item.img ?? null, description: null, changes: [] } };
   const effect = item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null;
   if ( !effect ) return null;
-  const { changes, unresolved } = resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData);
+  const { changes, unresolved } = resolveChanges(effect.changes.map(changeCopy), rollData);
   if ( unresolved.length ) { log.warn(`${row.key} on ${actor.name}: could not resolve ${unresolved.join(", ")} — the aura does not stand.`); return null; }
   return { tok, actor, item, row, range, sourceTok, disabled,
     effect: { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes } };
@@ -1049,7 +1050,7 @@ async function adoptSpellRegion(region) {
       : actor?.token ?? tokenOnScene(actor, region.parent);
     const rollData = actor?.getRollData?.() ?? {};
     const effect = row.effect ? (item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null) : null;
-    const resolved = effect ? resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData) : { changes: [], unresolved: [] };
+    const resolved = effect ? resolveChanges(effect.changes.map(changeCopy), rollData) : { changes: [], unresolved: [] };
     const spellLevel = Number(region.getFlag("dnd5e", "spellLevel") ?? item.system?.level ?? 0);
     const scaling = Math.max(0, spellLevel - Number(item.system?.level ?? 0));
     await adoptRegion(region, { kind: row.kind, key: row.key, tok, itemUuid, reach: row.reach, scaling,

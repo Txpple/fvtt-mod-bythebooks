@@ -32,7 +32,7 @@ describe("the tone reads a marker status as no condition (2026-09-27, Aura of Pr
   it("an aura's member copy — bfEmanation, +2 to saves — is a buff; a real condition beside it is still red", () => {
     const copy = fact({
       statuses: ["bfEmanation"],
-      changes: [{ key: "system.bonuses.abilities.save", mode: 2, value: 2 }]
+      changes: [{ key: "system.bonuses.abilities.save", type: "add", value: 2 }]
     });
     expect(toneOf(copy)).toBe("buff");
     expect(toneOf({ ...copy, statuses: ["bfEmanation", "poisoned"] })).toBe("debuff");
@@ -40,7 +40,7 @@ describe("the tone reads a marker status as no condition (2026-09-27, Aura of Pr
       toneOf(
         fact({
           statuses: ["bfEmanation"],
-          changes: [{ key: "system.attributes.ac.bonus", mode: 2, value: -2 }]
+          changes: [{ key: "system.attributes.ac.bonus", type: "add", value: -2 }]
         })
       )
     ).toBe("debuff");
@@ -70,7 +70,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       clock: "",
       worn: true,
       aura: true,
-      changes: [{ key: "system.bonuses.abilities.save", mode: 2, value: "@abilities.cha.mod" }]
+      changes: [{ key: "system.bonuses.abilities.save", type: "add", value: "@abilities.cha.mod" }]
     });
     expect(listed(protectedOnPaladin)).toBe(true);
     // a buff, tagged no-icon (the token paints nothing for a passive), disable is its one write
@@ -111,27 +111,35 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
   });
 
   it("reads a change's sign: a subtraction, a halving, a downgrade or disadvantage is a penalty; the mirror is a bonus", () => {
-    expect(changeSign({ key: "system.attributes.ac.bonus", mode: 2, value: "-2" })).toBe("penalty");
-    expect(changeSign({ key: "system.attributes.ac.bonus", mode: 2, value: "+2" })).toBe("bonus");
-    expect(changeSign({ key: "system.attributes.movement.walk", mode: 1, value: "0.5" })).toBe(
+    expect(changeSign({ key: "system.attributes.ac.bonus", type: "add", value: "-2" })).toBe(
       "penalty"
     );
-    expect(changeSign({ key: "system.attributes.movement.walk", mode: 1, value: "2" })).toBe(
-      "bonus"
-    );
-    expect(changeSign({ key: "system.attributes.ac.value", mode: 3, value: "10" })).toBe("penalty");
-    expect(changeSign({ key: "system.attributes.ac.value", mode: 4, value: "16" })).toBe("bonus");
-    expect(changeSign({ key: "flags.dnd5e.disadvantage.attack.all", mode: 5, value: "1" })).toBe(
-      "penalty"
-    );
-    expect(changeSign({ key: "flags.dnd5e.advantage.save.all", mode: 5, value: "1" })).toBe(
+    expect(changeSign({ key: "system.attributes.ac.bonus", type: "add", value: "+2" })).toBe(
       "bonus"
     );
     expect(
-      changeSign({ key: "system.attributes.senses.darkvision", mode: 5, value: "60" })
+      changeSign({ key: "system.attributes.movement.walk", type: "multiply", value: "0.5" })
+    ).toBe("penalty");
+    expect(
+      changeSign({ key: "system.attributes.movement.walk", type: "multiply", value: "2" })
+    ).toBe("bonus");
+    expect(changeSign({ key: "system.attributes.ac.value", type: "downgrade", value: "10" })).toBe(
+      "penalty"
+    );
+    expect(changeSign({ key: "system.attributes.ac.value", type: "upgrade", value: "16" })).toBe(
+      "bonus"
+    );
+    expect(
+      changeSign({ key: "flags.dnd5e.disadvantage.attack.all", type: "override", value: "1" })
+    ).toBe("penalty");
+    expect(
+      changeSign({ key: "flags.dnd5e.advantage.save.all", type: "override", value: "1" })
+    ).toBe("bonus");
+    expect(
+      changeSign({ key: "system.attributes.senses.darkvision", type: "override", value: "60" })
     ).toBeNull();
     expect(
-      changeSign({ key: "system.attributes.ac.bonus", mode: 2, value: "@abilities.str.mod" })
+      changeSign({ key: "system.attributes.ac.bonus", type: "add", value: "@abilities.str.mod" })
     ).toBeNull();
     expect(changeSign(null)).toBeNull();
   });
@@ -141,7 +149,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       toneOf(
         fact({
           name: "Damaged: -2 AC",
-          changes: [{ key: "system.attributes.ac.bonus", mode: 2, value: "-2" }]
+          changes: [{ key: "system.attributes.ac.bonus", type: "add", value: "-2" }]
         })
       )
     ).toBe("debuff");
@@ -149,7 +157,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       toneOf(
         fact({
           name: "Blessed",
-          changes: [{ key: "system.bonuses.All-Attacks", mode: 2, value: "1d4" }]
+          changes: [{ key: "system.bonuses.All-Attacks", type: "add", value: "1d4" }]
         })
       )
     ).toBe("buff");
@@ -158,8 +166,8 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
         fact({
           name: "Haste",
           changes: [
-            { key: "system.attributes.ac.bonus", mode: 2, value: "2" },
-            { key: "system.attributes.movement.walk", mode: 1, value: "2" }
+            { key: "system.attributes.ac.bonus", type: "add", value: "2" },
+            { key: "system.attributes.movement.walk", type: "multiply", value: "2" }
           ]
         })
       )
@@ -169,8 +177,8 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
         fact({
           name: "Slow",
           changes: [
-            { key: "system.attributes.movement.walk", mode: 1, value: "0.5" },
-            { key: "system.attributes.ac.bonus", mode: 2, value: "-2" }
+            { key: "system.attributes.movement.walk", type: "multiply", value: "0.5" },
+            { key: "system.attributes.ac.bonus", type: "add", value: "-2" }
           ]
         })
       )
@@ -180,8 +188,8 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
         fact({
           name: "Mixed",
           changes: [
-            { key: "system.attributes.ac.bonus", mode: 2, value: "2" },
-            { key: "system.attributes.hp.tempmax", mode: 2, value: "-5" }
+            { key: "system.attributes.ac.bonus", type: "add", value: "2" },
+            { key: "system.attributes.hp.tempmax", type: "add", value: "-5" }
           ]
         })
       )
@@ -255,7 +263,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(
       toneOf(
         fact({
-          changes: [{ key: "system.attributes.ac.bonus", mode: 2, value: "1" }],
+          changes: [{ key: "system.attributes.ac.bonus", type: "add", value: "1" }],
           hostileOrigin: true
         })
       )

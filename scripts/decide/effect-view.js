@@ -30,7 +30,7 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * @property {boolean} [feat]        a face kept for a general feat, titled by the feat alone
  * @property {string|null} [styleFeat]  the Fighting Style feat an item effect rides
  * @property {string|null} [detail]  the face's hover line
- * @property {{key: string, mode: number, value: string|number}[]} [changes]
+ * @property {{key: string, type: string|null, value: string|number}[]} [changes]   `type` off decide/changes.js
  * @property {boolean|null} [hostileOrigin]  null when unknown
  * @property {{attacker?: string|null, target?: string|null, checks?: string|null}|null} [bend]  the effect's
  *   bend row (EFFECT_BENDS), its sides only: what the bearer's rolls, and the rolls against it, take
@@ -84,13 +84,15 @@ export function listed(fact) {
   return fact.temporary === true || (fact.statuses ?? []).length > 0 || fact.worn !== true || fact.aura === true;
 }
 
-/** Foundry's ActiveEffect change modes, by number. */
-const MODE = Object.freeze({ CUSTOM: 0, MULTIPLY: 1, ADD: 2, DOWNGRADE: 3, UPGRADE: 4, OVERRIDE: 5 });
+/** dnd5e 6's `dnd5e.advantage` values: Advantage, then Disadvantage. */
+const ADVANTAGE_UP = /^(=?\+1|>=0)$/;
+const ADVANTAGE_DOWN = /^(=?-1|<=0)$/;
 
 /**
- * What one change does: a penalty (negative ADD, MULTIPLY below one, DOWNGRADE, disadvantage),
- * the mirror bonus, or nothing readable (OVERRIDE, CUSTOM).
- * @param {{key?: string, mode?: number, value?: string|number}} change
+ * What one change does: a penalty (a negative add, a positive subtract, a multiply below one, a downgrade,
+ * disadvantage, a negative dnd5e bonus), the mirror bonus, or nothing readable (override, custom).
+ * `type` is Foundry 14's string kind, as decide/changes.js reads it.
+ * @param {{key?: string, type?: string|null, value?: string|number}} change
  * @returns {"penalty"|"bonus"|null}
  */
 export function changeSign(change) {
@@ -98,13 +100,17 @@ export function changeSign(change) {
   const key = String(change.key ?? "").toLowerCase();
   if ( /disadvantage/.test(key) ) return "penalty";
   if ( /advantage/.test(key) ) return "bonus";
-  const mode = Number(change.mode);
-  if ( mode === MODE.DOWNGRADE ) return "penalty";
-  if ( mode === MODE.UPGRADE ) return "bonus";
-  const n = Number(String(change.value ?? "").trim());
-  if ( !Number.isFinite(n) ) return null;
-  if ( mode === MODE.ADD ) return n < 0 ? "penalty" : (n > 0 ? "bonus" : null);
-  if ( mode === MODE.MULTIPLY ) return n < 1 ? "penalty" : (n > 1 ? "bonus" : null);
+  const type = String(change.type ?? "");
+  const text = String(change.value ?? "").trim();
+  if ( type === "dnd5e.advantage" ) return ADVANTAGE_DOWN.test(text) ? "penalty" : (ADVANTAGE_UP.test(text) ? "bonus" : null);
+  if ( type === "dnd5e.bonus" ) return text.startsWith("-") ? "penalty" : (text ? "bonus" : null);
+  if ( type === "downgrade" ) return "penalty";
+  if ( type === "upgrade" ) return "bonus";
+  const n = Number(text);
+  if ( !text || !Number.isFinite(n) ) return null;
+  if ( type === "add" ) return n < 0 ? "penalty" : (n > 0 ? "bonus" : null);
+  if ( type === "subtract" ) return n > 0 ? "penalty" : (n < 0 ? "bonus" : null);
+  if ( type === "multiply" ) return n < 1 ? "penalty" : (n > 1 ? "bonus" : null);
   return null;
 }
 

@@ -88,7 +88,7 @@ async function drive(row, activity, actor, message) {
       name: item.name, img: item.img ?? "icons/svg/shield.svg",
       description: `${await ruleHTML(row.rule)}<p>Written by By the Books when ${esc(item.name)} was used: ${row.bonus.what} +${roll.total} until the start of ${esc(actor.name)}'s next turn.</p>`,
       origin: item.uuid, disabled: false, transfer: false,
-      changes: [{ key: row.bonus.key, mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: String(roll.total) }],
+      changes: [{ key: row.bonus.key, type: "add", value: String(roll.total) }],
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key } }
     }, { parent: actor }) : null;

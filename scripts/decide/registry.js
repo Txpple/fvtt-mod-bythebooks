@@ -931,7 +931,7 @@ export const USE_CHIPS = Object.freeze({
   "Steady Aim": Object.freeze({ key: "steadyAim", bend: "advantage", window: "steadyAim",
     rule: Object.freeze({ item: "Steady Aim", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeSteadyAim0" }),
     note: "Speed 0 until the end of the turn; the next attack roll spends it",
-    changes: Object.freeze([Object.freeze({ key: "system.attributes.movement.walk", mode: 5, value: "0" })]) }),
+    changes: Object.freeze([Object.freeze({ key: "system.attributes.movement.walk", type: "override", value: "0" })]) }),
   // B3 — armed by a MISS (`on: "miss"`, read as rolled on the attack card — Graze's road), one chip per missed creature on the
   // attacker, `against` that creature (EFFECT_BENDS "Studied Attacks" reads the chip only at that target; the roll spends it).
   "Studied Attacks": Object.freeze({ key: "studiedAttacks", bend: "advantage", window: "vex", on: "miss", against: true,

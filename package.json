@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Development tooling for By the Books (formerly Battle Flow). NOTHING HERE SHIPS — the module is plain ES modules loaded straight from scripts/, with no build step (ARCHITECTURE.md).",
   "scripts": {
-    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run cardreads && npm run lookups && npm run layers && npm run flagedges && npm run coverage && npm run hooks && npm run dispatch && npm run writers && npm run gmsites && npm run clocks && npm run serializer && npm run harness && npm run html && npm run cards && npm run rulefolds && npm run pickers && npm run popups && npm run surfaces && npm run registry && npm run identifiers && npm run moments && npm run contracts && npm run manifest && npm run comments && npm run doclinks && npm run test",
+    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run cardreads && npm run lookups && npm run layers && npm run flagedges && npm run coverage && npm run hooks && npm run dispatch && npm run writers && npm run gmsites && npm run clocks && npm run changemodes && npm run serializer && npm run harness && npm run html && npm run cards && npm run rulefolds && npm run pickers && npm run popups && npm run surfaces && npm run registry && npm run identifiers && npm run moments && npm run contracts && npm run manifest && npm run comments && npm run doclinks && npm run test",
     "check": "biome check --error-on-warnings .",
     "check:fix": "biome check --write .",
     "lint": "biome lint ./scripts",
@@ -22,6 +22,7 @@
     "writers": "node tools/check-writers.mjs",
     "gmsites": "node tools/check-gm-sites.mjs",
     "clocks": "node tools/check-clocks.mjs",
+    "changemodes": "node tools/check-change-modes.mjs",
     "serializer": "node tools/check-serializer.mjs",
     "harness": "node tools/check-harness.mjs",
     "html": "node tools/check-html.mjs",

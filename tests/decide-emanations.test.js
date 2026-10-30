@@ -97,7 +97,7 @@ describe("resolveFormula / resolveChanges — the SOURCE's numbers travel with t
   const paladin = { abilities: { cha: { mod: 3 } }, scale: { paladin: { aura: { value: 10 } } } };
   it("reads @abilities.cha.mod off the Paladin, not the receiver (the pack's own note)", () => {
     const { changes, unresolved } = em.resolveChanges(
-      [{ key: "system.bonuses.abilities.save", mode: 2, value: "@abilities.cha.mod" }],
+      [{ key: "system.bonuses.abilities.save", type: "add", value: "@abilities.cha.mod" }],
       paladin
     );
     expect(unresolved).toEqual([]);
@@ -107,8 +107,8 @@ describe("resolveFormula / resolveChanges — the SOURCE's numbers travel with t
   it("leaves a change with no formula alone (Warding's resistances, Half Speed's multiplier)", () => {
     const { changes } = em.resolveChanges(
       [
-        { key: "system.traits.dr.value", mode: 2, value: "necrotic" },
-        { key: "system.attributes.movement.speed", mode: 1, value: "0.5" }
+        { key: "system.traits.dr.value", type: "add", value: "necrotic" },
+        { key: "system.attributes.movement.speed", type: "multiply", value: "0.5" }
       ],
       paladin
     );
@@ -116,7 +116,7 @@ describe("resolveFormula / resolveChanges — the SOURCE's numbers travel with t
   });
   it("reports an unresolved token instead of shipping a silent zero", () => {
     const { changes, unresolved } = em.resolveChanges(
-      [{ key: "x", mode: 2, value: "@abilities.wis.mod" }],
+      [{ key: "x", type: "add", value: "@abilities.wis.mod" }],
       paladin
     );
     expect(unresolved).toEqual(["abilities.wis.mod"]);
@@ -183,7 +183,7 @@ describe("memberEffectData — the pack's effect, named for its source, fingerpr
       {
         name: "Protected",
         img: null,
-        changes: [{ key: "system.bonuses.abilities.save", mode: 2, value: "3" }]
+        changes: [{ key: "system.bonuses.abilities.save", type: "add", value: "3" }]
       },
       {
         sourceName: "Ysolde",

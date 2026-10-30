@@ -104,18 +104,18 @@ export function resolveFormula(formula, data) {
 
 /**
  * The pack's effect changes with the source's numbers read in, plain arithmetic folded.
- * @param {Array<{key: string, mode: number, value: string, priority?: number|null}>} changes
+ * @param {Array<Record<string, any>>} changes   plain typed copies (decide/changes.js `changeCopy`)
  * @param {Record<string, any>} data     the SOURCE's roll data
- * @returns {{ changes: Array<{key: string, mode: number, value: string, priority?: number|null}>, unresolved: string[] }}
+ * @returns {{ changes: Array<Record<string, any>>, unresolved: string[] }}
  */
 export function resolveChanges(changes, data) {
   const unresolved = [];
   const out = (changes ?? []).map(c => {
     const value = String(c.value ?? "");
-    if ( !value.includes("@") ) return { key: c.key, mode: c.mode, value, priority: c.priority ?? null };
+    if ( !value.includes("@") ) return { ...c, value };
     const r = resolveFormula(value, data);
     unresolved.push(...r.unresolved);
-    return { key: c.key, mode: c.mode, value: foldArithmetic(r.text), priority: c.priority ?? null };
+    return { ...c, value: foldArithmetic(r.text) };
   });
   return { changes: out, unresolved };
 }

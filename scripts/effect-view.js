@@ -10,6 +10,7 @@ import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups,
 import { EFFECT_BENDS, EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { carriedCover, measuredCoverBetween, tokenDocOf } from "./geometry.js";
 import { coverStanding } from "./decide/cover.js";
+import { changeType } from "./decide/changes.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { featureNamed, lower } from "./lookup.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -92,7 +93,7 @@ function factOf(effect) {
     chipKey: chipKindOf(effect),
     clock: clockLabel(effect),
     origin: typeof effect.origin === "string" ? effect.origin : null,
-    changes: (effect.changes ?? []).map(c => ({ key: c.key, mode: c.mode, value: c.value })),
+    changes: (effect.changes ?? []).map(c => ({ key: c.key, type: changeType(c), value: c.value })),
     bend: bendOf(effect),
     hostileOrigin: hostileOriginOf(effect)
   };

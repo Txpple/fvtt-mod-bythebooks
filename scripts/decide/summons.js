@@ -321,8 +321,8 @@ export function narrowedActivities(activities, type) {
 }
 
 /**
- * The effect that shares the spirit's resistance with the caster for the spell's life: one `ADD` on
- * the damage-resistance trait (Foundry's ACTIVE_EFFECT_MODES.ADD is 2).
+ * The effect that shares the spirit's resistance with the caster for the spell's life: one `add` on
+ * the damage-resistance trait.
  * @param {{ type: string, name: string, img?: string|null, origin?: string|null, description?: string }} facts
  */
 export function resistanceEffectData({ type, name, img = null, origin = null, description = "" }) {
@@ -330,7 +330,7 @@ export function resistanceEffectData({ type, name, img = null, origin = null, de
   return {
     name, img: img ?? "icons/magic/defensive/shield-barrier-glowing-triangle-blue.webp",
     type: "base", description, disabled: false, transfer: false, origin: origin ?? null,
-    changes: [{ key: "system.traits.dr.value", mode: 2, value: t, priority: null }]
+    changes: [{ key: "system.traits.dr.value", type: "add", value: t }]
   };
 }
 

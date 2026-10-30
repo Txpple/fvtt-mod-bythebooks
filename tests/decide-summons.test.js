@@ -283,7 +283,7 @@ describe("narrowedActivities — the breath narrowed to one type", () => {
 });
 
 describe("resistanceEffectData and ownershipGrant — what lands on the caster and who owns the creature", () => {
-  it("the resistance is one ADD on the damage-resistance trait, never transferred", () => {
+  it("the resistance is one typed add on the damage-resistance trait, never transferred", () => {
     const e = s.resistanceEffectData({
       type: "Fire",
       name: "Shared Resistance (Fire)",
@@ -295,9 +295,7 @@ describe("resistanceEffectData and ownershipGrant — what lands on the caster a
       disabled: false,
       origin: "Actor.c.Item.sd"
     });
-    expect(e.changes).toEqual([
-      { key: "system.traits.dr.value", mode: 2, value: "fire", priority: null }
-    ]);
+    expect(e.changes).toEqual([{ key: "system.traits.dr.value", type: "add", value: "fire" }]);
   });
   it("every owner of the caster who does not yet own the creature is granted; the default is never copied", () => {
     expect(s.ownershipGrant({ default: 0, p1: 3, p2: 1, gm: 3 }, { default: 0, gm: 3 })).toEqual({

@@ -234,7 +234,7 @@ describe("DRAINS — the fall on the damage that landed", () => {
     expect(data._id).toBe(dn.drainEffectId("Life Drain"));
     expect(data._id).toHaveLength(16);
     expect(data.changes).toEqual([
-      { key: "system.attributes.hp.tempmax", mode: 2, value: "-9", priority: 20 }
+      { key: "system.attributes.hp.tempmax", type: "add", value: "-9", priority: 20 }
     ]);
     expect(data.flags.bf.drain).toEqual({ key: "Life Drain", amount: 9 });
     expect(

@@ -52,7 +52,7 @@ export function drainEffectData({ key, amount, img = null, moduleId }) {
     img,
     transfer: false,
     disabled: false,
-    changes: [{ key: "system.attributes.hp.tempmax", mode: 2, value: String(-n), priority: 20 }],
+    changes: [{ key: "system.attributes.hp.tempmax", type: "add", value: String(-n), priority: 20 }],
     description: `<p>${key}: the Hit Point maximum lowered by ${n}, the damage that landed.</p>`,
     flags: { [moduleId]: { drain: { key, amount: n } } }
   };

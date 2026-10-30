@@ -11,6 +11,7 @@ import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
   typesInNames, typedFace, ignoredResistances, typeChoicesLeft, spellRuleFits } from "./decide/damage-rules.js";
 import { isCard, CARD, originIdInData } from "./decide/card.js";
+import { changeCopy, changesSignature } from "./decide/changes.js";
 import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
@@ -93,15 +94,14 @@ function desiredFace({ name, row, feature, types }, held) {
   const change = row.ac === "effect" ? acChangeOf(feature) : null;
   return {
     name, img: feature.img, origin: feature.uuid, transfer: false, disabled: !state.live,
-    changes: change ? [{ key: change.key, mode: change.mode, value: String(change.value), priority: change.priority ?? null }] : [],
+    changes: change ? [{ ...changeCopy(change), value: String(change.value) }] : [],
     flags: { [MODULE_ID]: { [STYLE_FLAG]: { key: row.key, live: state.live, word: state.word, detail: state.detail,
       ...(row.feat ? { feat: true } : {}) } } }
   };
 }
 
 const faceOf = effect => readFlag(effect, STYLE_FLAG) ?? null;
-const sameChanges = (a, b) => JSON.stringify((a ?? []).map(c => [c.key, Number(c.mode), String(c.value)]))
-  === JSON.stringify((b ?? []).map(c => [c.key, Number(c.mode), String(c.value)]));
+const sameChanges = (a, b) => changesSignature(a) === changesSignature(b);
 
 const syncing = new Map();
 

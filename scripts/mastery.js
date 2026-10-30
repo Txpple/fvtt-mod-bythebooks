@@ -43,8 +43,8 @@ const MASTERY_EFFECTS = {
     name: "Slowed", img: "icons/svg/net.svg",
     description: attacker => `Speed reduced by 10 feet until the start of ${attacker.name}'s next turn (Slow).`,
     changes: () => [
-      { key: "system.attributes.movement.walk", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-10" },
-      { key: "system.attributes.movement.fly", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-10" }
+      { key: "system.attributes.movement.walk", type: "add", value: "-10" },
+      { key: "system.attributes.movement.fly", type: "add", value: "-10" }
     ]
   }
 };
