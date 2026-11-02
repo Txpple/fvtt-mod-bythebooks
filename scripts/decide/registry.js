@@ -1966,7 +1966,8 @@ export const SPELL_LOOKS = Object.freeze({
  *   effect    the pack effect the light rides, landed WITH it; null: the module's own, named as the item, or
  *             a utility use's own creature effect of the row's name when a world copy gives it one
  *             (`lightAdopts`: the light lands that effect and the cast path leaves it, so the bearer wears one)
- *   recast    "ends" — casting it again ends the caster's earlier light
+ *   recast    "ends" — casting it again ends the caster's earlier light; on an `ends: "enchantment"` row, the earlier
+ *             ENCHANTMENT too ("until you use this feature again"): a copy applied ends every other on the bearer's items
  *   out       the item's other activity whose use puts the caster's light out (the effect deleted on the elect,
  *             the token's own light back); the use itself runs as the pack's
  *   ends      "enchantment" — the light goes out with the ENCHANTMENT the use put on a weapon (the item's own
@@ -2006,7 +2007,7 @@ export const TOKEN_LIGHTS = Object.freeze({
     rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp" }),
     from: "Paladin — Oath of the Ancients 20 (1 minute)" }),
   // The +Cha and the Radiant are the pack's Enchant (NATIVE); the weapon's light rides the paladin's token.
-  "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, ends: "enchantment",
+  "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, ends: "enchantment", recast: "ends",
     caveat: "the light is the paladin's token's — the weapon is in hand",
     rule: Object.freeze({ item: "Sacred Weapon", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSacredWeap" }),
     from: "Paladin — Oath of Devotion 3 (10 minutes)" }),

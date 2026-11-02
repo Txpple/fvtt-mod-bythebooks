@@ -148,7 +148,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const blessCard = since => game.messages.contents.find(m => (m.timestamp >= since) && m.getFlag(MOD, 'healOnHit')?.kill
           && (m.getFlag(MOD, 'healOnHit')?.casterUuid === cleric.uuid)) ?? null;
         const said = m => cardText(m?.id) || String(m?.content ?? '').replace(/<[^>]+>/g, ' ').replace(/&#39;|&#x27;/g, "'").replace(/\s+/g, ' ');
-        const title = new RegExp(`Dark One's Blessing — ${cleric.name} gains ${N} Temporary Hit Points`);
+        // the card is dnd5e's own healing card of the feature's heal (FX Studio plays off it), its line saying who fell
+        const title = new RegExp(`Dark One's Blessing — ${victim.name} falls`);
         const reset = async () => {
           await cleric.update({ 'system.attributes.hp.temp': 0 });
           await victim.update({ 'system.attributes.hp.value': 1 });
@@ -164,8 +165,8 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const recA = await until(() => (cA?.getFlag(MOD, 'receipt')?.targets?.length ? cA.getFlag(MOD, 'receipt') : null), { timeout: 6000, label: 'the Blessing card\'s receipt' });
         await until(() => temp() === N, { timeout: 4000, label: `the Cleric at ${N} temp HP` });
         const fA = cA?.getFlag(MOD, 'healOnHit');
-        ok(`21a. the Cleric drops the Victim: "Dark One's Blessing — BTB Test Cleric gains ${N} Temporary Hit Points" ("you dropped an enemy"), receipted, ${N} temp HP`,
-          fellA && !!cA && title.test(said(cA)) && (fA?.amount === N) && /you dropped an enemy/.test(fA?.why ?? '') && (fA?.targetUuid === victim.uuid)
+        ok(`21a. the Cleric drops the Victim: the feature's healing card, its line "Dark One's Blessing — ${victim.name} falls" ("you dropped an enemy"), receipted, ${N} temp HP`,
+          fellA && !!cA && (cA.type === 'healing') && title.test(said(cA)) && /you dropped an enemy/.test(fA?.why ?? '') && (fA?.targetUuid === victim.uuid)
             && (recA?.targets ?? []).some(t => t.uuid === cleric.uuid) && (temp() === N),
           `N=${N} (warlock ${rd?.classes?.warlock?.levels} + cha ${rd?.abilities?.cha?.mod}) fell=${fellA} vhp=${vhp()} card=${!!cA} text=${said(cA).slice(0, 160)} flag=${JSON.stringify(fA)} receipt=${JSON.stringify(recA?.targets?.map(t => t.name) ?? null)} temp=${temp()}`);
 

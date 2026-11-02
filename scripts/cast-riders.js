@@ -4,9 +4,9 @@
  * Wild Magic Surge rolls its d20 itself (R1 — "you can roll" has one sensible answer; a bend by choice) once per
  * turn after a Sorcerer spell cast with a slot, and rolls the pack's table on a 20 — or at once when Tides of
  * Chaos was spent, which comes back; the cast card says what happened, the table's card what surged. Inspiring
- * Smite, after Divine Smite, rolls its Temporary Hit Points and asks the paladin how to divide them among the
- * creatures within reach — the rest song's popup (rest-grants.js `askHandOut`), its clock giving all to the
- * paladin (a bend by choice); the Channel Divinity is spent only when something is given.
+ * Smite, after Divine Smite, rolls its Temporary Hit Points and asks the paladin whom to share them among, split
+ * evenly over the creatures ticked within reach — the rest song's popup (rest-grants.js `askHandOut`), its clock
+ * giving all to the paladin (a bend by choice); the Channel Divinity is spent only when something is given.
  */
 import { MODULE_ID, readFlag, decisionWindow, queueFlagWrite, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { activityNamed, activityOfType, featureNamed, lower } from "./lookup.js";

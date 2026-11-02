@@ -52,22 +52,22 @@ export function surgeLine(r) {
 }
 
 /**
- * A hand-out DIVIDED as the giver likes (Inspiring Smite): whole numbers, none below 0, the sum never past the
- * total — the picks are read in order and the last trimmed to what is left; a 0 is no pick.
- * @param {{total: number, picks: {uuid: string, n: number}[], allowed?: Set<string>|null}} facts
+ * A hand-out SPLIT EVENLY among the creatures picked (Inspiring Smite, RULINGS *The class features, reviewed*): the total
+ * divided by the number picked, rounded down, the points left over one each down the list (13 among three: 5, 4, 4); a
+ * share of 0 is no pick. A pick is a uuid or a `{ uuid }` (the split's own output reads back the same).
+ * @param {{total: number, picks: (string|{uuid: string})[], allowed?: Set<string>|null}} facts
  * @returns {{uuid: string, n: number}[]}
  */
-export function distribution({ total, picks, allowed = null }) {
-  let left = Math.max(0, Math.floor(Number(total) || 0));
-  const out = [];
-  const seen = new Set();
+export function evenSplit({ total, picks, allowed = null }) {
+  const sum = Math.max(0, Math.floor(Number(total) || 0));
+  const uuids = [];
   for ( const p of (picks ?? []) ) {
-    if ( !p?.uuid || seen.has(p.uuid) || (allowed && !allowed.has(p.uuid)) ) continue;
-    const n = Math.min(left, Math.max(0, Math.floor(Number(p.n) || 0)));
-    if ( !n ) continue;
-    seen.add(p.uuid);
-    out.push({ uuid: p.uuid, n });
-    left -= n;
+    const uuid = (typeof p === "string") ? p : p?.uuid;
+    if ( !uuid || uuids.includes(uuid) || (allowed && !allowed.has(uuid)) ) continue;
+    uuids.push(uuid);
   }
-  return out;
+  if ( !uuids.length ) return [];
+  const each = Math.floor(sum / uuids.length);
+  const over = sum % uuids.length;
+  return uuids.map((uuid, i) => ({ uuid, n: each + ((i < over) ? 1 : 0) })).filter(p => p.n > 0);
 }

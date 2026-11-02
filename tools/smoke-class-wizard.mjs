@@ -25,7 +25,7 @@ const SECTIONS = {
   32: 'Potent Cantrip (lent to the Attacker): the Halfling SAVES against its Sacred Flame — "saved — half damage (Potent Cantrip)", half the roll lands; taken back, a saved Sacred Flame lands nothing',
   35: 'Potent Cantrip on a MISS (BTB Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share',
   36: 'Arcane Ward (lent to the Sorcerer, 12 HP): the first Abjuration cast from a slot (Mage Armor) creates it — "Arcane Ward — created, 12 hit points (of 12)"; 5 damage applied straight to the actor (the card buttons\' road) lands on the ward, HP untouched; a hit through the module with the ward at 2: "Arcane Ward took 2 — N landed", the revert gives both back; a level-2 cast refills +4; at 0 it takes nothing',
-  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit a stored 2 turns asks too (2026-10-14) and every screen sees the bend banner',
+  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit a stored 2 turns asks too (2026-10-14) and every screen sees the bend banner; a friend\'s miss a stored 20 turns is a Critical Hit, its damage rolled critical',
   82: 'Greater Portent (C1, the Sorcerer): the Long Rest keeps three faces',
   83: 'Spell Resistance (C1, the Sorcerer): the save gate against a spell lists it, net Advantage',
   126: 'Portent widened (2026-10-14, lent to the Sorcerer): a check or a save whose roll carries a DC asks the diviner with the faces that turn it and the card says SUCCESS; a bare check asks nobody'
@@ -40,7 +40,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
   const { until, watch, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Victim, a4Card, act, attacker, attackerToken, cardEl, cardText, clearTargets, closeA1, closeDialogs, damageFor, findPHB, gateDrawn, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, holdOf, hp, lentBy, log, pcAttacker, pcToken, pickApply, popups, resolvedTarget, rollDialog, rollPopup, rollStoredAsk, set, sorcTokC, sorcerer, spendLuck, swing, textOf, unlend, victim, victimToken } = KIT;
+  const { MOD, a1Victim, a4Card, act, attacker, attackerToken, cardEl, cardText, clearTargets, closeA1, closeDialogs, damageFor, findPHB, gateDrawn, halfling, halflingToken, healFull, hgClose, hgKeep, hgLend, holdOf, hp, lentBy, log, missTarget, pcAttacker, pcToken, pcWeapon, pickApply, popupTitled, popups, resolvedTarget, rollDialog, rollPopup, rollStoredAsk, set, sorcTokC, sorcerer, spendLuck, swing, swingAt, textOf, unlend, victim, victimToken } = KIT;
   try {
     await KIT.leaveA3();
     KIT.markA2();
@@ -391,6 +391,25 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             !landed && !!notApplied && /Portent \(BTB Test Sorcerer\) turned the hit on BTB Test Halfling into a miss/.test(notApplied?.why ?? '') && !game.messages.get(lateMsg?.id)?.getFlag(MOD, 'receipt')
               && /Not applied — Portent \(BTB Test Sorcerer\)/.test(cardText(lateMsg?.id)) && (hp() === 400),
             `flag=${JSON.stringify(notApplied)} receipt=${!!game.messages.get(lateMsg?.id)?.getFlag(MOD, 'receipt')} hp=${hp()} card="${cardText(lateMsg?.id).slice(0, 200)}"`);
+          // j. a friend's miss a stored 20 turns (the user, 2026-11-02): a Critical Hit, its damage rolled critical
+          if (!pcWeapon) log.push('§41j skipped: no PC Attacker weapon');
+          else {
+            hgKeep(victim, { 'system.attributes.hp.value': victim.system._source.attributes.hp.value, 'system.attributes.hp.max': victim.system._source.attributes.hp.max });
+            await victim.update({ 'system.attributes.hp.max': 400 });
+            await sorcerer.createEmbeddedDocuments('ActiveEffect', [{ name: 'Portent — 20', img: 'icons/svg/d20.svg', transfer: false,
+              flags: { [MOD]: { storedDice: { key: 'Portent', faces: [20], turn: null } } } }]);
+            const msg3 = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [3] });
+            const jpop = await until(() => popupTitled(/Portent/), { timeout: 8000, label: 'the diviner\'s Portent popup on the friend\'s miss' });
+            const jtext = textOf(jpop?.element);
+            ok('41j. a friend\'s miss a stored 20 turns: the diviner\'s popup "Use the 20"', !!jpop && /Use the 20\b/.test(jtext),
+              `pop=${!!jpop} hold=${JSON.stringify(holdOf(msg3)?.targets?.[0]?.guards?.map(g => [g.name, g.row, g.faces]) ?? null)} text="${jtext.slice(0, 200)}"`);
+            pickApply(jpop);
+            const t3 = await missTarget(msg3);
+            const dmg3 = await until(() => damageFor(msg3?.id), { timeout: 8000, label: 'the damage rolled after the turned miss' });
+            ok('41k. Answer: a HIT that is a Critical Hit, and the damage the hold rolls is critical',
+              (t3?.verdict === 'hit') && (t3?.bent?.isCritical === true) && (dmg3?.rolls?.[0]?.isCritical === true),
+              `verdict=${t3?.verdict} bent=${JSON.stringify(t3?.bent)} dmgCrit=${dmg3?.rolls?.[0]?.isCritical} formula=${dmg3?.rolls?.[0]?.formula}`);
+          }
         }
       } finally {
         await closeA1();

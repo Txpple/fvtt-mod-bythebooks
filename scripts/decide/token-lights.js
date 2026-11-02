@@ -246,6 +246,17 @@ export function lightTargets(row, { self = null, targets = [] } = {}) {
 }
 
 /**
+ * A re-used enchantment (an `ends: "enchantment"` row with `recast: "ends"` — Sacred Weapon's "until you use this feature
+ * again"): the ids of every OTHER applied copy of it on the bearer's items, the one just applied kept.
+ * @param {{ id: string, applied: boolean }[]} copies  the bearer's enchantments of the row's name
+ * @param {string} keep  the copy just applied
+ * @returns {string[]}
+ */
+export function enchantmentsReplaced(copies, keep) {
+  return (copies ?? []).filter(c => c?.applied && c.id && (c.id !== keep)).map(c => c.id);
+}
+
+/**
  * How long a row's light stands, in the card's words: a form's while it stands, a spell's for its duration,
  * and what puts it out early. A recast row names its effect: the table's clock rarely runs a spell's minutes
  * out, so the effect removed is the usual end.

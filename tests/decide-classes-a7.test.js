@@ -97,34 +97,31 @@ describe("the surge", () => {
   });
 });
 
-describe("a divided hand-out", () => {
-  it("whole numbers, never past the total, zeros and strangers dropped", () => {
+describe("a hand-out split evenly", () => {
+  it("the total divided by the picks, the remainder one each down the list, strangers and repeats dropped", () => {
     const allowed = new Set(["a", "b", "c"]);
-    expect(
-      cr.distribution({
-        total: 12,
-        picks: [
-          { uuid: "a", n: 7 },
-          { uuid: "b", n: 9 },
-          { uuid: "c", n: 0 },
-          { uuid: "x", n: 3 }
-        ],
-        allowed
-      })
-    ).toEqual([
-      { uuid: "a", n: 7 },
-      { uuid: "b", n: 5 }
+    expect(cr.evenSplit({ total: 13, picks: ["a", "b", "c", "x", "a"], allowed })).toEqual([
+      { uuid: "a", n: 5 },
+      { uuid: "b", n: 4 },
+      { uuid: "c", n: 4 }
     ]);
+    expect(cr.evenSplit({ total: 12, picks: ["a"] })).toEqual([{ uuid: "a", n: 12 }]);
+    expect(cr.evenSplit({ total: 12, picks: [] })).toEqual([]);
+  });
+  it("a share of 0 is no pick; the split reads its own output back the same", () => {
+    const once = cr.evenSplit({ total: 2, picks: ["a", "b", "c"] });
+    expect(once).toEqual([
+      { uuid: "a", n: 1 },
+      { uuid: "b", n: 1 }
+    ]);
+    expect(cr.evenSplit({ total: 2, picks: once })).toEqual(once);
     expect(
-      cr.distribution({
-        total: 12,
-        picks: [
-          { uuid: "a", n: 2.7 },
-          { uuid: "a", n: 4 }
-        ]
-      })
-    ).toEqual([{ uuid: "a", n: 2 }]);
-    expect(cr.distribution({ total: 12, picks: [] })).toEqual([]);
+      cr.evenSplit({ total: 13, picks: cr.evenSplit({ total: 13, picks: ["a", "b", "c"] }) })
+    ).toEqual([
+      { uuid: "a", n: 5 },
+      { uuid: "b", n: 4 },
+      { uuid: "c", n: 4 }
+    ]);
   });
 });
 

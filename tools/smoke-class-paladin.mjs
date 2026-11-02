@@ -23,8 +23,8 @@ export const COVERS = [
 
 const SECTIONS = {
   13: 'Glorious Defense: the Attacker hits the Halfling 10 ft from the Cleric (lent Glorious Defense) by 0 — the Cleric\'s popup "−<Cha mod, min 1>"; Answer turns it to a MISS, a use spent; the Strike popup "Strike BTB Test Attacker with <weapon>?" drives one weapon attack at the Attacker',
-  23: 'Sacred Weapon: the use lights the Cleric\'s token 20 ft Bright / 40 ft Dim ("while the weapon\'s enchantment stands"); the weapon\'s enchantment deleted puts the light out (the token back to its prior light)',
-  40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin',
+  23: 'Sacred Weapon: the use lights the Cleric\'s token 20 ft Bright / 40 ft Dim ("while the weapon\'s enchantment stands"); used again on a Dagger the first weapon\'s enchantment ends and the light stands, applied to the Dagger again one copy stands (2026-11-02); the enchantment deleted puts the light out (the token back to its prior light)',
+  40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Share 13 Temporary Hit Points" with a tick per creature within 30 ft, the paladin ticked; the PC ticked too, 7 and 6 land, split evenly, and one Channel Divinity is spent; No keeps it; the clock gives all 13 to the paladin',
   65: 'Undying Sentinel (C1, the Halfling a Paladin 15): the drop asks "drop to 1 Hit Point instead? · and the heal"; Yes: 1 + 45, the use spent',
   77: 'Smite of Protection (C1, the Cleric a Paladin 15 with the aura): Divine Smite cast — the paladin and the Halfling inside wear "Smite of Protection" (Half Cover), the cast card\'s line',
   78: 'Soul of Vengeance (C1, the Cleric 5 ft from the Attacker under its Vow): the Attacker\'s attack card raises the paladin\'s popup "attacked — strike?"',
@@ -106,16 +106,18 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       }
     });
 
-    // ---- 23. Sacred Weapon's light goes out with the weapon's enchantment
+    // ---- 23. Sacred Weapon's light goes out with the weapon's enchantment; a re-use ends the earlier enchantment
     if (want(23)) await section(23, async () => {
       await closeDialogs();
       const sw = await hgLend(cleric, 'Sacred Weapon', 'feat');
+      const dagger = await hgLend(cleric, 'Dagger', 'weapon');
       const act = sw ? cleric.items.get(sw.id)?.system.activities.find(a => a.type === 'enchant') : null;
       const weapon = clericWeapon ? cleric.items.get(clericWeapon.id) : null;
       const cdoc = clericToken.document;
       const lightNow = () => ({ bright: scene.tokens.get(cdoc.id)?.light?.bright ?? null, dim: scene.tokens.get(cdoc.id)?.light?.dim ?? null });
       const lightFx = () => cleric.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Sacred Weapon') ?? null;
-      const enchantOn = () => cleric.items.get(weapon?.id)?.effects?.find(e => (e.type === 'enchantment') && (e.name === 'Sacred Weapon')) ?? null;
+      const copiesOn = w => [...(cleric.items.get(w?.id)?.effects ?? [])].filter(e => (e.type === 'enchantment') && (e.name === 'Sacred Weapon') && e.isAppliedEnchantment);
+      const enchantOn = (w = weapon) => copiesOn(w)[0] ?? null;
       try {
         if (!act || !weapon) log.push(`§23 skipped: activity=${!!act} weapon=${!!weapon}`);
         else {
@@ -144,23 +146,40 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           const ench = await until(enchantOn, { timeout: 5000, label: 'the Sacred Weapon enchantment on the weapon' });
           ok('23c. the weapon carries the Sacred Weapon enchantment; the light still stands', !!ench && !!lightFx() && (lightNow().bright === 20),
             `enchant=${ench?.name ?? null} weapon=${cleric.items.get(weapon.id)?.name} light=${JSON.stringify(lightNow())}`);
-          if (ench) await ench.delete();
+          // d. used again on the Dagger ("until you use this feature again"): the first weapon's copy ends, the light stays
+          const second = dagger ? cleric.items.get(dagger.id) : null;
+          if (!second) log.push('§23d skipped: no Dagger');
+          else {
+            const res2 = await act.use({ consume: { resources: false, spellSlot: false, action: false }, subsequentActions: false }, { configure: false }, {});
+            try { await act.applyEnchantment(profileId, second, { chatMessage: res2?.message ?? card, strict: false }); }
+            catch (err) { log.push(`§23d applyEnchantment threw: ${err?.message}`); }
+            const moved = await until(() => (copiesOn(second).length === 1) && !copiesOn(weapon).length, { timeout: 8000, label: 'the enchantment moved to the Dagger' });
+            const lightStays = await until(() => lightFx() && (lightNow().bright === 20), { timeout: 5000, label: 'the light standing after the re-use' });
+            ok('23d. used again on the Dagger: the Dagger carries Sacred Weapon, the first weapon\'s copy is gone, the light stands',
+              !!moved && !!lightStays, `first=${copiesOn(weapon).length} dagger=${copiesOn(second).length} light=${JSON.stringify(lightNow())}`);
+            // e. used again on the SAME weapon: one copy, never two
+            try { await act.applyEnchantment(profileId, second, { chatMessage: res2?.message ?? card, strict: false }); }
+            catch (err) { log.push(`§23e applyEnchantment threw: ${err?.message}`); }
+            const single = await until(() => (copiesOn(second).length === 1) ? true : null, { timeout: 8000, label: 'one copy on the Dagger' });
+            ok('23e. applied again to the Dagger: one copy stands, never two (+Cha once)', !!single, `dagger=${copiesOn(second).length}`);
+          }
+          for (const w of [weapon, second].filter(Boolean)) for (const e of copiesOn(w)) await e.delete();
           const out = await until(() => !lightFx() && (lightNow().bright === before.bright) && (lightNow().dim === before.dim), { timeout: 8000, label: 'the light out with the enchantment' });
-          ok('23d. the enchantment deleted: the light effect goes and the token is back to its prior light',
+          ok('23f. the enchantment deleted: the light effect goes and the token is back to its prior light',
             out, `effect=${lightFx()?.name ?? null} light=${JSON.stringify(lightNow())} before=${JSON.stringify(before)}`);
         }
       } finally {
         // restore: any enchantment or light left behind, the lend
-        const leftEnch = enchantOn();
-        if (leftEnch) await leftEnch.delete().catch(() => {});
+        for (const w of [weapon, dagger].filter(Boolean)) for (const e of copiesOn(w)) await e.delete().catch(() => {});
         const leftLight = cleric.effects.filter(e => e.getFlag(MOD, 'tokenLight')?.key === 'Sacred Weapon').map(e => e.id);
         if (leftLight.length) await cleric.deleteEmbeddedDocuments('ActiveEffect', leftLight).catch(() => {});
         if (sw) await unlend(cleric, sw);
+        if (dagger) await unlend(cleric, dagger);
       }
     });
     KIT.markA2();
 
-    // ---- 40. Inspiring Smite: after Divine Smite, the temp HP divided; No keeps the Channel Divinity; the clock gives all to the paladin
+    // ---- 40. Inspiring Smite: after Divine Smite, the temp HP split evenly among the ticked; No keeps the Channel Divinity; the clock gives all to the paladin
     if (want(40)) await section(40, async () => {
       await closeA1();
       hgKeep(cleric, { 'system.attributes.hp.temp': cleric.system._source.attributes.hp.temp ?? 0, 'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
@@ -175,7 +194,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       const asks = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong')?.row === 'Inspiring Smite'));
       const smiteOnce = async () => {
         const before = asks().length;
-        faces([[4, 8], [5, 8]]);   // 2d8 = 9, + 3 = 12
+        faces([[4, 8], [6, 8]]);   // 2d8 = 10, + 3 = 13
         await castSpell(cleric, clericToken, divineSmite, 1, victimToken);
         const ask = await until(() => (asks().length > before) ? asks().at(-1) : null, { timeout: 8000, label: 'the Inspiring Smite ask' });
         unrig();
@@ -188,23 +207,28 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await cleric.update({ 'system.spells.spell1.value': 4 });
           await cd.update({ 'system.uses.spent': 0 });
           for (const a of [cleric, pcAttacker, halfling]) await a.update({ 'system.attributes.hp.temp': 0 });
-          // a. the popup: 12 to divide among the creatures within 30 ft, the paladin too
+          // a. the popup: 13 to share among the creatures ticked within 30 ft, the paladin ticked
           const ask = await smiteOnce();
           const pop = await until(() => titled(/^Inspiring Smite — /), { timeout: 6000, label: 'the Inspiring Smite popup' });
-          const inputs = [...(pop?.element?.querySelectorAll('input[name="bf-rest-song-n"]') ?? [])];
-          const byName = n => inputs.find(i => i.dataset.name === n);
-          ok('40a. after Divine Smite: "Divide 12 Temporary Hit Points" with a number per creature, the paladin among them',
-            !!pop && (ask?.getFlag(MOD, 'restSong')?.amount === 12) && /Divide 12 Temporary Hit Points/.test(textOf(pop?.element)) && !!byName(clericToken.document.name) && !!byName(pcToken.document.name),
-            `amount=${ask?.getFlag(MOD, 'restSong')?.amount} names=${JSON.stringify(inputs.map(i => i.dataset.name))}`);
-          // b. 7 to the paladin, 5 to the PC: both land, the Channel Divinity spent once
-          const set = (input, n) => { if (input) { input.value = String(n); input.dispatchEvent(new Event('input', { bubbles: true })); } };
-          set(byName(clericToken.document.name), 7);
-          set(byName(pcToken.document.name), 5);
+          const boxes = [...(pop?.element?.querySelectorAll('input[name="bf-rest-share"]') ?? [])];
+          const boxOf = a => boxes.find(i => i.value === a.uuid);
+          const shareOf = a => boxOf(a)?.closest('label')?.querySelector('[data-bf-share-n]')?.textContent ?? '';
+          ok('40a. after Divine Smite: "Share 13 Temporary Hit Points" with a tick per creature, the paladin ticked (+13), the PC not',
+            !!pop && (ask?.getFlag(MOD, 'restSong')?.amount === 13) && /Share 13 Temporary Hit Points/.test(textOf(pop?.element))
+              && (boxOf(cleric)?.checked === true) && (boxOf(pcAttacker)?.checked === false) && (shareOf(cleric) === '+13'),
+            `amount=${ask?.getFlag(MOD, 'restSong')?.amount} boxes=${JSON.stringify(boxes.map(i => [i.value, i.checked]))} share=${shareOf(cleric)}`);
+          // b. the PC ticked too: 13 split evenly, the odd point to the first row; the Channel Divinity spent once
+          const pcBox = boxOf(pcAttacker);
+          if (pcBox) { pcBox.checked = true; pcBox.dispatchEvent(new Event('change', { bubbles: true })); }
+          const first = boxes.findIndex(i => i.value === cleric.uuid) < boxes.findIndex(i => i.value === pcAttacker.uuid) ? cleric : pcAttacker;
+          const second = (first === cleric) ? pcAttacker : cleric;
+          const shown = `${shareOf(first)} ${shareOf(second)}`;
           pop?.element?.querySelector('button[data-action="ok"]')?.click();
           // `applied` is written after every sheet and the Channel Divinity (rest-grants.js landSong).
-          await until(() => ask?.getFlag(MOD, 'restSong')?.applied, { timeout: 8000, label: 'the divided temp HP landed' });
-          ok('40b. 7 and 5: the paladin 7 temp HP, the PC 5, one Channel Divinity spent',
-            (temp(cleric) === 7) && (temp(pcAttacker) === 5) && (cdSpent() === 1), `cleric=${temp(cleric)} pc=${temp(pcAttacker)} cd=${cdSpent()}`);
+          await until(() => ask?.getFlag(MOD, 'restSong')?.applied, { timeout: 8000, label: 'the shared temp HP landed' });
+          ok('40b. both ticked: the shares shown +7 and +6, the first row 7 temp HP, the second 6, one Channel Divinity spent',
+            (shown === '+7 +6') && (temp(first) === 7) && (temp(second) === 6) && (cdSpent() === 1),
+            `shown=${shown} first=${first.name}:${temp(first)} second=${second.name}:${temp(second)} cd=${cdSpent()}`);
           // c. No: nothing given, nothing spent
           for (const a of [cleric, pcAttacker]) await a.update({ 'system.attributes.hp.temp': 0 });
           const ask2 = await smiteOnce();
@@ -213,11 +237,11 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
           await until(() => ask2?.getFlag(MOD, 'restSong')?.status === 'resolved', { timeout: 6000, label: 'the No answered' });
           const stray40c = await watch(() => (temp(cleric) !== 0) || (cdSpent() !== 1), { ms: 800 });   // a window: nothing given, nothing spent
           ok('40c. No: nothing given, the Channel Divinity kept', !stray40c && (temp(cleric) === 0) && (cdSpent() === 1), `cleric=${temp(cleric)} cd=${cdSpent()}`);
-          // d. the clock: all 12 to the paladin
+          // d. the clock: all 13 to the paladin
           await timer.set('decisionTimer', 2);
           const ask3 = await smiteOnce();
-          await until(() => ask3?.getFlag(MOD, 'restSong')?.applied, { timeout: 10000, label: 'the clock\'s 12 landed' });
-          ok('40d. the clock gives all 12 to the paladin, the Channel Divinity spent', (temp(cleric) === 12) && (cdSpent() === 2),
+          await until(() => ask3?.getFlag(MOD, 'restSong')?.applied, { timeout: 10000, label: 'the clock\'s 13 landed' });
+          ok('40d. the clock gives all 13 to the paladin, the Channel Divinity spent', (temp(cleric) === 13) && (cdSpent() === 2),
             `cleric=${temp(cleric)} cd=${cdSpent()} flag=${JSON.stringify(ask3?.getFlag(MOD, 'restSong')?.picks ?? null)}`);
         }
       } finally {

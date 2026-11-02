@@ -165,17 +165,19 @@ async function heal({ row, activity, caster, target, taken, origin }) {
   }
 }
 
-// The dealing card's own line: who paid the caster.
+// The dealing card's own line: who paid the caster; on a kill's own healing card, who fell and why it pays.
 listen("dnd5e.renderChatMessage", "heal-on-hit", (message, html) => {
   try {
     const h = readFlag(message, HEAL_ON_HIT_FLAG);
-    if ( !h?.done?.length ) return;
+    const said = h?.done?.length ? `${h.key} — the caster regains half the damage that landed (its own card)`
+      : (h?.kill && h.why) ? `${h.key} — ${h.targetName} falls · ${h.why}` : null;
+    if ( !said ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-heal-on-hit-line") ) return;
     const div = document.createElement("div");
     div.className = "bf-heal-on-hit-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-heart-pulse"></i> ${esc(`${h.key} — the caster regains half the damage that landed (its own card)`)}`;
+    div.innerHTML = `<i class="fa-solid fa-heart-pulse"></i> ${esc(said)}`;
     content.appendChild(div);
   } catch(err) { log.warn(`The heal-on-hit line could not render.`, err); }
 });
@@ -284,6 +286,15 @@ async function payKill(fallen, origin) {
         continue;
       }
       if ( !canApplyTo(b.bearer) ) { await whisperNoGM(`${b.key} (${amount} ${what} to ${b.bearer.name})`, "Apply it from the sheet."); continue; }
+      // A heal aimed at its own bearer (Dark One's Blessing) is rolled through dnd5e: its healing card is the one FX Studio
+      // plays the feature's picture off (Fiendish Vigor's shape), cast.js lands it there with the receipt (`healPending`),
+      // and the line below says who fell.
+      if ( activity?.target?.affects?.type === "self" ) {
+        await activity.rollDamage({}, { configure: false }, { data: {
+          flags: { [MODULE_ID]: { [HEAL_ON_HIT_FLAG]: { key: b.key, casterUuid: b.bearer.uuid, targetUuid: fallen.uuid, targetName: fallen.name,
+            taken: 0, why: b.why, originId: origin.id, sourceUuid: b.bearer.uuid, kill: true } } } } });
+        continue;
+      }
       const card = await postCard({
         actor: b.bearer,
         card: bfCard({ img: b.feature.img ?? null, eyebrow: `${b.key} — ${fallen.name} falls`, tone: "good",

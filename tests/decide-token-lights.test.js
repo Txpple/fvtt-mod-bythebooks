@@ -291,6 +291,26 @@ describe("lightLasts — how long the light stands, in the card's words", () => 
   });
 });
 
+describe('a re-used enchantment — Sacred Weapon\'s "until you use this feature again" (2026-11-02)', () => {
+  it("the row ends its earlier enchantment on a re-use, its light still clocked by the enchantment", () => {
+    expect(reg.TOKEN_LIGHTS["Sacred Weapon"]).toMatchObject({
+      ends: "enchantment",
+      recast: "ends"
+    });
+  });
+  it("every other APPLIED copy ends; the one just applied and an unapplied template stay", () => {
+    const copies = [
+      { id: "old", applied: true },
+      { id: "new", applied: true },
+      { id: "template", applied: false },
+      { id: "older", applied: true }
+    ];
+    expect(tl.enchantmentsReplaced(copies, "new")).toEqual(["old", "older"]);
+    expect(tl.enchantmentsReplaced([{ id: "new", applied: true }], "new")).toEqual([]);
+    expect(tl.enchantmentsReplaced([], "new")).toEqual([]);
+  });
+});
+
 describe("token senses — the pack's own effect, the token's vision (the Dwarf walk, 2026-09-25)", () => {
   const senses = () => new Set(Object.keys(reg.TOKEN_SENSES).map(k => k.toLowerCase()));
   it("Stonecunning's effect answers by its name, case-insensitive; unlisted or unnamed is nothing", () => {

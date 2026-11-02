@@ -122,7 +122,7 @@ as its code.**
 | **Counterspell**: "you attempt to interrupt a creature in the process of casting a spell" — a Reaction at the moment of the cast | the caster TARGETS the creature and uses Counterspell; the saves machine demands its Constitution save as for any targeted save, and the verdict stands on the card — nothing watches for a cast, no hold is raised, no spell is stopped by the module; the rest is the table's | the drawing's cast-triggered hold (a reaction at a hostile's cast, prototype-first, cost 2) was traded for the table's own timing: the player says "Counterspell" as the spell is declared, the module answers with the save (the user, 2026-09-28: *"the user can just target intended counterspell actor, and force them to make the con save per the spell. the rest can be handled at table"*) | 2026-09-28 |
 | **Wild Magic Surge**: "you can roll 1d20 immediately after you cast a Sorcerer spell with a spell slot" | the module rolls the d20 itself after every such cast, once per turn in a combat; a 20 rolls the surge table and posts it (`cast-riders.js`, `CAST_RIDERS`) | no click on every cast for a die with one sensible answer, and the surge is never forgotten (ruled Q7, 2026-09-29: the dice changers' one-sensible-answer rule) | 2026-09-29 |
 | **Stroke of Luck** on an attack: "you can turn the roll into a 20" — the roll counts as 20; the page never says a 20 was rolled, so by the letter no Critical Hit | the 20 IS a Critical Hit: the miss hits whatever the AC and the damage crit-doubles, the resolve card "now hits — a Critical Hit" (`decide/verdict.js` the `twenty` replace, `auto-damage.js` `critFor` reads the crit through the folds) | a Rogue of 20 who burns the feature on a miss deserves the fireworks (the user, 2026-10-01: *"20 is a crit, make it rule of cool"*) | 2026-10-01 |
-| **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | asked in a popup; when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`) | the smite's gift is never lost to a slow answer (the plan's pre-listed bend, stage A7) | 2026-09-29 |
+| **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | the paladin ticks creatures within 30 ft (the paladin ticked to start) and the total is split EVENLY among them, rounded down, the odd points one each down the list (13 among three: 5, 4, 4); when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`; `decide/cast-riders.js` `evenSplit`) | a tick per creature is quicker than a number per creature, and the smite's gift is never lost to a slow answer (the user, 2026-11-02: *"pick 1-n creatures, roll the temp hps, and it applies evenly across them"*; the clock, the plan's pre-listed bend, stage A7) | 2026-11-02 (the clock 2026-09-29) |
 | **Relentless**: "once per turn, when you use a maneuver, you can roll 1d8 and use the number rolled instead of expending a Superiority Die" | the d8 stands in only when NO Superiority Dice are left; with dice left the module spends one | an ask on every maneuver would double the popups for a trade nobody takes with dice in hand (the noise gate, Q2); the user may overrule | 2026-09-30 |
 | **Candles, Torches, Lamps and Lanterns**: a Candle or Torch burns for 1 hour, a Lamp or Lantern for 6 hours on a flask of Oil; a Torch is used up | using the item toggles its light on the bearer's token; nothing is consumed and nothing expires by the clock; it stays lit until put out or a Long Rest (`gear-lights.js`, `GEAR_LIGHTS`; *Gear lights*) | no light bookkeeping; the table lights a torch and forgets about it (the user, 2026-10-11) | 2026-10-12 |
 | **Produce Flame** (2024): "Until the spell ends, you can take a Magic action to hurl fire" — the flame stays in the hand after a hurl, for the spell's 10 minutes | a use of the spell's **Hurl Fire** puts the caster's flame out: the "Produce Flame" effect deleted on the elect, the token's own light back, the hurl's card saying so; the hurl itself rolls as the pack's, and hurling again with no flame lit is the table's to allow (`TOKEN_LIGHTS` `out`, `token-lights.js`; *Produce Flame*) | the light follows the flame: thrown, the hand is dark (the user, 2026-10-21: *"cast light on the token per spell. if thrown, light goes away."*) — the older printing's "doing so ends the spell" | 2026-10-21 |
@@ -2351,7 +2351,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Dragon's Concentration floor | — | **NATIVE**: the pack's Dragon Form carries `concentration.roll.min` 10 (M0 missed it); no `floor` facet was built |
 | Rage of the Wilds | `EFFECT_CHOICES` `on: "Rage"`, `use` + `EMANATIONS` `while` (a list) + `EFFECT_BENDS` `member` | Bear / Eagle / Wolf asked at the Rage (which lands at once); the pick uses the feature's own activity. The Wolf: a quiet 5-ft ring on enemies while Rage of the Wolf AND Rage stand; its members are attacked with Advantage by everyone but the barbarian — the barbarian's own "Rage of the Wolf" never counts |
 | Rage | `TURN_GRANTS` `remind: "extend"` | the turn-end reminder (the register's row) — the 2024 text, not "attacked or took damage" |
-| Sacred Weapon | `TOKEN_LIGHTS` `ends: "enchantment"` | 20 ft Bright, 20 more Dim on the paladin's token, clocked as the enchantment, out when it leaves the weapon; the +Cha and Radiant stay the pack's |
+| Sacred Weapon | `TOKEN_LIGHTS` `ends: "enchantment"`, `recast: "ends"` | 20 ft Bright, 20 more Dim on the paladin's token, clocked as the enchantment, out when it leaves the weapon; a re-use ends the earlier enchantment (2026-11-02); the +Cha and Radiant stay the pack's |
 | Deflect Attacks | `INTERRUPT_REDUCTIONS` `types`, `anyType`, `atZero` | rolled at the answer (Parry's path) — B/P/S hits only unless Deflect Energy; at 0, the Redirect is offered on the damage card |
 
 **The walk table** (for the batched walk):
@@ -2368,10 +2368,10 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Hunter's Prey, the first hit | the offer asks "Hunter's Prey — which option did you take?"; Colossus Slayer on a damaged target rides 1d8; the card's *Change* asks again next hit |
 | Horde Breaker, a goblin beside the target | "Horde Breaker — … Goblin 2 within 5 ft of Goblin" |
 | Tides of Chaos, any d20 dialog | the buy box "Tides of Chaos (1 use)" |
-| Dark One's Blessing, the fighter drops a goblin 5 ft from the warlock | "Dark One's Blessing — Vyr gains 7 Temporary Hit Points", receipted |
+| Dark One's Blessing, the fighter drops a goblin 5 ft from the warlock | the feature's own healing card "Dark One's Blessing — Goblin falls · an enemy dropped to 0 Hit Points 5 ft from you", 7 Temporary Hit Points landed on Vyr with the receipt there (since 2026-11-02; a card of the module's before) |
 | Repelling Blast, an Eldritch Blast hit | "Repelling Blast — push it up to 10 feet … (move the token)" per beam |
 | Commanding Presence, a Persuasion check | the superiority die offered on the check |
-| Sacred Weapon | the paladin's token lights 20/40; deleting the weapon's enchantment puts it out |
+| Sacred Weapon | the paladin's token lights 20/40; used again on another weapon, the first weapon's enchantment ends and the light stands; deleting the weapon's enchantment puts it out |
 | Glorious Defense, an ally beside the paladin hit by 2 | the paladin's popup "−3"; Answer: MISS, then "Strike the Bugbear with Longsword?" |
 | Deflect Attacks, a 7-damage hit | the monk's popup, the reduction rolled; at 0, the damage card offers "Redirect" |
 
@@ -2583,7 +2583,7 @@ Calls the plan left open — **each is the user's to overrule**:
 | Row | Table · facet | What it does |
 | --- | --- | --- |
 | Wild Magic Surge | `CAST_RIDERS` `spellClass`, `surgeOn`, `table`, `tides` | after a Sorcerer slot cast, once per turn: the d20; a 20 rolls the surge table; Tides of Chaos spent: the table at once, Tides back |
-| Inspiring Smite | `CAST_RIDERS` `after: "Divine Smite"`, `handOut`, `activity`, `reach`, `self` | after Divine Smite: 2d8 + level Temporary Hit Points divided among creatures within 30 ft; the Channel Divinity paid when given |
+| Inspiring Smite | `CAST_RIDERS` `after: "Divine Smite"`, `handOut`, `activity`, `reach`, `self` | after Divine Smite: 2d8 + level Temporary Hit Points split evenly among the creatures ticked within 30 ft (since 2026-11-02; a number each before); the Channel Divinity paid when given |
 
 **Portent — a new table (`STORED_DICE`) and its machine (`scripts/stored-dice.js`), a bystander row with `bend: "set"`;
 NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the user's to overrule**:
@@ -2621,7 +2621,7 @@ NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the use
 | Wild Magic Surge, a slot cast | the cast card's line "Wild Magic Surge — d20: 14, nothing"; on a 20 "a SURGE — …" and the table's card |
 | Wild Magic Surge, a second cast the same turn | no line |
 | Tides of Chaos spent, a slot cast | "Tides of Chaos spent: the surge rolls — …; Tides of Chaos regained"; the sheet's Tides back |
-| Inspiring Smite after Divine Smite | the dice on a card; the popup "Divide 12 Temporary Hit Points", a number per creature within 30 ft, "N to give · M left"; OK: the card names each share and "1 Channel Divinity spent"; No: nothing spent |
+| Inspiring Smite after Divine Smite | the dice on a card; the popup "Share 13 Temporary Hit Points", a tick per creature within 30 ft, the paladin ticked, each ticked row's share beside it ("+7", "+6") and "13 among 2"; OK: the card names each share and "1 Channel Divinity spent"; No: nothing spent |
 | Inspiring Smite, the timer runs out | all of it to the paladin, "(timer: all to the giver)" |
 
 ## The PHB classes — B1 (2026-09-30, Session 0 stage B1)
@@ -4362,6 +4362,40 @@ The suites: `smoke-familiar` §14 (the Owl's Help: seeded, the use refused with 
 landed and spent by the Perception check, Distracted (Help) landed with the Owl as its source, the attack row greyed at 15 ft);
 `tests/decide-help.test.js` (the item, the lends, the rows, the answer, the effects, the words), `tests/decide-reminders.test.js`
 (the `lends` facet against the roll's key, the spend on the source).
+
+## The class features, reviewed (2026-11-02)
+
+The user walked five features at level 3 against the 2024 text: Dark One's Blessing, Cutting Words, Sacred Weapon, Inspiring
+Smite and Peerless Athlete.
+
+1. **Dark One's Blessing stays measured at the kill, never a ring.** The ask was an emanation that pays inside its range; the
+   kill row already does that (`HEAL_ON_HIT` `on: "kill"`, `within: 10`): at the drop, every bearer on the scene is measured to
+   the fallen, square to square, and paid when it dealt the damage or stands within 10 ft. A region (EMANATIONS) answers who
+   stands inside over time; this question is asked once, at the kill, so the region would add a document and no answer (the
+   user, 2026-11-02: *"ok keep as is, add fx"*).
+2. **Its heal rolls as the feature's own healing card** (`heal-on-hit.js` `payKill`): a kill row whose heal activity affects
+   its bearer alone rolls that activity through dnd5e, the card's line naming who fell and why ("Dark One's Blessing —
+   Goblin falls · …"), and `cast.js` lands it there with the receipt (`healPending`'s self aim) — Fiendish Vigor's shape, so FX Studio plays the feature's picture off the card
+   (`feature:dark-ones-blessing`, Fiendish Vigor's look by the user's ask). A row that picks a creature (Keeper of Souls) is
+   unchanged.
+3. **Inspiring Smite is a tick per creature, split evenly** (the bend table's row): the paladin ticked to start, each ticked
+   row's share shown live, OK while one is ticked; the split is `decide/cast-riders.js` `evenSplit`, the odd points one each
+   down the list (party first, then nearest, so a party paladin leads it). Temporary Hit Points never stack: a creature already holding
+   more keeps it, the card says "(keeps more)".
+4. **Cutting Words** is confirmed as built (*The asks widened*; `smoke-class-bard` §1–3, §6, §11, §127).
+5. **Sacred Weapon ends on its next use** ("for 10 minutes or until you use this feature again"): dnd5e removes an earlier
+   enchantment only for an activity that enchants its own item, so a second use left two weapons enchanted, or one weapon
+   twice, each +Cha. The row's `recast: "ends"` now reaches the enchantment (`token-lights.js`, `decide/token-lights.js`
+   `enchantmentsReplaced`): a copy applied ends every other applied copy on the bearer's items, on the elect, and the light
+   stays with the new one. The melee limit is dnd5e's own (the Enchant activity's simple and martial melee categories);
+   "that you are holding" and "when you take the Attack action" are the table's.
+6. **Peerless Athlete** is the pack's alone: its effect carries the Advantage on Athletics and Acrobatics for an hour, a
+   Bonus Action, a Channel Divinity; the longer jumps are the table's (no sheet field carries a jump).
+
+The suites: `smoke-class-warlock` §21 (the card is dnd5e's healing card, `type: "healing"`, its line "Dark One's Blessing —
+⟨fallen⟩ falls"); `smoke-class-wizard` §41j–k (a friend's miss a stored 20 turns: a Critical Hit, the damage rolled critical); `smoke-class-paladin` §23d–e
+(Sacred Weapon used again on a Dagger: the first weapon's copy ends, the light stands; applied twice, one copy); `smoke-class-paladin` §40 (13 shared, the paladin ticked alone: +13; the PC ticked too: +7 and +6 shown,
+7 and 6 landed; No; the clock's 13 to the paladin); `tests/decide-classes-a7.test.js` (`evenSplit`), `tests/decide-token-lights.test.js` (`enchantmentsReplaced`).
 
 ## Rulings the code carried
 

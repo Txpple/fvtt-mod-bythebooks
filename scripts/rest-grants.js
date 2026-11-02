@@ -9,7 +9,7 @@ import { lower, activityNamed, asiAssigned, featureNamed } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML, ruleLine } from "./decide/present.js";
 import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
-import { distribution } from "./decide/cast-riders.js";
+import { evenSplit } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { holdsTemp, mealStanding, restEnds, songCard, songFloat } from "./decide/rest-grants.js";
@@ -278,8 +278,8 @@ const songRowOf = flag => ((flag?.table === "turn") ? TURN_GRANTS : (flag?.table
 /**
  * THE HAND-OUT outside a rest: the amount already rolled (its dice on the card), given to creatures on the owner's
  * side within the row's reach — the song's popup and landing. A turn's (TURN_GRANTS `to: "ally"`, Life-Giving
- * Force): one creature gets it all. A cast's `distribute` (Inspiring Smite): the total DIVIDED as the giver likes,
- * a number per creature, "No" keeps the `cost` (the pool the row spends — only when something is given); its
+ * Force): one creature gets it all. A cast's `distribute` (Inspiring Smite): the total SPLIT EVENLY among the
+ * creatures the giver ticks, "No" keeps the `cost` (the pool the row spends — only when something is given); its
  * clock (`window` seconds) gives it all to the giver (a bend by choice). No card when nobody could take it.
  */
 export async function askHandOut(actor, { name, row, item, amount, roll = null, table = "turn", distribute = false, cost = null, window = 0 }) {
@@ -294,7 +294,7 @@ export async function askHandOut(actor, { name, row, item, amount, roll = null, 
   return postCard({
     actor, rolls: roll ? [roll] : [],
     card: bfCard({ img: item.img, eyebrow: name, tone: "pending",
-      title: distribute ? `${name} — ${amount} Temporary Hit Points to divide` : `${name} — ${grantText(flag)} for another creature` }),
+      title: distribute ? `${name} — ${amount} Temporary Hit Points to share` : `${name} — ${grantText(flag)} for another creature` }),
     flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
   });
 }
@@ -426,11 +426,11 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 
 /* --- the answer: the GM folds it, a player sends it ---------------------------------------------- */
 
-/** The picks a record allows — the offered allies without the grant, at most the cap; a divided hand-out's
- * `{ uuid, n }` never past its total. */
+/** The picks a record allows — the offered allies without the grant, at most the cap; a shared hand-out's
+ * ticks split evenly into `{ uuid, n }`. */
 function allowedPicks(flag, picks) {
   const allowed = new Set((flag.candidates ?? []).filter(c => !c.has).map(c => c.uuid));
-  if ( flag.distribute ) return distribution({ total: flag.amount, picks, allowed });
+  if ( flag.distribute ) return evenSplit({ total: flag.amount, picks, allowed });
   return [...new Set(picks ?? [])].filter(u => allowed.has(u)).slice(0, flag.cap);
 }
 
@@ -518,7 +518,7 @@ async function landSong(message) {
   const nameOf = target => flag.candidates.find(c => c.uuid === target.uuid)?.name ?? target.name;
   try {
     if ( flag.distribute ) {
-      // A divided hand-out: each its own number (Temporary Hit Points never stack — only a larger pool is written);
+      // A shared hand-out: each its share (Temporary Hit Points never stack — only a larger pool is written);
       // the cost paid once, only when something was given.
       for ( const [i, p] of (flag.picks ?? []).entries() ) {
         const target = await resolveUuidAsync(p.uuid);
@@ -666,52 +666,63 @@ async function showSongPopup(message) {
   syncSongCap(dialog?.element?.querySelector?.("[data-bf-rest-song]") ?? null);
 }
 
-/** A DIVIDED hand-out's popup (Inspiring Smite): a number per creature, what is left counted live; OK gives, No keeps. */
+/** A SHARED hand-out's popup (Inspiring Smite): a tick per creature, the giver ticked; each share shown live; OK gives,
+ * No keeps. */
 async function showDividePopup(message, flag, actor, row) {
-  const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;">
-      <input type="number" name="bf-rest-song-n" min="0" max="${flag.amount}" step="1" value="0" data-uuid="${esc(c.uuid)}" data-name="${esc(c.name)}" data-token="${esc(c.tokenId ?? "")}" style="width:3.5rem;flex:0 0 auto;">
+  const giver = flag.candidates.find(c => c.self) ?? flag.candidates[0] ?? null;
+  const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;cursor:pointer;">
+      ${pickInputHTML({ name: "bf-rest-share", value: c.uuid, data: { token: c.tokenId ?? "" }, checked: c.uuid === giver?.uuid, style: "margin:0;" })}
       <span>${esc(c.name)}${c.temp ? ` <span style="opacity:0.8">(${c.temp} temp HP now)</span>` : ""}</span>
-      <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
+      <span data-bf-share-n style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.8;"></span>
+      <span style="width:2.5rem;text-align:right;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
   const reach = Number.isFinite(flag.reach) ? `within ${flag.reach} ft` : "on the scene";
-  await openMomentPopup(message, SONG_FLAG, actor, {
+  const dialog = await openMomentPopup(message, SONG_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-heart", width: 420,
     content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: flag.row, tone: "pending",
-      title: `Divide ${flag.amount} Temporary Hit Points`, subtitle: `creatures ${reach}, you among them${flag.cost ? ` · 1 ${flag.cost.name}` : ""}`,
+      title: `Share ${flag.amount} Temporary Hit Points`, subtitle: `tick creatures ${reach}, you among them — split evenly${flag.cost ? ` · 1 ${flag.cost.name}` : ""}`,
       lines: [row?.rule ? foldedRuleHTML(row.rule) : ""] })
-      + `<div data-bf-divide data-total="${flag.amount}" style="margin:0.4rem 0;">${flag.candidates.map(rowOf).join("")}`
-      + `<div data-bf-divide-left style="text-align:right;font-size:var(--font-size-11,11px);opacity:0.8;">${flag.amount} to give · ${flag.amount} left</div></div>`
+      + `<div data-bf-share data-total="${flag.amount}" style="margin:0.4rem 0;">${flag.candidates.map(rowOf).join("")}`
+      + `<div data-bf-share-left style="text-align:right;font-size:var(--font-size-11,11px);opacity:0.8;"></div></div>`
       + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "ok", label: "OK", default: true, callback: (_event, button) => {
-        const picks = pickInputs(button.form, "bf-rest-song-n").map(i => ({ uuid: i.dataset.uuid, n: Number(i.value) || 0 }));
-        void answerSong(message, picks);
+        void answerSong(message, pickedAll(button.form, "bf-rest-share"));
       } },
       { action: "no", label: "No", callback: () => { void answerSong(message, [], { declined: true }); } }
     ]
   });
+  syncShare(dialog?.element?.querySelector?.("[data-bf-share]") ?? null);
 }
 
-// A number typed: what is left counted, the over-giving box trimmed.
-listenOnce("ready", "rest-grants", () => document.addEventListener("input", ev => {
-  const input = pickInputAt(ev.target, "bf-rest-song-n");
-  const box = input?.closest?.("[data-bf-divide]");
+/** Each ticked row's share written beside it, the total's line under them; OK is live while one is ticked. */
+function syncShare(box) {
   if ( !box ) return;
   const total = Number(box.dataset.total) || 0;
-  const inputs = pickInputs(box, "bf-rest-song-n");
-  const others = inputs.filter(i => i !== input).reduce((n, i) => n + Math.max(0, Number(i.value) || 0), 0);
-  if ( (Number(input.value) || 0) > (total - others) ) input.value = String(Math.max(0, total - others));
-  const given = others + Math.max(0, Number(input.value) || 0);
-  const left = box.querySelector("[data-bf-divide-left]");
-  if ( left ) left.textContent = `${total} to give · ${total - given} left`;
+  const inputs = pickInputs(box, "bf-rest-share");
+  const shares = new Map(evenSplit({ total, picks: inputs.filter(i => i.checked).map(i => i.value) }).map(p => [p.uuid, p.n]));
+  for ( const i of inputs ) {
+    const cell = i.closest("label")?.querySelector("[data-bf-share-n]");
+    if ( cell ) cell.textContent = shares.has(i.value) ? `+${shares.get(i.value)}` : "";
+  }
+  const line = box.querySelector("[data-bf-share-left]");
+  if ( line ) line.textContent = shares.size ? `${total} among ${shares.size}` : "tick at least one creature";
+  const ok = (box.closest("form") ?? box.closest(".application"))?.querySelector?.('button[data-action="ok"]') ?? null;
+  if ( ok ) ok.disabled = !shares.size;
+}
+
+// A tick: the shares counted again.
+listenOnce("ready", "rest-grants", () => document.addEventListener("change", ev => {
+  const input = pickInputAt(ev.target, "bf-rest-share");
+  if ( input ) syncShare(input.closest("[data-bf-share]"));
 }));
 
-/* --- the clock (a divided hand-out): all to the giver, on whoever drives the giver's moments ---------- */
+/* --- the clock (a shared hand-out): all to the giver, on whoever drives the giver's moments ---------- */
 
 const songTimers = new Map();
 function armSongTimer(message) {
   armAskTimer(songTimers, message, SONG_FLAG, live => {
     const f = readFlag(live, SONG_FLAG);
-    return answerSong(live, [{ uuid: f.actorUuid, n: f.amount }], { timedOut: true });
+    return answerSong(live, [f.actorUuid], { timedOut: true });
   }, { owns: subjectOwns(f => f.actorUuid) });
 }
 
@@ -740,7 +751,7 @@ function songLine(flag) {
     if ( flag.applied ) return (flag.given ?? []).length
       ? `${flag.row} — ${flag.given.join(", ")}${flag.timedOut ? " (timer: all to the giver)" : ""}${flag.cost ? ` · 1 ${flag.cost.name} spent` : ""}` : `${flag.row} — no one was given any`;
     if ( flag.status === "resolved" ) return `${flag.row} — giving…`;
-    return `asking ${flag.actorName} how to divide ${flag.amount} Temporary Hit Points`;
+    return `asking ${flag.actorName} who shares ${flag.amount} Temporary Hit Points`;
   }
   const label = grantText(flag);
   if ( flag.applied ) {
