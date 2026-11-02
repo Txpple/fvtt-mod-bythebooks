@@ -2351,7 +2351,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Dragon's Concentration floor | — | **NATIVE**: the pack's Dragon Form carries `concentration.roll.min` 10 (M0 missed it); no `floor` facet was built |
 | Rage of the Wilds | `EFFECT_CHOICES` `on: "Rage"`, `use` + `EMANATIONS` `while` (a list) + `EFFECT_BENDS` `member` | Bear / Eagle / Wolf asked at the Rage (which lands at once); the pick uses the feature's own activity. The Wolf: a quiet 5-ft ring on enemies while Rage of the Wolf AND Rage stand; its members are attacked with Advantage by everyone but the barbarian — the barbarian's own "Rage of the Wolf" never counts |
 | Rage | `TURN_GRANTS` `remind: "extend"` | the turn-end reminder (the register's row) — the 2024 text, not "attacked or took damage" |
-| Sacred Weapon | `TOKEN_LIGHTS` `ends: "enchantment"`, `recast: "ends"` | 20 ft Bright, 20 more Dim on the paladin's token, clocked as the enchantment, out when it leaves the weapon; a re-use ends the earlier enchantment (2026-11-02); the +Cha and Radiant stay the pack's |
+| Sacred Weapon | `TOKEN_LIGHTS` `wears: "mwak"`, `recast: "ends"` + `CLOCK_RIDERS` "sacred-weapon" | worn by the paladin (2026-11-02): one effect, 20 ft Bright and 20 more Dim on the paladin's token and the pack's +Cha on melee weapon attacks, 10 minutes, a re-use replacing it; no weapon enchanted; Radiant an unticked tick on each melee weapon hit's damage |
 | Deflect Attacks | `INTERRUPT_REDUCTIONS` `types`, `anyType`, `atZero` | rolled at the answer (Parry's path) — B/P/S hits only unless Deflect Energy; at 0, the Redirect is offered on the damage card |
 
 **The walk table** (for the batched walk):
@@ -2371,7 +2371,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Dark One's Blessing, the fighter drops a goblin 5 ft from the warlock | the feature's own healing card "Dark One's Blessing — Goblin falls · an enemy dropped to 0 Hit Points 5 ft from you", 7 Temporary Hit Points landed on Vyr with the receipt there (since 2026-11-02; a card of the module's before) |
 | Repelling Blast, an Eldritch Blast hit | "Repelling Blast — push it up to 10 feet … (move the token)" per beam |
 | Commanding Presence, a Persuasion check | the superiority die offered on the check |
-| Sacred Weapon | the paladin's token lights 20/40; used again on another weapon, the first weapon's enchantment ends and the light stands; deleting the weapon's enchantment puts it out |
+| Sacred Weapon | one effect on the paladin: the token lit 20/40, +Cha on melee weapon attacks; a weapon dropped on the card is refused; a melee hit's offer "Sacred Weapon — Radiant", unticked — ticked, the hit is Radiant; used again, one effect |
 | Glorious Defense, an ally beside the paladin hit by 2 | the paladin's popup "−3"; Answer: MISS, then "Strike the Bugbear with Longsword?" |
 | Deflect Attacks, a 7-damage hit | the monk's popup, the reduction rolled; at 0, the damage card offers "Redirect" |
 
@@ -4383,19 +4383,23 @@ Smite and Peerless Athlete.
    down the list (party first, then nearest, so a party paladin leads it). Temporary Hit Points never stack: a creature already holding
    more keeps it, the card says "(keeps more)".
 4. **Cutting Words** is confirmed as built (*The asks widened*; `smoke-class-bard` §1–3, §6, §11, §127).
-5. **Sacred Weapon ends on its next use** ("for 10 minutes or until you use this feature again"): dnd5e removes an earlier
-   enchantment only for an activity that enchants its own item, so a second use left two weapons enchanted, or one weapon
-   twice, each +Cha. The row's `recast: "ends"` now reaches the enchantment (`token-lights.js`, `decide/token-lights.js`
-   `enchantmentsReplaced`): a copy applied ends every other applied copy on the bearer's items, on the elect, and the light
-   stays with the new one. The melee limit is dnd5e's own (the Enchant activity's simple and martial melee categories);
-   "that you are holding" and "when you take the Attack action" are the table's.
+5. **Sacred Weapon is worn by the paladin, never a weapon** (the user, 2026-11-02, after the table test of the re-use fix:
+   "buggy … just make a buff that applies to the char, dont attach to weapon, just give bonus to hit and on roll damage
+   allow them to choose radiant or not"). The use lands one effect on the paladin (`TOKEN_LIGHTS` `wears: "mwak"`): the
+   light, and the pack enchantment's attack bonus as the paladin's melee weapon attack bonus (`decide/token-lights.js`
+   `wornChanges`), clocked as the enchantment's 10 minutes; a re-use replaces it (`recast: "ends"`). An enchantment of its
+   name landing on any item but the feature is refused, so no weapon is enchanted. The Radiant is a damage-offer tick on
+   each melee weapon hit while the effect stands (`CLOCK_RIDERS` "sacred-weapon": `wearing`, `retypes: "radiant"`,
+   unticked): ticked, the weapon's own damage rolls are Radiant; unticked, its own type. The bonus reaches every melee
+   weapon attack, not the one weapon the text names: the table's ruling. "When you take the Attack action" is the table's.
+   FX Studio plays Heroism's look on the use.
 6. **Peerless Athlete** is the pack's alone: its effect carries the Advantage on Athletics and Acrobatics for an hour, a
    Bonus Action, a Channel Divinity; the longer jumps are the table's (no sheet field carries a jump).
 
 The suites: `smoke-class-warlock` §21 (the card is dnd5e's healing card, `type: "healing"`, its line "Dark One's Blessing —
-⟨fallen⟩ falls"); `smoke-class-wizard` §41j–k (a friend's miss a stored 20 turns: a Critical Hit, the damage rolled critical); `smoke-class-paladin` §23d–e
-(Sacred Weapon used again on a Dagger: the first weapon's copy ends, the light stands; applied twice, one copy); `smoke-class-paladin` §40 (13 shared, the paladin ticked alone: +13; the PC ticked too: +7 and +6 shown,
-7 and 6 landed; No; the clock's 13 to the paladin); `tests/decide-classes-a7.test.js` (`evenSplit`), `tests/decide-token-lights.test.js` (`enchantmentsReplaced`).
+⟨fallen⟩ falls"); `smoke-class-wizard` §41j–k (a friend's miss a stored 20 turns: a Critical Hit, the damage rolled critical); `smoke-class-paladin` §23
+(Sacred Weapon worn: the effect's light and +Cha, the weapon drop refused, Radiant ticked and unticked on a hit, a re-use one effect); `smoke-class-paladin` §40 (13 shared, the paladin ticked alone: +13; the PC ticked too: +7 and +6 shown,
+7 and 6 landed; No; the clock's 13 to the paladin); `tests/decide-classes-a7.test.js` (`evenSplit`), `tests/decide-token-lights.test.js` (`wornChanges`), `tests/decide-classes-a1.test.js` (the Radiant rider).
 
 ## Rulings the code carried
 

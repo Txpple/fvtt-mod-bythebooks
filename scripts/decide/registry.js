@@ -609,6 +609,9 @@ export const DEATH_STRIKE = Object.freeze({
  *   option / options  the sheet never records which option the character took (Hunter's Prey): the offer asks
  *             once, the pick is kept on the feature (`option` flag), and only the picked option's rows ride
  *   type      "weapon" — the weapon's damage type; otherwise the part's first
+ *   wearing   due only while the attacker wears an effect of that name (Sacred Weapon's, TOKEN_LIGHTS `wears`)
+ *   retypes   no dice of its own: ridden, the weapon's own damage rolls are dealt as that type ("its normal damage type or
+ *             Radiant" — offered unticked, so the normal type stands unless picked)
  *   dealt / crit  a damage type the hit must deal / a Critical Hit only
  *   lands     an effect with no activity to carry it: `{ name, from?, id, bare? }` — copied from the
  *             feature's effect `from` (changes dropped if `bare`), keyed by `id` so a new hit refreshes it
@@ -821,6 +824,11 @@ export const CLOCK_RIDERS = Object.freeze({
     caveat: "only on an Opportunity Attack",
     rule: Object.freeze({ item: "Relentless Avenger", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnRelentless" }),
     from: "Paladin — Oath of Vengeance 7" }),
+  // Sacred Weapon (RULINGS *The class features, reviewed*): while the paladin wears it, a melee weapon hit may deal Radiant instead of its own type.
+  "sacred-weapon": Object.freeze({ feature: "Sacred Weapon", activity: null, when: "any", weapon: true, melee: true, wearing: "Sacred Weapon",
+    retypes: "radiant", unticked: true, label: "Sacred Weapon — Radiant", says: "the weapon's damage is Radiant instead of its own type",
+    rule: Object.freeze({ item: "Sacred Weapon", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSacredWeap" }),
+    from: "Paladin — Oath of Devotion 3" }),
   // C1 — Lunar Form: 2d10 radiant once per turn on a hit made in Wild Shape (`judge: "wildShape"` — the platform's
   // transformation flag on the attacker); the beast's attacks are the item, so no `weapon`.
   "lunar-form": Object.freeze({ feature: "Lunar Form", activity: "Damage", when: "oncePerTurn", judge: "wildShape", label: "Lunar Form",
@@ -1966,12 +1974,15 @@ export const SPELL_LOOKS = Object.freeze({
  *   effect    the pack effect the light rides, landed WITH it; null: the module's own, named as the item, or
  *             a utility use's own creature effect of the row's name when a world copy gives it one
  *             (`lightAdopts`: the light lands that effect and the cast path leaves it, so the bearer wears one)
- *   recast    "ends" — casting it again ends the caster's earlier light; on an `ends: "enchantment"` row, the earlier
- *             ENCHANTMENT too ("until you use this feature again"): a copy applied ends every other on the bearer's items
+ *   recast    "ends" — casting it again ends the caster's earlier light
  *   out       the item's other activity whose use puts the caster's light out (the effect deleted on the elect,
  *             the token's own light back); the use itself runs as the pack's
  *   ends      "enchantment" — the light goes out with the ENCHANTMENT the use put on a weapon (the item's own
  *             effect of the row's `item` name, deleted from the weapon); `clock` its duration off that effect
+ *   wears     the BEARER wears the use's enchantment, never a weapon (Sacred Weapon, RULINGS *The class features, reviewed*): the pack
+ *             enchantment's attack bonus rides the light effect as `system.bonuses.<wears>.attack`, clocked as the
+ *             enchantment; an enchantment of the row's name landing on any other item is refused. Its damage type is
+ *             a CLOCK_RIDERS `retypes` row
  */
 export const TOKEN_LIGHTS = Object.freeze({
   "Inner Radiance": Object.freeze({ item: "Celestial Revelation", activity: "Inner Radiance", on: "self", effect: "Searing Radiance", bright: 10, dim: 20,
@@ -2006,9 +2017,10 @@ export const TOKEN_LIGHTS = Object.freeze({
   "Elder Champion": Object.freeze({ item: "Elder Champion", activity: "Elder Champion", on: "self", effect: "Diminished Defiance", bright: 0, dim: 0,
     rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp" }),
     from: "Paladin — Oath of the Ancients 20 (1 minute)" }),
-  // The +Cha and the Radiant are the pack's Enchant (NATIVE); the weapon's light rides the paladin's token.
-  "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, ends: "enchantment", recast: "ends",
-    caveat: "the light is the paladin's token's — the weapon is in hand",
+  // Worn by the paladin, never a weapon (RULINGS *The class features, reviewed*): the pack Enchant's +Cha rides this effect on the paladin's
+  // melee weapon attacks; its Radiant is CLOCK_RIDERS "sacred-weapon", a tick on each melee weapon hit's damage.
+  "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, wears: "mwak", recast: "ends",
+    caveat: "worn by the paladin, not the weapon: +Charisma (min 1) to melee weapon attack rolls, Radiant a tick on each hit's damage",
     rule: Object.freeze({ item: "Sacred Weapon", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSacredWeap" }),
     from: "Paladin — Oath of Devotion 3 (10 minutes)" }),
   // ARCANA UNLEASHED — Diamond Staff's Dazzling Light: Bright 40 ft, Dim 40 more, riding the pack's own effect for its minute.

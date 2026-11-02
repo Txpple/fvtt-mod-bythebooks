@@ -204,7 +204,11 @@ describe("the registry's clock-rider data", () => {
       else if (row.activity === null && !row.says && !row.inspired)
         expect(row.amount, key).toMatch(/^@/);
       else if (row.activity === null && !row.inspired)
-        expect(row.lands?.name || row.bonusDice || row.random || row.enchant, key).toBeTruthy();
+        // …or the weapon's own damage retyped, no dice of its own (Sacred Weapon's Radiant: `retypes`).
+        expect(
+          row.lands?.name || row.bonusDice || row.random || row.enchant || row.retypes,
+          key
+        ).toBeTruthy();
       else if (!row.inspired) expect(row.activity, key).toBeTruthy();
       if ([].concat(row.judge ?? []).includes("transformed"))
         expect(row.forms?.length, key).toBeGreaterThan(0);
@@ -227,6 +231,8 @@ describe("the registry's clock-rider data", () => {
             !!row.marked ||
             // RAVENLOFT: a status the target must wear (Ominous Strikes' Frightened) — the status is the limit.
             !!row.targetStatus ||
+            // an effect the attacker must wear (Sacred Weapon's) — the effect's clock is the limit.
+            !!row.wearing ||
             (!!row.lands?.name && !row.amount && !row.bonusDice),
           key
         ).toBe(true);

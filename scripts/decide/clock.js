@@ -10,22 +10,23 @@
  * item carries the row's enchantment, or — none on the sheet — it is the row's `spell`.
  * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string|readonly string[], weapon?: boolean,
  *          dealt?: string, crit?: boolean, maxSize?: string, enchant?: boolean, inspired?: boolean, melee?: boolean, marked?: string, unarmed?: boolean,
- *          natural?: boolean, targets?: object, charges?: boolean, wields?: boolean, targetStatus?: string}} row
+ *          natural?: boolean, targets?: object, charges?: boolean, wields?: boolean, targetStatus?: string, wearing?: string}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, reckless?: boolean, targetDamaged?: boolean|null, weapon?: boolean,
  *          form?: string|null, dealt?: string[], critical?: boolean, opportunity?: "driven"|"offTurn"|null,
  *          fits?: boolean|null, enchanted?: boolean, melee?: boolean, wildShape?: boolean, marked?: boolean|null,
  *          unarmed?: boolean, attuned?: boolean, natural?: boolean, typed?: {fits: boolean|null, why: string}|null,
- *          chargesLeft?: number|null, targetStatus?: boolean|null}} facts
+ *          chargesLeft?: number|null, targetStatus?: boolean|null, wearing?: boolean|null}} facts
  * @returns {{due: boolean, why: string}} */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
   sneakArmed = false, raging = false, reckless = false, targetDamaged = null, weapon = false, form = null, dealt = [],
   critical = false, opportunity = null, fits = null, enchanted = false, melee = false, wildShape = false, marked = null,
-  unarmed = false, attuned = false, natural = false, typed = null, chargesLeft = null, targetStatus = null } = {}) {
+  unarmed = false, attuned = false, natural = false, typed = null, chargesLeft = null, targetStatus = null, wearing = null } = {}) {
   // C1 — `judge` may list several (Power of the Wilds' Ram: raging AND the form chip); every one must stand.
   const judges = new Set(/** @type {string[]} */ ([]).concat(row.judge ?? []));
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
   if ( row.melee && !melee ) return { due: false, why: "not a melee attack" };
+  if ( row.wearing && (wearing !== true) ) return { due: false, why: `${row.wearing} is not on you` };
   if ( row.unarmed && !unarmed ) return { due: false, why: "not an Unarmed Strike" };
   if ( row.enchant && !enchanted ) return { due: false, why: "not the cantrip it was chosen for" };
   if ( row.maxSize && (fits === false) ) return { due: false, why: "the target is too large" };
@@ -81,6 +82,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       if ( row.enchant ) return { due: true, why: "every hit with the chosen cantrip" };
       if ( row.inspired ) return { due: true, why: "your Bardic Inspiration die, if you spend it" };
       if ( row.marked ) return { due: true, why: `the target is under your ${row.marked}` };
+      if ( row.wearing ) return { due: true, why: `${row.wearing} stands — your choice on each hit` };
       return { due: true, why: "on any hit, while its uses last" };
     default:
       return { due: false, why: `an unknown clock "${row.when}"` };

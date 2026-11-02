@@ -278,36 +278,40 @@ describe("lightLasts — how long the light stands, in the card's words", () => 
       "until its effect is removed or the spell is cast again; Hurl Fire puts it out"
     );
   });
-  it("a form's light stands while the form does; an enchantment's while the enchantment does", () => {
+  it("a form's light stands while the form does; a worn enchantment's until it ends or is used again", () => {
     expect(tl.lightLasts(reg.TOKEN_LIGHTS["Inner Radiance"])).toBe(
       "while the transformation stands"
     );
-    expect(tl.lightLasts(reg.TOKEN_LIGHTS["Sacred Weapon"])).toBe(
-      "while the weapon's enchantment stands"
-    );
+    expect(tl.lightLasts(reg.TOKEN_LIGHTS["Sacred Weapon"])).toBe("until it ends or is used again");
   });
   it("a spell no recast ends never says a recast ends it (Continual Flame)", () => {
     expect(tl.lightLasts(reg.TOKEN_LIGHTS["Continual Flame"])).toBe("for the spell's duration");
   });
 });
 
-describe('a re-used enchantment — Sacred Weapon\'s "until you use this feature again" (2026-11-02)', () => {
-  it("the row ends its earlier enchantment on a re-use, its light still clocked by the enchantment", () => {
-    expect(reg.TOKEN_LIGHTS["Sacred Weapon"]).toMatchObject({
-      ends: "enchantment",
-      recast: "ends"
-    });
+describe("a worn enchantment — Sacred Weapon on the paladin, never the weapon (2026-11-02)", () => {
+  const enchant = [
+    { key: "name", value: ", Sacred Weapon" },
+    { key: "system.damage.base.types", value: "radiant" },
+    { key: "activities[attack].attack.bonus", value: "(max(1,@abilities.cha.mod))" }
+  ];
+  it("the row is worn on melee weapon attacks, a re-use replacing it; no enchantment clock of its own", () => {
+    expect(reg.TOKEN_LIGHTS["Sacred Weapon"]).toMatchObject({ wears: "mwak", recast: "ends" });
+    expect(reg.TOKEN_LIGHTS["Sacred Weapon"].ends).toBeUndefined();
   });
-  it("every other APPLIED copy ends; the one just applied and an unapplied template stay", () => {
-    const copies = [
-      { id: "old", applied: true },
-      { id: "new", applied: true },
-      { id: "template", applied: false },
-      { id: "older", applied: true }
-    ];
-    expect(tl.enchantmentsReplaced(copies, "new")).toEqual(["old", "older"]);
-    expect(tl.enchantmentsReplaced([{ id: "new", applied: true }], "new")).toEqual([]);
-    expect(tl.enchantmentsReplaced([], "new")).toEqual([]);
+  it("only the pack enchantment's attack bonus is worn, as the bearer's melee weapon attack bonus", () => {
+    expect(tl.wornChanges(reg.TOKEN_LIGHTS["Sacred Weapon"], enchant)).toEqual([
+      {
+        key: "system.bonuses.mwak.attack",
+        type: "add",
+        value: "(max(1,@abilities.cha.mod))",
+        phase: "initial"
+      }
+    ]);
+  });
+  it("a row that wears nothing, or an enchantment with no attack bonus, adds nothing", () => {
+    expect(tl.wornChanges(reg.TOKEN_LIGHTS["Inner Radiance"], enchant)).toEqual([]);
+    expect(tl.wornChanges(reg.TOKEN_LIGHTS["Sacred Weapon"], enchant.slice(0, 2))).toEqual([]);
   });
 });
 

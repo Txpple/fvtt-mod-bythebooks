@@ -8,7 +8,7 @@ import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } f
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { TOKEN_LIGHTS, TOKEN_SENSES, TOKEN_SIZES } from "./decide/registry.js";
-import { lightRowKey, lightOutKey, lightAdopts, lightItemNames, lightEffectImg, lightChanges, lightTargets, lightLasts, tokenOwnLight, gearLightWords, senseRowKey, senseChanges, carriesSense, enchantmentsReplaced,
+import { lightRowKey, lightOutKey, lightAdopts, lightItemNames, lightEffectImg, lightChanges, lightTargets, lightLasts, tokenOwnLight, gearLightWords, senseRowKey, senseChanges, carriesSense, wornChanges,
   sizeRowFor, sizeAfter, sizeChanges, carriesSize } from "./decide/token-lights.js";
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -144,8 +144,9 @@ function adoptedEffect(row, item, activity) {
 function lightEffectData(row, item, activity, target, sourceUuid, ruleHtml = "") {
   const base = row.effect ? item?.effects?.find(e => lower(e.name) === lower(row.effect)) ?? null : adoptedEffect(row, item, activity);
   if ( row.effect && !base ) return null;
-  // An `ends: "enchantment"` row's clock is its enchantment's (the activity carries none of its own).
-  const enchantment = (row.ends === "enchantment") ? item?.effects?.find(e => (e.type === "enchantment") && (lower(e.name) === lower(row.key))) ?? null : null;
+  // An `ends: "enchantment"` or `wears` row's clock is its enchantment's (the activity carries none of its own).
+  const enchantment = ((row.ends === "enchantment") || row.wears)
+    ? item?.effects?.find(e => (e.type === "enchantment") && (lower(e.name) === lower(row.key))) ?? null : null;
   const data = base ? base.toObject() : {
     name: item?.name ?? row.key,
     type: "base", description: ruleHtml,
@@ -156,7 +157,8 @@ function lightEffectData(row, item, activity, target, sourceUuid, ruleHtml = "")
   // The pack's own clock for its effect — or, clockless, the activity's.
   if ( base ) foundry.utils.mergeObject(data, activity?.getAppliedEffectChanges?.(base, { target }) ?? {});
   data.system ??= {};
-  data.system.changes = [...(data.system.changes ?? []), ...lightChanges(row)];
+  data.system.changes = [...(data.system.changes ?? []), ...lightChanges(row),
+    ...wornChanges(row, enchantment?._source?.system?.changes ?? enchantment?.system?.changes ?? [])];
   data.disabled = false;
   data.transfer = false;
   data.origin = item?.uuid ?? null;
@@ -292,24 +294,17 @@ listen("deleteActiveEffect", "token-lights", effect => {
   }
 });
 
-// A re-used enchantment ends the earlier one (`recast: "ends"` on an `ends: "enchantment"` row — Sacred Weapon): the copy
-// just applied stands, every other applied copy on the bearer's items is deleted on the elect; the light stays with the new.
-listen("createActiveEffect", "token-lights", effect => {
+// A `wears` row's enchantment is its bearer's, never a weapon's (Sacred Weapon, RULINGS *The class features, reviewed*): one of that name landing
+// on any item but the feature itself is refused — the bearer's light effect already carries what it gives.
+listen("preCreateActiveEffect", "token-lights", effect => {
   try {
-    if ( !isActiveGM() || (effect.type !== "enchantment") || !(effect.parent instanceof Item) || (effect.isAppliedEnchantment !== true) ) return;
-    const actor = effect.parent.actor;
-    if ( !actor ) return;
-    const row = Object.entries(TOKEN_LIGHTS).find(([k, r]) => (r.ends === "enchantment") && (r.recast === "ends") && (lower(k) === lower(effect.name)));
-    if ( !row ) return;
-    const copies = actor.items.filter(i => !answersItem(i, effect.name)).flatMap(i => [...i.effects]
-      .filter(e => (e.type === "enchantment") && (lower(e.name) === lower(effect.name)))
-      .map(e => ({ id: e.id, applied: e.isAppliedEnchantment === true, doc: e })));
-    const ends = new Set(enchantmentsReplaced(copies, effect.id));
-    for ( const c of copies ) {
-      if ( ends.has(c.id) ) void c.doc.delete().catch(err => log.warn(`The earlier ${row[0]} on ${c.doc.parent?.name} could not be ended — remove it by hand.`, err));
-    }
+    if ( (effect.type !== "enchantment") || !(effect.parent instanceof Item) ) return;
+    const key = Object.keys(TOKEN_LIGHTS).find(k => TOKEN_LIGHTS[k].wears && (lower(k) === lower(effect.name)));
+    if ( !key || answersItem(effect.parent, key) ) return;
+    ui.notifications?.info?.(`${key} is worn by ${effect.parent.actor?.name ?? "its bearer"}, not the weapon — no weapon to enchant.`);
+    return false;
   } catch(err) {
-    log.warn(`Could not end an earlier enchantment — remove it by hand.`, err);
+    log.warn(`A worn enchantment could not be judged — remove it from the weapon by hand.`, err);
   }
 });
 

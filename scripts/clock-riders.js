@@ -247,10 +247,11 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
       formula = (resolved && Roll.validate(resolved)) ? resolved : null;
     } catch { formula = null; }
     const form = formOn(attacker, row);
-    const type = (row.type === "weapon") ? weaponType : row.type ? row.type : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
+    const type = row.retypes ? row.retypes : (row.type === "weapon") ? weaponType : row.type ? row.type : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
     const uses = usesOf(bearer, act, row);
     const usesLeft = uses ? uses.left : null;
-    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key), marked, targetStatus,
+    const wearing = row.wearing ? attacker.effects.some(e => e.active && (lower(e.name) === lower(row.wearing))) : null;
+    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key), marked, targetStatus, wearing,
       fits: row.maxSize ? targetsFit(hits, row.maxSize) : null,
       enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false,
       typed: row.targets ? targetsAnswer(row.targets, hitFactsNow()) : null,
@@ -386,6 +387,15 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
       }
       // An `inspired` die has no type of its own: it adds to the attack's damage, so it takes the first roll's.
       const type = r.type ?? (r.inspired ? (config.rolls?.[0]?.options?.types?.[0] ?? config.rolls?.[0]?.options?.type ?? null) : null);
+      // A `retypes` row (Sacred Weapon's Radiant) adds no dice: the weapon's own rolls are dealt as its type.
+      if ( r.row.retypes ) {
+        const own = Number(foundry.utils.getProperty(message, `data.flags.${MODULE_ID}.weaponRolls`)) || 1;
+        for ( const roll of (config.rolls ?? []).slice(0, own) ) {
+          roll.options ??= {};
+          roll.options.type = r.row.retypes;
+          roll.options.types = [r.row.retypes];
+        }
+      }
       if ( r.formula ) {
         config.rolls.push({
           // No `properties`: a feature's extra damage never bypasses physical resistance as the weapon's magic.

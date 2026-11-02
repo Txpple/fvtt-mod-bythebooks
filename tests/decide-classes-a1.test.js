@@ -81,6 +81,23 @@ describe("CLOCK_RIDERS — the new judges", () => {
   const frenzy = () => reg.CLOCK_RIDERS.frenzy;
   const colossus = () => reg.CLOCK_RIDERS["hunters-prey-colossus-slayer"];
 
+  it("Sacred Weapon's Radiant: a melee weapon hit while the paladin wears it, offered unticked, no dice (2026-11-02)", () => {
+    const row = reg.CLOCK_RIDERS["sacred-weapon"];
+    expect(row).toMatchObject({
+      retypes: "radiant",
+      unticked: true,
+      wearing: "Sacred Weapon",
+      melee: true,
+      weapon: true,
+      activity: null
+    });
+    expect(c.riderDue(row, { weapon: true, melee: true, wearing: true }).due).toBe(true);
+    expect(c.riderDue(row, { weapon: true, melee: true, wearing: false })).toEqual({
+      due: false,
+      why: "Sacred Weapon is not on you"
+    });
+    expect(c.riderDue(row, { weapon: true, melee: false, wearing: true }).due).toBe(false);
+  });
   it("Frenzy: raging AND reckless, a weapon, once per turn", () => {
     expect(
       c.riderDue(frenzy(), { inCombat: true, weapon: true, raging: false, reckless: true })

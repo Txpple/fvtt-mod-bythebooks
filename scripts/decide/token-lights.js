@@ -246,25 +246,28 @@ export function lightTargets(row, { self = null, targets = [] } = {}) {
 }
 
 /**
- * A re-used enchantment (an `ends: "enchantment"` row with `recast: "ends"` — Sacred Weapon's "until you use this feature
- * again"): the ids of every OTHER applied copy of it on the bearer's items, the one just applied kept.
- * @param {{ id: string, applied: boolean }[]} copies  the bearer's enchantments of the row's name
- * @param {string} keep  the copy just applied
- * @returns {string[]}
+ * A `wears` row (Sacred Weapon, RULINGS *The class features, reviewed*): the bearer wears the use's enchantment — the pack enchantment's
+ * attack bonus (`activities[attack].attack.bonus`) as the bearer's `system.bonuses.<wears>.attack`; nothing else of it.
+ * @param {{ wears?: string|null }} row
+ * @param {{ key?: string, value?: unknown }[]} enchantChanges  the pack enchantment's own changes
+ * @returns {{ key: string, type: string, value: string, phase: string }[]}
  */
-export function enchantmentsReplaced(copies, keep) {
-  return (copies ?? []).filter(c => c?.applied && c.id && (c.id !== keep)).map(c => c.id);
+export function wornChanges(row, enchantChanges) {
+  if ( !row?.wears ) return [];
+  const bonus = (enchantChanges ?? []).find(c => c?.key === "activities[attack].attack.bonus")?.value;
+  return bonus ? [{ key: `system.bonuses.${row.wears}.attack`, type: "add", value: String(bonus), phase: "initial" }] : [];
 }
 
 /**
  * How long a row's light stands, in the card's words: a form's while it stands, a spell's for its duration,
  * and what puts it out early. A recast row names its effect: the table's clock rarely runs a spell's minutes
  * out, so the effect removed is the usual end.
- * @param {{ on?: string, recast?: string|null, ends?: string|null, out?: string|null }} row
+ * @param {{ on?: string, recast?: string|null, ends?: string|null, out?: string|null, wears?: string|null }} row
  * @returns {string}
  */
 export function lightLasts(row) {
-  const span = (row?.ends === "enchantment") ? "while the weapon's enchantment stands"
+  const span = row?.wears ? "until it ends or is used again"
+    : (row?.ends === "enchantment") ? "while the weapon's enchantment stands"
     : row?.recast ? "until its effect is removed or the spell is cast again"
     : (row?.on === "self") ? "while the transformation stands"
     : "for the spell's duration";

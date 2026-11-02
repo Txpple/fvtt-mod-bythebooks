@@ -23,7 +23,7 @@ export const COVERS = [
 
 const SECTIONS = {
   13: 'Glorious Defense: the Attacker hits the Halfling 10 ft from the Cleric (lent Glorious Defense) by 0 — the Cleric\'s popup "−<Cha mod, min 1>"; Answer turns it to a MISS, a use spent; the Strike popup "Strike BTB Test Attacker with <weapon>?" drives one weapon attack at the Attacker',
-  23: 'Sacred Weapon: the use lights the Cleric\'s token 20 ft Bright / 40 ft Dim ("while the weapon\'s enchantment stands"); used again on a Dagger the first weapon\'s enchantment ends and the light stands, applied to the Dagger again one copy stands (2026-11-02); the enchantment deleted puts the light out (the token back to its prior light)',
+  23: 'Sacred Weapon worn by the Cleric, never the weapon (2026-11-02): the use lands one effect, 20 ft Bright / 40 ft Dim and +Cha to melee weapon attacks ("until it ends or is used again"); the enchantment dropped on a weapon is refused; a melee hit offers "Sacred Weapon — Radiant" unticked — ticked the weapon\'s damage is Radiant, unticked its own; used again, one effect; deleted, the light out',
   40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Share 13 Temporary Hit Points" with a tick per creature within 30 ft, the paladin ticked; the PC ticked too, 7 and 6 land, split evenly, and one Channel Divinity is spent; No keeps it; the clock gives all 13 to the paladin',
   65: 'Undying Sentinel (C1, the Halfling a Paladin 15): the drop asks "drop to 1 Hit Point instead? · and the heal"; Yes: 1 + 45, the use spent',
   77: 'Smite of Protection (C1, the Cleric a Paladin 15 with the aura): Divine Smite cast — the paladin and the Halfling inside wear "Smite of Protection" (Half Cover), the cast card\'s line',
@@ -42,7 +42,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
   const { until, watch, snapshotSettings, faces, unrig } = window.__btb;
   const { results, skips, ok, want, section } = window.__btb.begin({ sections, titles });
   const KIT = window.__btbClasses;
-  const { MOD, a1Victim, activateRange, atkMod, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, castSpell, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, d1Cards, d1Combat, d1Region, divinity, dropCards, dropEffects, dropHalfling, dropNamed, dropReactionChips, gateFor, halfling, halflingDoc, halflingToken, healFull, hgClose, hgKeep, hgLend, hgStrike, holdOf, hp, lend, log, markOn, pcAttacker, pcToken, pcWeapon, pickApply, pinHeal, popupTitled, popups, regionKeyed, resolvedTarget, scene, set, spendLuck, spendLuckC, strikePopup, suiteStart, swing, textOf, titleOf, titled, unlend, useFeature, victim, victimToken } = KIT;
+  const { MOD, a1Damage, a1Hit, a1Roll, a1Victim, activateRange, atkMod, attackOf, attacker, attackerToken, backToRange, c1Cards, cardEl, cardText, castSpell, clearDown, clearTargets, cleric, clericToken, clericWeapon, closeA1, closeDialogs, closeOffers, d1Cards, d1Combat, d1Region, divinity, dropCards, dropEffects, dropHalfling, dropNamed, dropReactionChips, gateFor, halfling, halflingDoc, halflingToken, healFull, hgClose, hgKeep, hgLend, hgStrike, holdOf, hp, lend, log, markOn, pcAttacker, pcToken, pcWeapon, pickApply, pinHeal, popupTitled, popups, regionKeyed, resolvedTarget, riderBox, riderRow, ridersOf, scene, set, spendLuck, spendLuckC, strikePopup, suiteStart, swing, textOf, titleOf, titled, unlend, useFeature, victim, victimToken } = KIT;
   try {
     await KIT.leaveA3();
     // ---- 13. Glorious Defense: the paladin's Cha off an attack on a creature within 10 ft; the strike after
@@ -106,75 +106,76 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       }
     });
 
-    // ---- 23. Sacred Weapon's light goes out with the weapon's enchantment; a re-use ends the earlier enchantment
+    // ---- 23. Sacred Weapon worn by the paladin (the user, 2026-11-02): one effect, its light and +Cha; Radiant a tick on the hit
     if (want(23)) await section(23, async () => {
-      await closeDialogs();
+      await closeDialogs(); await a1Victim();
       const sw = await hgLend(cleric, 'Sacred Weapon', 'feat');
-      const dagger = await hgLend(cleric, 'Dagger', 'weapon');
       const act = sw ? cleric.items.get(sw.id)?.system.activities.find(a => a.type === 'enchant') : null;
       const weapon = clericWeapon ? cleric.items.get(clericWeapon.id) : null;
       const cdoc = clericToken.document;
       const lightNow = () => ({ bright: scene.tokens.get(cdoc.id)?.light?.bright ?? null, dim: scene.tokens.get(cdoc.id)?.light?.dim ?? null });
-      const lightFx = () => cleric.effects.find(e => e.getFlag(MOD, 'tokenLight')?.key === 'Sacred Weapon') ?? null;
-      const copiesOn = w => [...(cleric.items.get(w?.id)?.effects ?? [])].filter(e => (e.type === 'enchantment') && (e.name === 'Sacred Weapon') && e.isAppliedEnchantment);
-      const enchantOn = (w = weapon) => copiesOn(w)[0] ?? null;
+      const worn = () => cleric.effects.filter(e => e.getFlag(MOD, 'tokenLight')?.key === 'Sacred Weapon');
+      const copiesOn = w => [...(cleric.items.get(w?.id)?.effects ?? [])].filter(e => (e.type === 'enchantment') && (e.name === 'Sacred Weapon'));
+      const useIt = () => act.use({ consume: { resources: false, spellSlot: false, action: false }, subsequentActions: false }, { configure: false }, {});
       try {
         if (!act || !weapon) log.push(`§23 skipped: activity=${!!act} weapon=${!!weapon}`);
         else {
           const before = lightNow();
           clericToken.control({ releaseOthers: true });
-          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-          // The Paladin's Channel Divinity is not on this sheet: the use spends nothing (the light is the row under test).
-          const res = await act.use({ consume: { resources: false, spellSlot: false, action: false }, subsequentActions: false }, { configure: false }, {});
+          clearTargets();
+          // The Paladin's Channel Divinity is not on this sheet: the use spends nothing.
+          const res = await useIt();
           const card = res?.message ?? null;
-          const fx = await until(lightFx, { timeout: 8000, label: 'the Sacred Weapon light effect' });
+          const fx = await until(() => worn()[0] ?? null, { timeout: 8000, label: 'the Sacred Weapon effect on the Cleric' });
           const lit = await until(() => (lightNow().bright === 20) ? lightNow() : null, { timeout: 5000, label: 'the Cleric\'s token lit 20 ft Bright' });
           const keys = (fx?.system?.changes ?? []).map(ch => `${ch.key}=${ch.value}`);
-          ok('23a. the use lights the Cleric\'s token: 20 ft Bright, 40 ft Dim (the light effect, the enchantment\'s 10-minute clock)',
-            !!fx && keys.includes('token.light.bright=20') && keys.includes('token.light.dim=40') && !!lit && (lit.dim === 40),
-            `effect=${fx?.name ?? null} changes=[${keys.join(', ')}] light=${JSON.stringify(lightNow())} before=${JSON.stringify(before)} duration=${JSON.stringify(fx?._source?.duration ?? null)}`);
-          // The card's light line is drawn once the landing is written back to the card (token-lights.js), after the effect.
+          ok('23a. the use lands ONE effect on the Cleric: 20 ft Bright, 40 ft Dim and the pack\'s +Cha on melee weapon attacks',
+            !!fx && keys.includes('token.light.bright=20') && keys.includes('token.light.dim=40') && !!lit && (lit.dim === 40)
+              && keys.some(k => /^system\.bonuses\.mwak\.attack=.*@abilities\.cha\.mod/.test(k)),
+            `effect=${fx?.name ?? null} changes=[${keys.join(', ')}] light=${JSON.stringify(lightNow())} before=${JSON.stringify(before)}`);
           await until(() => /Token light/.test(cardText(card?.id)), { timeout: 5000, label: 'the light line drawn on the Sacred Weapon card' });
-          ok('23b. the card says "Sacred Weapon — … sheds light: 20 ft Bright, 20 ft more Dim · while the weapon\'s enchantment stands"',
-            /Sacred Weapon — .+ sheds light: 20 ft Bright, 20 ft more Dim/.test(cardText(card?.id)) && /while the weapon's enchantment stands/.test(cardText(card?.id)),
-            `flag=${JSON.stringify(card?.getFlag(MOD, 'tokenLight')?.landed?.map(l => l.name) ?? null)} text=${cardText(card?.id).slice(-240)}`);
-          // dnd5e enchants on a weapon DROPPED on the card: the suite applies the use's profile to the Cleric's weapon.
-          // UNSURE: `act.effects[0]._id` is the profile id applyEnchantment wants (dnd5e.mjs:36541 finds p._id).
+          ok('23b. the card: "Sacred Weapon — … sheds light: 20 ft Bright, 20 ft more Dim · until it ends or is used again", worn by the paladin',
+            /Sacred Weapon — .+ sheds light: 20 ft Bright, 20 ft more Dim/.test(cardText(card?.id)) && /until it ends or is used again/.test(cardText(card?.id))
+              && /worn by the paladin, not the weapon/.test(cardText(card?.id)),
+            `text=${cardText(card?.id).slice(-260)}`);
+          // dnd5e enchants a weapon DROPPED on the card: the suite applies the use's profile to the Cleric's weapon — refused.
           const profileId = act.effects?.[0]?._id ?? null;
           try { await act.applyEnchantment(profileId, weapon, { chatMessage: card, strict: false }); }
           catch (err) { log.push(`§23 applyEnchantment threw: ${err?.message}`); }
-          const ench = await until(enchantOn, { timeout: 5000, label: 'the Sacred Weapon enchantment on the weapon' });
-          ok('23c. the weapon carries the Sacred Weapon enchantment; the light still stands', !!ench && !!lightFx() && (lightNow().bright === 20),
-            `enchant=${ench?.name ?? null} weapon=${cleric.items.get(weapon.id)?.name} light=${JSON.stringify(lightNow())}`);
-          // d. used again on the Dagger ("until you use this feature again"): the first weapon's copy ends, the light stays
-          const second = dagger ? cleric.items.get(dagger.id) : null;
-          if (!second) log.push('§23d skipped: no Dagger');
-          else {
-            const res2 = await act.use({ consume: { resources: false, spellSlot: false, action: false }, subsequentActions: false }, { configure: false }, {});
-            try { await act.applyEnchantment(profileId, second, { chatMessage: res2?.message ?? card, strict: false }); }
-            catch (err) { log.push(`§23d applyEnchantment threw: ${err?.message}`); }
-            const moved = await until(() => (copiesOn(second).length === 1) && !copiesOn(weapon).length, { timeout: 8000, label: 'the enchantment moved to the Dagger' });
-            const lightStays = await until(() => lightFx() && (lightNow().bright === 20), { timeout: 5000, label: 'the light standing after the re-use' });
-            ok('23d. used again on the Dagger: the Dagger carries Sacred Weapon, the first weapon\'s copy is gone, the light stands',
-              !!moved && !!lightStays, `first=${copiesOn(weapon).length} dagger=${copiesOn(second).length} light=${JSON.stringify(lightNow())}`);
-            // e. used again on the SAME weapon: one copy, never two
-            try { await act.applyEnchantment(profileId, second, { chatMessage: res2?.message ?? card, strict: false }); }
-            catch (err) { log.push(`§23e applyEnchantment threw: ${err?.message}`); }
-            const single = await until(() => (copiesOn(second).length === 1) ? true : null, { timeout: 8000, label: 'one copy on the Dagger' });
-            ok('23e. applied again to the Dagger: one copy stands, never two (+Cha once)', !!single, `dagger=${copiesOn(second).length}`);
-          }
-          for (const w of [weapon, second].filter(Boolean)) for (const e of copiesOn(w)) await e.delete();
-          const out = await until(() => !lightFx() && (lightNow().bright === before.bright) && (lightNow().dim === before.dim), { timeout: 8000, label: 'the light out with the enchantment' });
-          ok('23f. the enchantment deleted: the light effect goes and the token is back to its prior light',
-            out, `effect=${lightFx()?.name ?? null} light=${JSON.stringify(lightNow())} before=${JSON.stringify(before)}`);
+          const stray = await watch(() => copiesOn(weapon).length ? copiesOn(weapon).length : null, { ms: 1200 });   // a window: nothing lands
+          ok('23c. the enchantment dropped on the weapon is refused: no copy on the Mace; the effect stands', !stray && !copiesOn(weapon).length && (worn().length === 1),
+            `copies=${copiesOn(weapon).length} worn=${worn().length}`);
+          // d. a melee hit: the offer's Radiant row, unticked; ticked, the Mace's damage is Radiant
+          const hitAct = attackOf(cleric, weapon);
+          const ownType = [...(weapon.system?.damage?.base?.types ?? [])][0] ?? null;
+          const { msg: m1, offer: o1 } = await a1Hit(cleric, clericToken, hitAct);
+          const box = riderBox(o1, 'sacred-weapon');
+          ok('23d. a melee weapon hit: the offer\'s row "Sacred Weapon — Radiant", unticked', !!o1 && !!box && !box.checked && /Sacred Weapon — Radiant/.test(riderRow(o1, 'sacred-weapon')),
+            `offer=${!!o1} box=${!!box} checked=${box?.checked} row="${riderRow(o1, 'sacred-weapon')}"`);
+          if (box) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+          const d1 = await a1Roll(m1, o1);
+          const t1 = d1?.rolls?.[0]?.options?.type ?? null;
+          ok('23e. ticked: the Mace\'s damage is Radiant, the rider recorded with no dice of its own', (t1 === 'radiant') && ridersOf(d1).some(x => (x.key === 'sacred-weapon') && !x.formula),
+            `type=${t1} riders=${JSON.stringify(ridersOf(d1).map(x => [x.key, x.formula, x.type]))}`);
+          const { msg: m2, offer: o2 } = await a1Hit(cleric, clericToken, hitAct);
+          const d2 = o2 ? await a1Roll(m2, o2) : await a1Damage(m2);
+          const t2 = d2?.rolls?.[0]?.options?.type ?? null;
+          ok(`23f. left unticked: the Mace's own ${ownType ?? 'type'} stands`, !!d2 && (t2 === ownType) && !ridersOf(d2).some(x => x.key === 'sacred-weapon'),
+            `type=${t2} own=${ownType} riders=${JSON.stringify(ridersOf(d2).map(x => x.key))}`);
+          // g. used again: one effect still, never two
+          await useIt();
+          const one = await until(() => (worn().length === 1) && (worn()[0]?.id !== fx?.id) ? true : null, { timeout: 8000, label: 'the re-used Sacred Weapon replacing the first' });
+          ok('23g. used again: the earlier effect ends, one stands', !!one, `worn=${worn().map(e => e.id).join(',')} first=${fx?.id}`);
+          await dropEffects(cleric, worn().map(e => e.id));
+          const out = await until(() => !worn().length && (lightNow().bright === before.bright) && (lightNow().dim === before.dim), { timeout: 8000, label: 'the light out with the effect' });
+          ok('23h. the effect deleted: the token is back to its prior light', out, `worn=${worn().length} light=${JSON.stringify(lightNow())} before=${JSON.stringify(before)}`);
         }
       } finally {
-        // restore: any enchantment or light left behind, the lend
-        for (const w of [weapon, dagger].filter(Boolean)) for (const e of copiesOn(w)) await e.delete().catch(() => {});
-        const leftLight = cleric.effects.filter(e => e.getFlag(MOD, 'tokenLight')?.key === 'Sacred Weapon').map(e => e.id);
-        if (leftLight.length) await cleric.deleteEmbeddedDocuments('ActiveEffect', leftLight).catch(() => {});
+        await closeOffers();
+        for (const e of copiesOn(weapon)) await e.delete().catch(() => {});
+        const left = worn().map(e => e.id);
+        if (left.length) await cleric.deleteEmbeddedDocuments('ActiveEffect', left).catch(() => {});
         if (sw) await unlend(cleric, sw);
-        if (dagger) await unlend(cleric, dagger);
       }
     });
     KIT.markA2();
