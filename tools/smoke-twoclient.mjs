@@ -612,8 +612,8 @@ if (want('pull')) {
   } else {
     ok('pull/1. another scene active and nobody on the range: no ring stands there and the Ranger inside wears nothing',
       (setupPull.rings === 0) && (setupPull.fx === 0), JSON.stringify(setupPull));
-    // The GM's preview with a player connected: the range is NOT live (a GM's view counts only
-    // while no player is connected).
+    // The GM's preview with a player at the table: the range is NOT live (a GM's view counts only
+    // while no player is at the table: one viewing a scene or playing a character).
     const preview = await gm.evaluate(async () => {
       const MOD = 'fvtt-mod-bythebooks';
       const { until, watch } = window.__btb;
@@ -634,14 +634,14 @@ if (want('pull')) {
       const stray = await watch(() => (rings() > 0) || (fx() > 0), { ms: 3000 });
       const out = { gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null,
         rings: rings(), fx: fx(), stray,
-        players: game.users.filter(u => u.active && !u.isGM).map(u => u.name) };
+        players: game.users.filter(u => u.active && !u.isGM && (u.viewedScene || u.character)).map(u => u.name) };
       // Back to the other scene before the player's view. Soft: pull/2 reads where the GM stands (gmViews).
       await until(() => !canvas.loading, { timeout: 10_000, label: 'the canvas done loading' }).catch(() => null);
       await elsewhere.view();
       await until(() => game.user.viewedScene === elsewhere.id, { timeout: 10_000, label: 'the GM views the other scene' }).catch(() => null);
       return out;
     }, null);
-    ok('pull/1b. the GM previews the range while a player is connected: no ring rises and the Ranger inside wears nothing (a GM\'s view counts only when no player is on)',
+    ok('pull/1b. the GM previews the range while a player is at the table: no ring rises and the Ranger inside wears nothing (a GM\'s view counts only when no player is on)',
       (preview.gmViews === 'By the Books Test Range') && !preview.stray && (preview.rings === 0) && (preview.fx === 0) && (preview.players.length > 0), JSON.stringify(preview));
     const navBefore = await gm.evaluate(async () => globalThis.__bfHookLedger?.renderSceneNavigation ?? 0, null);
     await player.evaluate(async () => { await game.scenes.getName('By the Books Test Range')?.view(); }, null);

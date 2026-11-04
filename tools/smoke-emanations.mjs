@@ -1370,9 +1370,10 @@ const prepHandoff = async ({ xName }) => {
   if (!palTok || !rgrTok) return { fatal: 'the Paladin or the Ranger has no token on the range — run tools/fixture-suite.mjs' };
   const xUser = game.users.getName(xName);
   if (!xUser) return { fatal: `no world user "${xName}" for the assistant identity — run tools/seed-gm-identities.mjs` };
-  // A GM's view counts only with no player connected (decide/emanations.js liveScenes).
-  const players = game.users.filter(u => u.active && !u.isGM).map(u => u.name);
-  if (players.length) return { fatal: `a player is connected (${players.join(', ')}): the suite's view of the range would not count` };
+  // A GM's view counts only with no player at the table: one viewing a scene or playing a character (decide/emanations.js
+  // liveScenes). Crystal Ball's ball, connected with neither, is not one.
+  const players = game.users.filter(u => u.active && !u.isGM && (u.viewedScene || u.character)).map(u => u.name);
+  if (players.length) return { fatal: `a player is at the table (${players.join(', ')}): the suite's view of the range would not count` };
   const settings = snapshotSettings(['emanations', 'emanationList']);
   const H = { settings, priorActive: game.scenes.active?.id ?? null, rgrHome: { x: rgrTok.x, y: rgrTok.y }, since: Date.now(), elsewhere: null, events: [], mark: null, closed: false, ids: [] };
   window.__handoff = H;

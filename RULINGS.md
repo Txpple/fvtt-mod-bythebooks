@@ -573,7 +573,10 @@ events. **Nothing here measures a distance or counts a turn.** `emanations.js`, 
   viewing — with ONE copy per aura** (2026-09-04 active-only; amended 2026-09-23 after a play session
   played on scenes nobody activated). The count is per AURA (the bearer's item and the row,
   `emanationGroup`), so two scenes can never stack; a lift reads every actor. A GM's view counts
-  only while no player is connected; an Assistant GM is a GM for this. Pinned by
+  only while no player is at the table; an Assistant GM is a GM for this. A player is at the table
+  who views a scene or plays a character; a connected player with neither is not (Crystal Ball's
+  ball: a Player-role socket with no canvas and no character, connected for good — 2026-11-04,
+  NOTES *A Player-role socket with no canvas*). Pinned by
   `smoke-emanations` §11g–l and `smoke-twoclient` `pull`.
 - **Aura of Courage's pack effect carries no change:** a content fix at the world.
 

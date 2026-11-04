@@ -44,7 +44,7 @@ const ALLOW = new Map([
   ["core.js rollerUserFor role", { n: 1, tag: "role", why: "who rolls for an actor: its first active owner who is not a GM" }],
   ["core.js gmIds role", { n: 1, tag: "role", why: "the recipients: every GM's id" }],
   ["core.js ownersAndGmIds role", { n: 1, tag: "role", why: "the recipients: an actor's owners and every GM" }],
-  ["decide/emanations.js liveScenes role", { n: 1, tag: "role", why: "a GM's view counts only with no player connected" }],
+  ["decide/emanations.js liveScenes role", { n: 1, tag: "role", why: "a GM's view counts only with no player at the table (one viewing a scene or playing a character)" }],
   ["emanations.js liveNow role", { n: 1, tag: "role", why: "the viewers' roles handed to liveScenes" }],
   ["emanations.js listen:dnd5e.renderChatMessage gate", { n: 1, tag: "presentation", why: "presentation — the aura card's pick buttons enabled for a GM; the click folds on the card's keeper (answerPick)" }],
   ["gallery.js judge gate", { n: 1, tag: "presentation", why: "presentation — the placement ghost judges a hidden token occupied for a GM, who sees it" }],

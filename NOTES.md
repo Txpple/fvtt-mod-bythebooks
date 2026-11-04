@@ -308,6 +308,22 @@ other GM viewed, then raised them again with their cards once the views landed. 
 nothing until every other connected user's view is known (`viewsHeard`, a 3 s grace after `ready` for a
 client that never sends one); smoke-emanations §30.
 
+### A Player-role socket with no canvas is a connected player that views nothing, for good (2026-11-04, Crystal Ball's Seer)
+
+Crystal Ball's Seer logs its ball's user (role Player, no character) in on a bare socket.io client for as long as it
+runs, on the sandbox (`local-foundry.mjs start`) and on prod (systemd). The server marks a user `active` on its first
+socket (`dist/components/activity.mjs` `activateUser`); a `sceneId` reaches the others only from `Canvas#draw`'s
+`#initializeUserActivity` (board.mjs:1519), which the Seer never runs. It is not unique to the Seer: a browser client
+with `core.noCanvas` returns before that line (board.mjs:660) and is the same to every other client: `active`, `viewedScene`
+null, going `idle` after 5 minutes. Nothing in the activity tells a bot from a player on a canvas-less device.
+When `liveScenes` read "any non-GM connected" as "a session is on", the ball's being connected silenced every GM view.
+Any scene that was viewed but not active stopped being live, so its rings came down: smoke-emanations from §11, smoke-aasimar
+§2/§4 and smoke-monsters §5–7 went red with the Seer up (dist/battery/2026-11-04T16-19-29) and green with it killed
+(…T16-31-40). The rule now reads "a player at the table": one viewing a scene or playing a character. In play the
+players view scenes, so the ball changed the live set only while no player was connected: the DM prepping alone saw
+no ring on a scene they viewed but had not activated. `viewsHeard` still counts the ball's null view as unheard, so a
+GM arriving waits out the 3 s grace before its first sweep (harmless).
+
 ⚠ **An Assistant GM cannot pull a player to a scene.** The server forwards `pullToScene` only when
 the sender `isGM` on the SERVER, which a role-3 user is not (dist/database/documents/scene.mjs,
 14.368): `Scene#pullUsers` from the suite identity was dropped silently. A suite that

@@ -177,17 +177,21 @@ export function triggerDue({ inCombat, chitStands }) {
 
 /**
  * The scenes play is on NOW: the active scene and every scene a connected user views. ⚠ A GM's view
- * (Assistant GM included) counts ONLY with no player connected: a preview of an old scene would bleed in.
+ * (Assistant GM included) counts ONLY with no player AT THE TABLE: a preview of an old scene would bleed in.
+ * A player is at the table who views a scene or plays a character. ⚠ A connected player with neither is not:
+ * Crystal Ball's ball is a Player-role socket with no canvas and no character, connected for as long as its
+ * Seer runs, and counting it silenced every GM view (NOTES *A Player-role socket with no canvas*).
  * @param {string|null} activeSceneId
- * @param {Array<{ sceneId: string|null, name?: string|null, isGM?: boolean }>} viewers   CONNECTED users only
+ * @param {Array<{ sceneId: string|null, name?: string|null, isGM?: boolean, playsCharacter?: boolean }>} viewers
+ *   CONNECTED users only; `playsCharacter` false for a user with no assigned character (absent: read as playing one)
  * @returns {Map<string, string>}   scene id → why it is live
  */
 export function liveScenes(activeSceneId, viewers = []) {
   const live = new Map();
   if ( activeSceneId ) live.set(activeSceneId, "the active scene");
   const connected = (viewers ?? []).filter(Boolean);
-  const players = connected.filter(v => !v.isGM);
-  for ( const v of (players.length ? players : connected) ) {
+  const atTable = connected.filter(v => !v.isGM && (v.sceneId || (v.playsCharacter !== false)));
+  for ( const v of (atTable.length ? atTable : connected) ) {
     if ( !v.sceneId || live.has(v.sceneId) ) continue;
     live.set(v.sceneId, `${v.name || "a connected user"} is viewing it`);
   }

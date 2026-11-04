@@ -124,7 +124,7 @@ function gmHandles(event) {
 
 /** The scenes play is on now (decide/emanations.js liveScenes). `viewedScene` has no update hook (watchLive). */
 const liveNow = () => liveScenes(game.scenes.active?.id ?? null,
-  game.users.filter(u => u.active).map(u => ({ sceneId: u.viewedScene ?? null, name: u.name, isGM: u.isGM })));
+  game.users.filter(u => u.active).map(u => ({ sceneId: u.viewedScene ?? null, name: u.name, isGM: u.isGM, playsCharacter: !!u.character })));
 
 /** When this client's `ready` ran; until then no other user's view has reached it. */
 let readyAt = null;

@@ -386,6 +386,36 @@ describe("liveScenes — the active scene and every scene a connected user views
     ]);
     expect(live.get("test-range")).toBe("Game Master is viewing it");
   });
+  it("Crystal Ball's ball — a player connected on no scene with no character — is not at the table: the GM's view still counts (2026-11-04: the Seer up took every suite's viewed range down)", () => {
+    const live = em.liveScenes("field", [
+      { sceneId: null, name: "Crystal Ball", isGM: false, playsCharacter: false },
+      { sceneId: "test-range", name: "Assistant Tester", isGM: true }
+    ]);
+    expect([...live.keys()].sort()).toEqual(["field", "test-range"]);
+    expect(live.get("test-range")).toBe("Assistant Tester is viewing it");
+  });
+  it("a player WITH a character on no scene (no canvas) is at the table: the GM's preview still raises nothing", () => {
+    const live = em.liveScenes(null, [
+      { sceneId: null, name: "Aster", isGM: false, playsCharacter: true },
+      { sceneId: "old-field", name: "Game Master", isGM: true }
+    ]);
+    expect(live.size).toBe(0);
+  });
+  it("a player with no character who views a scene is at the table: that scene is live, the GM's preview is not", () => {
+    const live = em.liveScenes("field", [
+      { sceneId: "apothecary", name: "Open Player 1", isGM: false, playsCharacter: false },
+      { sceneId: "old-field", name: "Game Master", isGM: true }
+    ]);
+    expect([...live.keys()].sort()).toEqual(["apothecary", "field"]);
+  });
+  it("the ball beside a player at the table changes nothing: the player's scene is live, the GM's preview is not", () => {
+    const live = em.liveScenes("field", [
+      { sceneId: null, name: "Crystal Ball", isGM: false, playsCharacter: false },
+      { sceneId: "apothecary", name: "Aster", isGM: false, playsCharacter: true },
+      { sceneId: "old-field", name: "Game Master", isGM: true }
+    ]);
+    expect([...live.keys()].sort()).toEqual(["apothecary", "field"]);
+  });
 });
 
 describe("appliesOnScene — only a LIVE scene's emanations apply (user, 2026-09-04: an aura bled from a resting scene onto the battle map; 2026-09-23: a viewed scene is live)", () => {
