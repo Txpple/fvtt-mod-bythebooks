@@ -107,9 +107,12 @@ const fixture = await gm.evaluate(async () => {
   if (!scene || !victim) return { fatal: 'scene or victim actor missing' };
   let tok = scene.tokens.find(t => t.actorId === victim.id);
   if (!tok) {
-    const base = (await victim.getTokenDocument()).toObject();
-    base.x = Math.round(scene.dimensions.sceneX + scene.dimensions.sceneWidth / 2);
-    base.y = Math.round(scene.dimensions.sceneY + scene.dimensions.sceneHeight / 2);
+    // Placed as fixture-suite places it, off the PROTOTYPE at its home: on Foundry 14 `actor.getTokenDocument()` with
+    // no scene stamps the level of the scene this GM page is viewing, and a token whose level is not on the range
+    // is never drawn for a player (2026-11-04: red in four full batteries, green alone, where the fixture's own
+    // token stood).
+    const base = foundry.utils.mergeObject(victim.prototypeToken.toObject(),
+      { x: 1100, y: 1000, actorId: victim.id, actorLink: false, flags: { 'fvtt-mod-bythebooks': { fixtureHome: true } } }, { inplace: false });
     [tok] = await scene.createEmbeddedDocuments('Token', [base]);
   }
   return { tokenId: tok.id };
@@ -135,8 +138,22 @@ const cast = await player.evaluate(async () => {
   const tok = scene.tokens.find(t => t.actorId === victim.id);
   if (!tok) return { fatal: 'no victim token (run smoke-bythebooks first)' };
   if (!(await tokenOn(tok.id, { timeout: 30000 }).catch(() => null))) {
+    // The diagnosis: what the player's canvas holds, and whether a redraw draws the token (an error thrown while
+    // drawing it is caught here, since the join's own draw ran before any listener of ours).
+    const errors = [];
+    const onErr = e => errors.push(String(e?.error?.stack ?? e?.reason?.stack ?? e?.message ?? e).slice(0, 300));
+    window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', onErr);
+    const origErr = console.error;
+    console.error = (...args) => { errors.push(args.map(x => String(x?.stack ?? x?.message ?? x)).join(' ').slice(0, 300)); origErr(...args); };
+    const drawn = canvas.tokens?.placeables?.map(t => t.document.name) ?? [];
+    let redraw = null;
+    try { await canvas.draw(); redraw = 'ok'; } catch (err) { redraw = String(err?.stack ?? err).slice(0, 300); }
+    const after = !!(await tokenOn(tok.id, { timeout: 10000 }).catch(() => null));
+    console.error = origErr;
     return { fatal: `the victim token never reached the player's canvas (ready=${canvas.ready} scene=${canvas.scene?.name ?? 'none'} `
-      + `hidden=${tok.hidden} placeables=${canvas.tokens?.placeables?.length ?? 0})` };
+      + `hidden=${tok.hidden} placeables=${drawn.length}) · drawn=${JSON.stringify(drawn)} · victim=${JSON.stringify({ name: tok.name, x: tok.x, y: tok.y, alpha: tok.alpha, flags: Object.keys(tok.flags ?? {}), effects: [...(tok.actor?.effects ?? [])].map(e => e.name) })} `
+      + `· redraw=${redraw} drawnAfterRedraw=${after} · errors=${JSON.stringify(errors.slice(0, 6))}` };
   }
 
   const [spell] = await attacker.createEmbeddedDocuments('Item', [{
