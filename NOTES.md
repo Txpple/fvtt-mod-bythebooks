@@ -1401,9 +1401,17 @@ directory). **The two-run rule** (the user, 2026-10-22, after four full runs eac
 suite): a run red by one to three suites is run again whole; a second run red on different suites, every
 red suite green alone in a one-offs run, is the pair's line (`--line <A> --and <B> --one-offs <C>`), and
 the pair releases; a suite red in both runs is a defect. The rule is `judgeTwoRuns`, and the builder
-checks a pair line against its three runs as it checks a run line against its one. **The floor**: a patch names at least a `battery.mjs --changed v<the previous release>`
-run, everything the release changes; a minor names the full battery. A hand walk is not a battery:
-the battery before 3.4.7 found three bugs of 3.4.5, which had shipped on one.
+checks a pair line against its three runs as it checks a run line against its one. **The floor is sized
+to the release** (the user, 2026-11-04, after two minor fixes cost most of a day: *"these are really minor
+changes, and it's a huge development pipeline issue"*): a **patch** names a `battery.mjs --for v<the
+previous release>..HEAD` run — the suites the coverage map ties to the release's own commits, run before
+the bump commit, on a tree with no uncommitted live change outside the range — or the full battery; a
+**minor** names the full battery. Each run's `scope.json` records which mode chose its rows, and the
+builder reads it beside the line (`scopeProblem`): a `--changed`, `--files`, named or resumed run never
+releases, a `--for` run never releases a minor, and a `--for` run on a dirty tree stands for nothing. The
+two-run rule holds for a sized run as for a full one (the same range gives the same plan), and
+`--rerun-failed <A> <B>` is its one-offs run. A hand walk is not a battery: the battery before 3.4.7 found
+three bugs of 3.4.5, which had shipped on one.
 
 **The line meets its run only on the machine that ran it.** The by-hand `build-release.mjs --tag`,
 before the tag is pushed, reads the named run under `dist/battery/` and refuses a line the run does
@@ -1513,10 +1521,24 @@ moment no role-4 client is around — why leaked processes matter.
 
 ⚠ **The sole-GM preflight cannot see a second suite** (2026-08-23): two suites both join as the suite
 identity, and it counts **users, not sockets**. A second suite started mid-`smoke-maneuvers`,
-re-pinned six settings underneath it and left an orphaned fixture. The harness's pid lockfile is the
-guard now ([tools/README.md](tools/README.md)). Before it, a chained back-to-back battery produced one
-polluted assertion (a message-count delta of −20), green in isolation twice — a prior suite's
-teardown landing late.
+re-pinned six settings underneath it and left an orphaned fixture. The harness's pid lockfile was the
+guard from then on. Before it, a chained back-to-back battery produced one polluted assertion (a
+message-count delta of −20), green in isolation twice — a prior suite's teardown landing late.
+
+⚠ **THE SEAT LOCK: the instance is owned for the run's length, and everything that would join checks
+it first** (2026-11-04). The preflight and the seat watch see a second client only once it is there: that
+day a sibling session's bridge joined the sandbox for one call mid-battery, the preflight refused every
+suite after it, and ~45 suites were rerun — a battery running in another session's background looked like
+nothing to the session that joined (*"one thing goes wrong and we lose 75% of a day"*). Now the battery,
+and a suite run by hand, take a lock on the instance (the MCP's `src/seat-lock.ts`: one file per server
+URL under the OS temp dir — who, the Claude Code session, the command, and the suite the battery is on,
+row n of m, with its run directory), and the MCP bridge's connect in every session, the MCP's
+`local-foundry.mjs start/stop/restart` (and the Seer it starts), its installer, its deploy, its mirror and
+a second battery or suite here all refuse while it is held, naming the holder and the suite. A suite under
+the battery rides along (`FVTT_SEAT_HOLDER`), a stale lock is taken over, `--force=<pid>` overrides only
+by naming the holder, and the bridge takes no override. The lock is the status: `battery-status.mjs`
+prints it above the bar and `local-foundry.mjs status` as its `seat:` line — the check before any
+`foundry-local5e` call ([tools/README.md](tools/README.md) *The seat lock*).
 
 **There is no hand-kept settings table (2026-10-07).** `tools/verify-settings.mjs` checks every world
 setting against a REFERENCE it does not hold: in a battery, the world's own values recorded before

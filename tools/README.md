@@ -28,7 +28,10 @@ role creates the Assistant and names the Gamemaster it cannot create; that one i
 ```bash
 node tools/battery.mjs                     # build the fixtures, every suite in order (each captured to a file), tear down
 node tools/battery.mjs --keep              # ...and leave the fixtures in the world
+node tools/battery.mjs --for v3.4.22..HEAD # what the commits since the last release need — a patch's gate, minutes not an hour
+node tools/battery.mjs --rerun-failed      # the suites the newest run marked failed, alone (the one-offs; or name the run ids)
 node tools/battery.mjs --changed --list    # what this change needs re-run, and why — then drop --list
+node tools/battery-status.mjs              # the seat (who holds the sandbox, the row they are on) and the newest run's bar
 node tools/fixture-suite.mjs               # once, before any suite run by hand
 node tools/smoke-saves.mjs                 # one suite, against the local sandbox (BTB_HOST picks another preset)
 node tools/smoke-saves.mjs --list          # its sections, without connecting
@@ -176,9 +179,19 @@ hit); and a suite that drives a roll the module is offering must ANSWER the offe
 offer's buzzer rolls anyway when nobody presses Roll (`smoke-nogm` rolled past its damage offer, and
 the buzzer's second roll landed after the GM rejoined, looking exactly like a rejoin re-pay).
 
-⚠ **One at a time is enforced, not remembered.** Suites take a pid lockfile in `harness.mjs`: a
-second one refuses and names the first; a stale lock (the holder died) is taken over and reported.
-Why the sole-GM preflight cannot do this: NOTES §5.
+⚠ **One at a time is enforced, not remembered: THE SEAT LOCK.** The battery, and a suite run by hand,
+take a lock on the instance (the MCP's `src/seat-lock.ts`: one file per server URL under the OS temp
+dir, naming the process, the Claude Code session, the command line and, kept current by the
+battery, the suite it is on, row n of m, with its run directory). Everything that would join the
+instance checks it first and refuses while it is held, naming the holder and the suite: a second
+battery or suite here (exit 4), the MCP bridge's connect in every session (so a sibling session's one
+call no longer reds the rest of a run), the MCP's `local-foundry.mjs start/stop/restart` and the Seer
+it starts, its installer, its deploy and its mirror. A suite under the battery rides along (the
+battery's pid in `FVTT_SEAT_HOLDER`); a stale lock (the holder died) is taken over and reported.
+`--force=<pid>` overrides a refusal only by naming the holder's pid, and the bridge takes none.
+**The lock is the status**: `node tools/battery-status.mjs` prints it above the bar, and the MCP's
+launcher (`local-foundry.mjs status`, in that repo) prints it as its `seat:` line — read one before any
+`foundry-local5e` call. Why the sole-GM preflight cannot do this: NOTES §5.
 
 ⚠ **A GM-capable seat that joins mid-run is named** (the seat watch, armed after the preflight): a bridge another session opens for one call outranks the suite identity by id, the elect moves to it, and the writes of that window land nowhere; the suite ends with a failing `seat:` line naming who joined and when, so its reds are read as the seat's, not the module's. A battery wants the sandbox to itself for its whole length, every session's bridges included.
 
@@ -264,11 +277,14 @@ run the probe and compare its row with these.
 | `--changed` | **change-scoped**: the suites the working tree's change selects (`git diff HEAD`, the index, and the untracked files), needs pulled, in canonical order |
 | `--changed main` | the same for a branch: everything since it left `main` (`main...HEAD`) plus the working tree |
 | `--files scripts/emanations.js …` | the same selector on a list by hand — for checking what a change would run without making it |
+| `--for v3.4.22..HEAD` | **the release's gate, sized to its commits**: the same selector on `git diff --name-only <range>` (a bare ref is `<ref>..HEAD`), the working tree left out — an uncommitted change to a live file outside the range is named, recorded in `scope.json` and disqualifies the run for a release; run it before the bump commit (`module.json` selects the full battery) |
+| `--rerun-failed [run id …]` | **the one-offs**: the suites the named runs' reports marked failed (the newest run by default), each alone, needs pulled — the run C of the two-run line; a failed seed or setup is not a suite and is said so |
+| `--force=<pid>` | go ahead over the seat lock's holder, only by naming its pid (the refusal prints it); never over another session's run |
 | `--from smoke-saves` | resume after a failure, still in order — and pulls what the resumed rows need from above the cut |
 | `smoke-hold smoke-bythebooks` | a subset — still run in the canonical order; a suite's `needs` are pulled and named (`smoke-hold` alone runs `smoke-bythebooks` first) |
 | `--section 4 smoke-hold` | one suite's sections; only that suite receives `--section`, a pulled need runs whole |
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
-| `--list` | the order, the needs and the notes, without running anything. With `--changed` / `--files` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why |
+| `--list` | the order, the needs and the notes, without running anything. With `--for` / `--changed` / `--files` / `--rerun-failed` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why. Never takes the seat lock and never loads the MCP client |
 
 **The house rules are off for the run** (2026-10-14; the rule moved to House Rules 2026-10-28): after
 the settings snapshot the battery pins House Rules' `goingDown` false through `job.mjs` (the file
@@ -284,6 +300,7 @@ battery is this bar, never prose** — run it and paste the lines.
 
 ```
 node tools/battery-status.mjs
+seat    held by a battery — pid 46036 on DESKTOP — Claude Code session local_e548… — since 2026-11-04T17:49:13Z, now running smoke-monsters (row 36 of 50, run 2026-09-30T19-32-58); started as `tools/battery.mjs` in D:\…\fvtt-mod-bythebooks
 battery 2026-09-30T19-32-58  [######################--------] 35/47  74%  elapsed 62m  eta ~21m
 suites ok 34  failed 1 (smoke-saves 146/147)  checks 1378/1379  running smoke-monsters (1m)
 next smoke-wards, smoke-heal, smoke-rest, smoke-lucky … +7
@@ -292,7 +309,9 @@ next smoke-wards, smoke-heal, smoke-rest, smoke-lucky … +7
 It reads the newest `dist/battery/<stamp>/` (or a run directory named as its argument): one `<suite>.txt`
 lands per FINISHED entry, so the first entry of `--list`'s order with no file is the one running now; the
 start is the stamp (UTC), the eta the mean per finished entry times what is left. Exit 1 while any entry is
-red. Offline, no Foundry, safe to run mid-battery.
+red. Offline, no Foundry, safe to run mid-battery. **The `seat` line first** (*The seat lock*, above): the
+lock a battery or a suite holds on the instance, whichever session started it, with the row it is on — or
+`seat free`; a sized run shows its scope beside the run id (`battery 2026-… (--for v3.4.22..HEAD)`).
 
 **The line** (`--line`) is the same reading in one line, the one a release tag's body carries (the chain,
 below): the run id, the finished-green entries over the plan's, the checks, and GREEN, RED (a finished entry
@@ -443,7 +462,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
 | `claim-proof.mjs` | **the runtime half of the coverage map** (2026-09-23), printed as `hook-coverage`'s second section. The harness also counts every `bythebooks.moment` by record `kind` into the same ledger file (`moments`); this reads it against each suite's `COVERS`: a claimed file is PROVEN (a kind only it writes was published there), PROVEN (shared kind), **UNPROVEN** (it writes kinds, none published — a stale claim), UNPROVABLE-BY-MOMENTS (it writes no kind — derived from the gate's tables, not listed) or NOT MEASURED (no moment half in the ledger). It also names a file that acted in a suite that does NOT claim it. The tag → suite join is read off each script's `connectSuite({ tag })`. Same contract: **reports, never fails.** ⚠ It hears the tester's page only — a second client's resolves are not counted. |
 | `moment-writers.mjs` | the gate's flag-write scan and its `WORLD_WRITERS` pins, moved out of `check-moments.mjs` so the claim proof reads the SAME answer to "which file writes which record" (2026-09-23). |
-| `battery.mjs` | the whole battery in one command, in the order that works, captured to files — or, with `--changed`, only what the change selects. |
+| `battery.mjs` | the whole battery in one command, in the order that works, captured to files — or only what a change selects: `--for <git range>` (the commits of a release, the patch gate), `--changed` (the working tree), `--files`; `--rerun-failed [run…]` the suites a run marked failed, alone (the one-offs). It holds the seat lock for its length (above) and writes its row into it; a run's `scope.json` says which mode chose its rows, for `battery-status` and the release builder. |
 | `coverage-map.mjs` | **the order and the claims** (2026-09-23): `ORDER` (the battery's rows, their notes and `needs`), `loadCoverageMap()` (every suite's `COVERS`, parsed from its text — suites run on import), `isSpine` / `tierOf` (the tier map's answer), `suitesFor` / `planFor` (the change selector). Not a suite. |
 | `bump-version.mjs` | move **both** `module.json` version fields together; `--check` asserts they are in step and is part of the gate. |
 
@@ -469,14 +488,20 @@ Decide before simplifying (ARCHITECTURE *Decided against, and why*).
 The steps, once. Why each is there: NOTES §5 *Deploy* and *Release*. A deploy to a live world happens
 only on the maintainer's word.
 
-1. **The floor.** `npm run verify` green, and a green battery run the release names: for a **patch** at
-   least the change since the last release, `node tools/battery.mjs --changed v<the previous release>`
-   (before the bump: a changed `module.json` selects the full battery), for a **minor** the full battery
-   unattended (`node tools/battery.mjs --snapshot`). The battery checks the settings against its own
-   before-the-run snapshot. Then `node tools/battery-status.mjs --line` prints the run's line for the tag's
-   body (step 5). A run red by one to three suites is run again whole, and when the second run's reds are
-   different suites, each green alone, the two-run line stands in (`--line <A> --and <B> --one-offs <C>`, above). A release with no run says `Battery: none (pre-release)` instead: it is published as a
-   GitHub pre-release and never reaches prod through the installer (NOTES §5 *Release*).
+1. **The floor.** `npm run verify` green, and a green battery run the release names, sized to the
+   release: for a **patch** the commits since the last release, `node tools/battery.mjs --for v<the
+   previous release>..HEAD` (run before the bump commit: a changed `module.json` selects the full
+   battery; a spine change does too; the tree must carry no uncommitted live change outside the
+   range, or the run stands for nothing), for a **minor** the full battery unattended (`node
+   tools/battery.mjs --snapshot`). The run's `scope.json` records which, and `build-release.mjs --tag`
+   refuses a `--changed`, `--files`, named or resumed run for any release and a `--for` run for a minor.
+   The battery checks the settings against its own before-the-run snapshot. Then `node
+   tools/battery-status.mjs --line` prints the run's line for the tag's body (step 5). A run red by one
+   to three suites is run again whole (the same `--for` range gives the same plan), and when the second
+   run's reds are different suites, each green alone in `node tools/battery.mjs --rerun-failed <A> <B>`
+   (the one-offs), the two-run line stands in (`--line <A> --and <B> --one-offs <C>`, above). A release
+   with no run says `Battery: none (pre-release)` instead: it is published as a GitHub pre-release and
+   never reaches prod through the installer (NOTES §5 *Release*).
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
    `--check` is part of `verify`. **The frame (2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
    per letter series or book stage; **v3.0.0 is the release where the PHB, the DMG and the MM are all done, before any

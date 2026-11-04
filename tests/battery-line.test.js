@@ -3,13 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
+  bumpOf,
   checkTagBody,
+  describeScope,
   FORMS,
   judgeTwoRuns,
   lineOf,
   NONE_LINE,
   parseLine,
   readRun,
+  readScope,
+  RELEASE_SCOPES,
+  scopeProblem,
   twoRunLine
 } from "../tools/battery-line.mjs";
 
@@ -370,5 +375,109 @@ describe("the two-run rule — judgeTwoRuns, twoRunLine, the pair form", () => {
       error: expect.stringMatching(/three different runs/)
     });
     for (const form of FORMS) expect(checkTagBody(notes("nothing")).error).toContain(form);
+  });
+});
+
+/*
+ * THE SCOPE — how a run's rows were chosen (battery.mjs's `scope.json`), and which runs a release of
+ * each bump may cite: a patch a `--for` run sized to its commits or the full battery, a minor the full
+ * battery; a `--for` run on a tree with uncommitted live changes outside its range stands for nothing.
+ */
+describe("the scope and the release's scope rule", () => {
+  const FULL = { mode: "full", rows: ["setup-fixtures", "smoke-alert", "smoke-hold"] };
+  const FOR = {
+    mode: "for",
+    range: "v3.4.22..HEAD",
+    files: ["scripts/help.js"],
+    dirty: [],
+    dirtyLive: [],
+    rows: ["setup-fixtures", "smoke-familiar"]
+  };
+  const DIRTY = {
+    ...FOR,
+    dirty: ["scripts/geometry.js", "NOTES.md"],
+    dirtyLive: ["scripts/geometry.js"]
+  };
+  const CHANGED = {
+    mode: "changed",
+    base: null,
+    files: ["scripts/help.js"],
+    rows: ["setup-fixtures", "smoke-familiar"]
+  };
+  const RERUN = {
+    mode: "rerun-failed",
+    runs: [GREEN_ID],
+    suites: ["smoke-hold"],
+    rows: ["setup-fixtures", "smoke-bythebooks", "smoke-hold"]
+  };
+
+  it("readScope reads a run's scope.json and answers null for a run from before it, or a bad one", () => {
+    expect(readScope(greenDir)).toBeNull();
+    const dir = fakeRun("2026-11-04T18-00-00", PLAN, GREEN_FILES);
+    writeFileSync(join(dir, "scope.json"), JSON.stringify(FOR));
+    expect(readScope(dir)).toEqual(FOR);
+    writeFileSync(join(dir, "scope.json"), JSON.stringify({ mode: "sideways" }));
+    expect(readScope(dir)).toBeNull();
+    writeFileSync(join(dir, "scope.json"), "{");
+    expect(readScope(dir)).toBeNull();
+  });
+
+  it("describeScope says the mode and the range in words", () => {
+    expect(describeScope(FULL)).toBe("the full battery (3 rows)");
+    expect(describeScope(FOR)).toBe("--for v3.4.22..HEAD (2 rows)");
+    expect(describeScope({ ...FOR, full: ["module.json is the manifest"] })).toBe(
+      "--for v3.4.22..HEAD, the full battery (2 rows)"
+    );
+    expect(describeScope(CHANGED)).toMatch(/^--changed \(the working tree/);
+    expect(describeScope(RERUN)).toBe(`--rerun-failed of ${GREEN_ID} (smoke-hold)`);
+    expect(describeScope({ mode: "named", suites: ["smoke-hold"], section: "3" })).toBe(
+      "the suites named by hand: smoke-hold --section 3"
+    );
+  });
+
+  it("bumpOf: what moved between the previous release and this one", () => {
+    expect(bumpOf("3.4.23", "v3.4.22")).toBe("patch");
+    expect(bumpOf("3.5.0", "v3.4.22")).toBe("minor");
+    expect(bumpOf("4.0.0", "3.5.9")).toBe("major");
+    expect(bumpOf("1.0.0", null)).toBeNull();
+  });
+
+  it("a patch cites a --for run or the full battery; a minor the full battery", () => {
+    expect(RELEASE_SCOPES).toEqual({ major: ["full"], minor: ["full"], patch: ["full", "for"] });
+    expect(scopeProblem("patch", [{ id: "a", scope: FOR }])).toBeNull();
+    expect(scopeProblem("patch", [{ id: "a", scope: FULL }])).toBeNull();
+    expect(
+      scopeProblem("minor", [
+        { id: "a", scope: FULL },
+        { id: "b", scope: FULL }
+      ])
+    ).toBeNull();
+    expect(
+      scopeProblem("minor", [
+        { id: "a", scope: FULL },
+        { id: "b", scope: FOR }
+      ])
+    ).toMatch(
+      /^run b is --for v3\.4\.22\.\.HEAD \(2 rows\), and a minor release cites the full battery$/
+    );
+    expect(scopeProblem("patch", [{ id: "a", scope: CHANGED }])).toMatch(
+      /a patch release cites the full battery or a --for run/
+    );
+    expect(scopeProblem("patch", [{ id: "a", scope: RERUN }])).toMatch(/rerun-failed/);
+    expect(scopeProblem("major", [{ id: "a", scope: FOR }])).toMatch(
+      /a major release cites the full battery/
+    );
+  });
+
+  it("a run from before scope.json, or no previous release, is checked by its form alone", () => {
+    expect(scopeProblem("minor", [{ id: "a", scope: null }])).toBeNull();
+    expect(scopeProblem(null, [{ id: "a", scope: CHANGED }])).toBeNull();
+  });
+
+  it("a --for run on a tree with uncommitted live changes outside its range does not stand for the tag", () => {
+    expect(scopeProblem("patch", [{ id: "a", scope: DIRTY }])).toMatch(
+      /uncommitted changes to live files outside its range \(scripts\/geometry\.js\)/
+    );
+    expect(scopeProblem("patch", [{ id: "a", scope: { ...DIRTY, dirtyLive: [] } }])).toBeNull();
   });
 });

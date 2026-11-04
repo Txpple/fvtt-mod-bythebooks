@@ -29,7 +29,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statS
 import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
-import { BATTERY_DIR, checkTagBody, readRun, RUN_ID } from "./battery-line.mjs";
+import { BATTERY_DIR, bumpOf, checkTagBody, describeScope, parseLine, readRun, readScope, RUN_ID, scopeProblem } from "./battery-line.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(REPO, "dist", "fvtt-mod-bythebooks.zip");
@@ -71,6 +71,26 @@ if (tag) {
   const verdict = checkTagBody(body, { runOf });
   if (!verdict.ok) fail(`${tag} cannot be released: ${verdict.error}`);
   console.log(`build-release: ${verdict.line}\nbuild-release: ${verdict.note}`);
+  // THE SCOPE RULE (battery-line.mjs `scopeProblem`): the proving run(s) on this machine, read for how their
+  // rows were chosen — a patch cites a `--for` run sized to its commits or the full battery, a minor the full
+  // battery. CI has no runs, so there the form alone stands, as above. The previous release is the newest
+  // v* tag below this version in the clone.
+  if (!verdict.prerelease) {
+    const semver = v => v.replace(/^v/, "").split(".").map(Number);
+    /** Semantic order: negative when `p` is the lower version. */
+    const compare = (p, q) => { const [a, b, c] = semver(p); const [x, y, z] = semver(q); return (a - x) || (b - y) || (c - z); };
+    const below = (git(["tag", "-l", "v*"]) ?? "").split(/\r?\n/).map(t => t.trim())
+      .filter(t => /^v\d+\.\d+\.\d+$/.test(t) && (compare(t, version) < 0)).sort(compare);
+    const previous = below.at(-1) ?? null;
+    const bump = bumpOf(version, previous);
+    const read = parseLine(verdict.line);
+    const ids = ("run" in read) ? [read.run.id] : ("pair" in read) ? [read.pair.a.id, read.pair.b.id] : [];
+    const runs = ids.map(id => ({ id, here: existsSync(join(BATTERY_DIR, id)), scope: existsSync(join(BATTERY_DIR, id)) ? readScope(join(BATTERY_DIR, id)) : null }));
+    console.log(`build-release: ${previous ? `${previous} -> ${tag}, a ${bump}` : `${tag}, the first release`}`);
+    for (const r of runs) console.log(`build-release: run ${r.id}: ${!r.here ? "not on this machine" : r.scope ? describeScope(r.scope) : "no scope recorded (a run from before scope.json)"}`);
+    const problem = scopeProblem(bump, runs.filter(r => r.here));
+    if (problem) fail(`${tag} cannot be released as a ${bump}: ${problem}`);
+  }
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `prerelease=${verdict.prerelease}\n`);
 }
 

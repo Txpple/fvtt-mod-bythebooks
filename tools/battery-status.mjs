@@ -11,13 +11,19 @@
 // Reads nothing live: the battery writes one <suite>.txt per FINISHED entry into its run directory
 // (tools/battery.mjs), so a missing file is an entry still to come and the first missing one in the
 // order is the one running now. The reading itself is tools/battery-line.mjs's `readRun`, the one
-// the release builder checks a tag's line against. Offline, no Foundry.
+// the release builder checks a tag's line against. The bar's first line names the run's scope
+// (`scope.json`: `--for v3.4.22..HEAD`, the full battery …) and, above it, THE SEAT: the lock a
+// battery or a suite holds on the instance (the MCP's src/seat-lock.ts — who, since when, the row
+// it is on), the line a session reads before any sandbox call. Offline, no Foundry.
 //
 // `--line` prints `Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN` (RED, PARTIAL) and exits
 // 0 only for GREEN; the release tag's body carries that line (NOTES §5 *Release*).
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { BATTERY_DIR, lineOf, readRun, RUN_ID, twoRunLine } from "./battery-line.mjs";
+import { BATTERY_DIR, describeScope, lineOf, readRun, readScope, RUN_ID, twoRunLine } from "./battery-line.mjs";
+
+// The seat lock lives in the MCP client; a dist/ built before it, or none (CI), leaves the bar without its seat line.
+const mcp = await import("fvtt-mcp-dnd5e/client").catch(() => null);
 
 const args = process.argv.slice(2);
 const w = args.indexOf("--watch");
@@ -75,7 +81,14 @@ tick();
 
 /** Print the bar for one run; `{ finished, failed }`. */
 function draw(runDir) {
+// The seat first: a lock is a run in progress somewhere on this machine, whichever session started it.
+if ( typeof mcp?.listSeatLocks === "function" ) {
+  const locks = mcp.listSeatLocks();
+  for ( const l of locks ) console.log(`seat    held by ${mcp.describeSeatLock(l)}`);
+  if ( !locks.length ) console.log("seat    free (no battery or suite holds the instance)");
+} else console.log("seat    unknown (the MCP client's dist/ has no seat lock — npm run build in fvtt-mcp-dnd5e)");
 if ( !runDir || !existsSync(runDir) ) { console.log("no battery run under dist/battery yet"); return { finished: false, failed: 0 }; }
+const scope = readScope(runDir);
 const started = startOf(runDir);
 const now = Date.now();
 const { entries, done, running, total, failed, checks } = readRun(runDir);
@@ -91,7 +104,7 @@ const bar = `${"#".repeat(filled)}${"-".repeat(width - filled)}`;
 const pct = Math.round(100 * done.length / Math.max(1, total));
 const status = !running ? (failed.length ? "DONE — RED" : "DONE — GREEN") : `running ${running.name} (${mins(runningFor)})`;
 
-console.log(`battery ${runDir.split(/[\\/]/).pop()}  [${bar}] ${String(done.length).padStart(2)}/${total} ${String(pct).padStart(3)}%  elapsed ${mins(elapsedMs)}${running ? `  eta ~${mins(etaMs)}` : ""}`);
+console.log(`battery ${runDir.split(/[\\/]/).pop()}${scope && (scope.mode !== "full") ? ` (${describeScope({ ...scope, rows: undefined })})` : ""}  [${bar}] ${String(done.length).padStart(2)}/${total} ${String(pct).padStart(3)}%  elapsed ${mins(elapsedMs)}${running ? `  eta ~${mins(etaMs)}` : ""}`);
 console.log(`suites ok ${done.length - failed.length}  failed ${failed.length}${failed.length ? ` (${failed.map(e => `${e.name} ${e.summary}`).join("; ")})` : ""}  checks ${checks.pass}/${checks.all}  ${status}`);
 if ( running ) {
   const left = entries.slice(entries.indexOf(running) + 1).filter(e => e.state === "pending").map(e => e.name);

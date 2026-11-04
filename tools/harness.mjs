@@ -12,11 +12,13 @@
  * heartbeat every 30 s says a long `evaluate` is alive and whether the page still answers.
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
+// The seat lock, by namespace: a `dist/` built before it lacks the names, and a missing name must not
+// fail every suite at import (a running battery spawns each suite fresh off the disk).
+import * as mcp from "fvtt-mcp-dnd5e/client";
 import { strictArgs } from "./args.mjs";
 import { armContractRecorder, dumpContractRecording } from "./contract-recorder.mjs";
 import { installPrelude } from "./prelude.mjs";
@@ -95,32 +97,32 @@ export function sectionArg(plan, titles = {}, extra = null) {
 }
 
 /**
- * One suite at a time. ⚠ Two suites on one box both join as the suite identity, and the preflight
- * counts users, not sockets, so it passes and the runs fight over settings and fixtures.
- * A pid file held by a LIVE pid refuses the second run; a stale lock is taken over and reported.
+ * One run at a time on the instance: THE SEAT LOCK (the MCP's src/seat-lock.ts, one file per
+ * instance under the OS temp dir). ⚠ Two suites on one box both join as the suite identity, and
+ * the preflight counts users, not sockets, so it passes and the runs fight over settings and
+ * fixtures; and a bridge, a deploy or the Seer joining mid-run reds a battery from the outside.
+ * A suite run by hand takes the lock as its own and the bridge's connect, the sandbox scripts and
+ * a second suite refuse while it holds it, naming this suite; under the battery (which holds the
+ * lock and names its pid in FVTT_SEAT_HOLDER) a suite rides along and writes nothing. A stale
+ * lock (its holder died) is taken over and reported. A held seat is exit 4, the refusal printed.
  */
-function takeSuiteLock(tag) {
-  const lock = join(tmpdir(), `bf-suite-${process.env.BTB_HOST || process.env.BF_HOST || "local"}.lock`);
-  let held = null;
-  try { held = JSON.parse(readFileSync(lock, "utf8")); } catch { /* no lock, or unreadable */ }
-  if (held?.pid) {
-    let alive = false;
-    try { process.kill(held.pid, 0); alive = true; } catch { /* gone */ }
-    if (alive && (held.pid !== process.pid)) {
-      console.error(`[${tag}] REFUSING TO START: "${held.tag}" is already running against this `
-        + `world (pid ${held.pid}, since ${held.started}). Two suites on one box share the `
-        + `elect and fight over settings — and the sole-GM preflight cannot see it, because `
-        + `both join as the same user. Wait for it, or kill that pid.`);
-      process.exit(4);
-    }
-    if (!alive) console.warn(`[${tag}] taking over a stale lock from "${held.tag}" (pid ${held.pid}, `
-      + `${held.started}) — that run died without tearing down, so the world may be dirty.`);
+async function takeSuiteSeat(tag, serverUrl) {
+  if (typeof mcp.takeSeatLock !== "function") {
+    console.warn(`[${tag}] ⚠ the MCP client's dist/ has no seat lock (npm run build in fvtt-mcp-dnd5e) — running with none`);
+    return;
   }
-  writeFileSync(lock, JSON.stringify({ tag, pid: process.pid, started: new Date().toISOString() }));
-  const release = () => { try { rmSync(lock, { force: true }); } catch { /* best effort */ } };
-  process.on("exit", release);
-  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
-    process.on(sig, () => { release(); process.exit(130); });
+  let taken;
+  try {
+    taken = await mcp.takeSeatLock({ serverUrl, kind: "suite", name: tag, who: `the suite "${tag}"` });
+  } catch (err) {
+    if (!(err instanceof mcp.SeatHeldError)) throw err;
+    console.error(`[${tag}] REFUSING TO START: ${err.message}`);
+    process.exit(4);
+  }
+  if ("rideAlong" in taken) return;
+  if (taken.stale) {
+    console.warn(`[${tag}] taking over a stale seat lock from ${taken.stale.kind} "${taken.stale.name}" (pid ${taken.stale.pid}, `
+      + `${taken.stale.since}) — that run died without tearing down, so the world may be dirty.`);
   }
 }
 
@@ -346,7 +348,8 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
       + `does not declare (${gmClients ? gmClients.join(", ") : "no GM_CLIENTS"}).`);
     process.exit(2);
   }
-  takeSuiteLock(tag);
+  const cfg = foundryConfig(env, identity);
+  await takeSuiteSeat(tag, cfg.serverUrl);
   const started = Date.now();
   const elapsed = () => Math.round((Date.now() - started) / 1000);
   let stage = "connecting";
@@ -361,7 +364,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   // ⚠ Whatever ends this process (an uncaught throw, `finish`, the watchdog) must not leave a
   // browser behind holding the GM seat: the kill is skipped only after a clean dispose.
   process.on("exit", () => { if (f && !f.__bfDisposed) killChildProcesses(tag); });
-  f = new Foundry(foundryConfig(env, identity));
+  f = new Foundry(cfg);
   console.log(`[${tag}] connecting…`);
   await f.connect();
 

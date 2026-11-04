@@ -17,7 +17,9 @@
 // One reading of a run directory for everything that reports on one: `readRun` is what
 // battery-status.mjs draws its bar from and prints `--line` from, and what build-release.mjs checks
 // a tag's line against; `checkTagBody` is the release rule itself (tests/battery-line.test.js).
-// Offline, no Foundry.
+// `readScope` reads how the run's rows were chosen (battery.mjs's `scope.json`: the full battery, a
+// `--for` range, …) and `scopeProblem` is the rule over it: a patch cites a `--for` run or the full
+// battery, a minor the full battery. Offline, no Foundry.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -272,6 +274,98 @@ function checkPair(line, pair, runOf, refuse) {
     return refuse(`"${line}" disagrees with the runs on this machine, which read "${"line" in own ? own.line : own.why}";`);
   }
   return { ok: true, prerelease: false, line, note: `runs ${a.id}, ${b.id} and ${c.id} are on this machine and bear the two-run rule out (${names} green alone)` };
+}
+
+/* --- the scope: how a run's rows were chosen, and which runs a release may cite ----------------- */
+
+/** The modes battery.mjs records in a run's `scope.json`. */
+export const SCOPE_MODES = ["full", "for", "changed", "files", "named", "from", "rerun-failed"];
+
+/**
+ * @typedef {{ mode: string, head?: string|null, range?: string, base?: string|null, files?: string[],
+ *   dirty?: string[], dirtyLive?: string[], full?: string[], suites?: string[], runs?: string[],
+ *   from?: string, section?: string, rows?: string[], at?: string }} Scope
+ */
+
+/**
+ * The scope battery.mjs wrote beside a run's plan: how its rows were chosen. Null for a run from
+ * before the file, or one that does not read.
+ * @param {string} runDir
+ * @returns {Scope|null}
+ */
+export function readScope(runDir) {
+  const file = join(runDir, "scope.json");
+  if ( !existsSync(file) ) return null;
+  try {
+    const s = JSON.parse(readFileSync(file, "utf8"));
+    return (s && (typeof s === "object") && SCOPE_MODES.includes(s.mode)) ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A scope in words: `the full battery`, `--for v3.4.22..HEAD (9 rows)`, `--rerun-failed of <run> (2 suites)`.
+ * @param {Scope} scope
+ */
+export function describeScope(scope) {
+  const rows = scope.rows?.length ? ` (${scope.rows.length} rows)` : "";
+  switch ( scope.mode ) {
+    case "full": return `the full battery${rows}`;
+    case "for": return `--for ${scope.range ?? "?"}${scope.full?.length ? ", the full battery" : ""}${rows}`;
+    case "changed": return `--changed${scope.base ? ` ${scope.base}` : ""} (the working tree${rows ? `, ${scope.rows?.length} rows` : ""})`;
+    case "files": return `--files (${(scope.files ?? []).length} named)${rows}`;
+    case "named": return `the suites named by hand: ${(scope.suites ?? []).join(", ")}${scope.section ? ` --section ${scope.section}` : ""}`;
+    case "from": return `--from ${scope.from ?? "?"} (a resume)${rows}`;
+    case "rerun-failed": return `--rerun-failed of ${(scope.runs ?? []).join(", ")} (${(scope.suites ?? []).join(", ")})`;
+    default: return scope.mode;
+  }
+}
+
+/**
+ * What moved between two versions: `major`, `minor` or `patch`; null without a previous release.
+ * @param {string} version
+ * @param {string|null|undefined} previous
+ * @returns {"major"|"minor"|"patch"|null}
+ */
+export function bumpOf(version, previous) {
+  if ( !previous ) return null;
+  const parse = (/** @type {string} */ v) => v.replace(/^v/, "").split(".").map(Number);
+  const [a = 0, b = 0] = parse(version);
+  const [pa = 0, pb = 0] = parse(previous);
+  if ( a !== pa ) return "major";
+  if ( b !== pb ) return "minor";
+  return "patch";
+}
+
+/**
+ * The scopes a release of each bump may cite as the run(s) that proved it (NOTES §5 *Release*): a
+ * minor or a major the full battery; a patch the full battery or a `--for` run sized to its commits.
+ * The one-offs of a two-run line are judged by `judgeTwoRuns`, whatever their mode.
+ */
+export const RELEASE_SCOPES = { major: ["full"], minor: ["full"], patch: ["full", "for"] };
+
+/**
+ * The release's scope rule over the proving runs on this machine: `runs` is `[{ id, scope }]` for the
+ * run of a run line, or A and B of a pair; a null scope (a run before `scope.json`) is checked by its
+ * form alone. The problem, or null.
+ * @param {"major"|"minor"|"patch"|null} bump
+ * @param {{ id: string, scope: Scope|null }[]} runs
+ * @returns {string|null}
+ */
+export function scopeProblem(bump, runs) {
+  if ( !bump ) return null;
+  const allowed = RELEASE_SCOPES[bump];
+  const words = allowed.map(m => (m === "full") ? "the full battery" : `a --${m} run`).join(" or ");
+  for ( const { id, scope } of runs ) {
+    if ( !scope ) continue;
+    if ( !allowed.includes(scope.mode) ) return `run ${id} is ${describeScope(scope)}, and a ${bump} release cites ${words}`;
+    if ( (scope.mode === "for") && scope.dirtyLive?.length ) {
+      return `run ${id} (${describeScope(scope)}) ran on a tree with uncommitted changes to live files outside its range `
+        + `(${scope.dirtyLive.join(", ")}): their suites were not chosen, so the run does not stand for the tag`;
+    }
+  }
+  return null;
 }
 
 /** The battery's order from its own `--list`, the table it runs; read once. */
