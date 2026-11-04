@@ -22,7 +22,7 @@ export const COVERS = [
   'summons.js',         // §1 the free cast's cause and spend, §2 a cancelled menu spends nothing, §3 the boon landed, §7 the pocket, §8 the player's cast; §9 Battle Familiar's empower record, §13 dismissed while empowered
   'advantage-buys.js',  // §4 the box offered and spent, §5 greyed beyond 5 ft, §6 absent on an unproficient skill and a raw check, §7 greyed in the pocket, §10 offered while empowered
   'transforms.js',      // §9 the familiar empowered in place (its sight kept), §11 the temp HP gone reverts and re-points (the sight put back), §12 the caster's effect as the lever
-  'help.js'             // §14 the Owl's Help: seeded on the landed familiar, the use refused with no target, the assist answered on the record, Assisted spent by the check, Distracted (Help) landed, the attack row greyed beyond 5 ft
+  'help.js'             // §14 the Owl's Help: seeded on the landed familiar, the use refused with no target, the assist answered on the record, Assisted spent by the check, Distracted (Help) landed, the attack row greyed beyond 5 ft, a half-square Owl adjacent at 5 ft; §15 a player's Help card asks the player alone
 ];
 
 const SECTIONS = {
@@ -39,7 +39,8 @@ const SECTIONS = {
   11: 'THE TEMP HP GONE: the Owl reverts — a new token, the Hit Points lost kept, no temp HP, its seat in the tracker and the companion record re-pointed, the new token seeing, the caster\'s effect gone, the record ended "noTemp"',
   12: 'THE LEVER: empowered again, the caster\'s "Battle Familiar: Owl" effect removed by hand — the Owl reverts, the record ended',
   13: 'DISMISSED WHILE EMPOWERED: empowered again, Dismiss — the token goes, the caster\'s effect with it, the record ended "gone"',
-  14: 'THE HELP ACTION (the Owl\'s button; runs before §7): the landed Owl carries Help; with nothing targeted the use is refused and posts no card; the Sorcerer targeted one square away, the card\'s record offers both assists with Perception and Stealth to lend; answered on the record as the check lending Perception, the elect lands "Assisted — Perception" on the Sorcerer, receipted; a Perception check\'s gate names it at Advantage and the press spends it, a second check meets no gate; answered as the attack, "Distracted (Help)" lands stamped with the Owl as its source; three squares away the attack row is greyed with the distance'
+  14: 'THE HELP ACTION (the Owl\'s button; runs before §7): the landed Owl carries Help; with nothing targeted the use is refused and posts no card; the Sorcerer targeted one square away, the card\'s record offers both assists with Perception and Stealth to lend; answered on the record as the check lending Perception, the elect lands "Assisted — Perception" on the Sorcerer, receipted; a Perception check\'s gate names it at Advantage and the press spends it, a second check meets no gate; answered as the attack, "Distracted (Help)" lands stamped with the Owl as its source; three squares away the attack row is greyed with the distance; a half-square Owl a quarter-square into the square beside the Sorcerer is 5 ft away (Session 03 of Echoes of Halruaa: 6.3 ft), two squares on 10 ft',
+  15: 'A PLAYER\'S HELP ASKS THE PLAYER ALONE (Session 03 of Echoes of Halruaa: Omen\'s Help asked the GM too): a Help card the connected player test user made, for a creature that user owns, opens its popup on the player\'s page; the GM\'s page, which owns the creature too, opens none and draws no "Choose…" button'
 };
 const DEPENDS = { 3: [1], 4: [1], 5: [1], 7: [1], 9: [1], 10: [9], 11: [9], 12: [11], 13: [12], 14: [1] };
 
@@ -578,6 +579,22 @@ const out = await f.evaluate(async ({ sections, titles, extra }) => {
       ok('§14i three squares away: the attack row greyed "15 ft away — an enemy within 5 feet only", the check row open',
         (third.flag?.feet === 15) && /15 ft away — an enemy within 5 feet only/.test(attackRow?.off ?? '') && (third.flag?.rows ?? []).filter(r => r.key.startsWith('check')).every(r => !r.off),
         JSON.stringify({ feet: third.flag?.feet, rows: third.flag?.rows }));
+      // a half-square Owl (a Tiny creature's token) a quarter-square into the square beside the Sorcerer: measured
+      // space to space it is 5 ft away, never the 6.3 its off-center point read; two squares on, 10
+      const quarter = grid / 4;
+      await owlDoc.update({ width: 0.5, height: 0.5, x: casterToken.x + grid + quarter, y: casterToken.y + quarter });
+      await until(() => (canvas.tokens.get(owlDoc.id)?.document?.width === 0.5) ? true : null, { timeout: 4000 });
+      casterPlaceable.setTarget(true, { releaseOthers: true });
+      const fourth = await useHelp('the half-square Owl\'s Help card\'s record');
+      await owlDoc.update({ x: casterToken.x + (2 * grid) + quarter, y: casterToken.y + quarter });
+      await until(() => (canvas.tokens.get(owlDoc.id)?.document?.x === owlDoc.x) ? true : null, { timeout: 4000 });
+      casterPlaceable.setTarget(true, { releaseOthers: true });
+      const fifth = await useHelp('the half-square Owl two squares on');
+      ok('§14j a half-square Owl a quarter-square into the square beside the Sorcerer: 5 ft, the attack row open; two squares on, 10 ft and greyed',
+        (fourth.flag?.feet === 5) && !(fourth.flag?.rows ?? []).find(r => r.key === 'attack')?.off
+          && (fifth.flag?.feet === 10) && /10 ft away/.test((fifth.flag?.rows ?? []).find(r => r.key === 'attack')?.off ?? ''),
+        JSON.stringify({ adjacent: { feet: fourth.flag?.feet, rows: fourth.flag?.rows }, twoOn: { feet: fifth.flag?.feet, rows: fifth.flag?.rows } }));
+      await owlDoc.update({ width: 1, height: 1 });
       if (helped) await helped.delete();
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       await set('reminderList', 'buy');
@@ -687,6 +704,66 @@ if (!out.fatal && (!plan || plan.includes('8'))) {
   } finally {
     if (player) await disposeSafely(player, 'familiar');
     await f.evaluate(async ({ was }) => { if (was) await game.settings.set('dnd5e', 'allowSummoning', was); }, { was: gmSide.was });
+  }
+}
+
+/* --- §15: a player's Help card asks the player alone ------------------------------------------------ */
+// The popup and its "Choose…" button, looked for on one page for up to `ms`: a popup of the Help's pick open, and
+// the button drawn on the card.
+const LOOK_FOR_HELP = `async ({ messageId, ms }) => {
+  const look = () => ({
+    popup: [...foundry.applications.instances.values()].some(app => !!app.element?.querySelector?.('[data-bf-ticks="bf-help"]')),
+    button: [...document.querySelectorAll('[data-message-id="' + messageId + '"] button')].some(b => /Choose/.test(b.textContent ?? ''))
+  });
+  const end = Date.now() + ms;
+  let seen = look();
+  while (!seen.popup && (Date.now() < end)) { await new Promise(r => setTimeout(r, 100)); seen = look(); }
+  return seen;
+}`;
+if (!out.fatal && (!plan || plan.includes('15'))) {
+  let player = null;
+  let made = null;
+  try {
+    console.log('[familiar] player connecting for §15…');
+    player = new Foundry(playerConfig(env));
+    await player.connect();
+    await installPrelude(player);
+    const playerId = await player.evaluate(async () => game.user.id);
+    // the GM makes the creature (the player's own, as Omen is Tom's) and the card as the player made it
+    made = await f.evaluate(async ({ playerId }) => {
+      const MOD = 'fvtt-mod-bythebooks';
+      const target = game.actors.getName('BTB Test Sorcerer');
+      const owl = await Actor.create({ name: 'BTB Help Probe Owl', type: 'npc', ownership: { default: 0, [playerId]: 3 } });
+      const message = await ChatMessage.create({
+        author: playerId,
+        speaker: { alias: owl.name, actor: owl.id },
+        content: '<p>Help - Assist an Attack Roll</p>',
+        flags: { [MOD]: { help: { sourceUuid: owl.uuid, status: 'pending', helperName: owl.name, target: { uuid: target.uuid, name: target.name },
+          feet: 5, lends: [], rows: [{ key: 'attack', off: null }], chosen: null, resolved: null } } }
+      });
+      return { owlId: owl.id, messageId: message.id, author: message.author?.id ?? null };
+    }, { playerId });
+    const onPlayer = await player.evaluate(async ({ fn, messageId }) => (new Function('return ' + fn)())({ messageId, ms: 6000 }), { fn: LOOK_FOR_HELP, messageId: made.messageId });
+    const onGm = await f.evaluate(async ({ fn, messageId }) => (new Function('return ' + fn)())({ messageId, ms: 1500 }), { fn: LOOK_FOR_HELP, messageId: made.messageId });
+    out.results.push({ name: '§15a the player\'s Help card opens its popup on the player\'s page, with its "Choose…" button',
+      pass: (made.author === playerId) && onPlayer.popup && onPlayer.button, detail: JSON.stringify({ author: made.author, playerId, onPlayer }) });
+    out.results.push({ name: '§15b the GM\'s page, owning the creature too, opens no popup and draws no "Choose…" button',
+      pass: !onGm.popup && !onGm.button, detail: JSON.stringify({ onGm }) });
+    await player.evaluate(async () => {
+      for (const app of foundry.applications.instances.values()) {
+        if (app.element?.querySelector?.('[data-bf-ticks="bf-help"]')) { try { await app.close(); } catch { /* gone */ } }
+      }
+    });
+  } catch (err) {
+    out.results.push({ name: '§15 a player\'s Help card', pass: false, detail: `${err?.message}` });
+  } finally {
+    if (player) await disposeSafely(player, 'familiar');
+    if (made) await f.evaluate(async ({ owlId, messageId }) => {
+      const m = game.messages.get(messageId);
+      if (m) await m.delete();
+      const a = game.actors.get(owlId);
+      if (a) await a.delete();
+    }, made);
   }
 }
 

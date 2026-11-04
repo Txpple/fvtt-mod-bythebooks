@@ -72,6 +72,25 @@ export function rectsOverlap(a, b) {
   return (a.x < b.x + b.w) && (b.x < a.x + a.w) && (a.y < b.y + b.h) && (b.y < a.y + a.h);
 }
 
+/**
+ * Points moved onto the grid: each to the center `snap` names for it (the edge hands it the grid's
+ * `getCenterPoint`), duplicates dropped, so a measure between two footprints counts whole spaces.
+ * @param {{x: number, y: number}[]} points
+ * @param {(p: {x: number, y: number}) => {x: number, y: number}} snap
+ */
+export function snappedPoints(points, snap) {
+  const out = [];
+  const seen = new Set();
+  for ( const p of points ) {
+    const c = snap(p);
+    const key = `${c.x},${c.y}`;
+    if ( seen.has(key) ) continue;
+    seen.add(key);
+    out.push({ x: c.x, y: c.y });
+  }
+  return out;
+}
+
 /** One sample per occupied square: a large token counts when ANY square is in the area. */
 export function tokenSamplePoints(tok) {
   const grid = tok.parent?.grid?.size;

@@ -7,7 +7,7 @@
  * "Assisted — <skill>" on the ally (the check gate spends it on that check). The use's card says it. The
  * world's own Help item is kept by the elect at `ready`; a familiar is seeded with one as it lands (summons.js).
  */
-import { MODULE_ID, readFlag, drivesMomentFor, queueFlagWrite, claimLanding, statContext, resolveUuid, resolveUuidAsync, isActiveGM, log } from "./core.js";
+import { MODULE_ID, readFlag, drivesMomentFor, queueFlagWrite, claimLanding, statContext, resolveUuid, resolveUuidAsync, isActiveGM, answersHere, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { HELP_NAME, HELP_RULE, HELP_FACETS, isHelpName, helpItemData, lendable, helpRows, helpAnswer, helpEffectData, helpWords, helpRuleFor } from "./decide/help.js";
 import { chipData, placeOf } from "./shared.js";
@@ -195,9 +195,11 @@ listen("dnd5e.renderChatMessage", "help", (message, html) => {
     lines: [ruleLine(HELP_RULE)] });
   content.appendChild(line);
   if ( f.chosen ) return;
-  // live only: the helper's own sheet decides whose button this is
+  // live only: the one who used it answers (a player's familiar asks its player, never the GM as well, though a GM
+  // owns it too — Omen, Session 03 of Echoes of Halruaa); with that user gone, whoever answers for the helper
   const helper = resolveUuid(f.sourceUuid ?? "");
-  pendingRow(message, line, { latch: { sub: "help", show: () => askHelp(message) }, answer: helper?.isOwner ? { label: "Choose…" } : null });
+  if ( !(helper instanceof Actor) || !helper.isOwner || !answersHere(message.author?.id ?? null, helper) ) return;
+  pendingRow(message, line, { latch: { sub: "help", show: () => askHelp(message) }, answer: { label: "Choose…" } });
 });
 
 // THE WORLD'S ITEM: the elect keeps one Help in the Items directory, to drag onto any sheet; fingerprinted, so once.

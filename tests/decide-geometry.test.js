@@ -148,3 +148,51 @@ describe("lengthUnitKey — a scene's grid units, folded to the system's own key
       expect(geo.lengthUnitKey(u), String(u)).toBeNull();
   });
 });
+
+describe("snappedPoints — footprints measured space to space", () => {
+  /** A square grid's `getCenterPoint`, offset-free, as the edge hands it in. */
+  const snapTo = grid => p => ({
+    x: Math.floor(p.x / grid) * grid + grid / 2,
+    y: Math.floor(p.y / grid) * grid + grid / 2
+  });
+
+  it("moves a half-square token's own center onto the center of the space it stands in (Session 03: Omen read 6.3 ft)", () => {
+    // a Tiny owl's 0.5 token a quarter-square into the square beside a 1×1 creature at (0, 0) on a 140 grid
+    const owl = geo.tokenSamplePoints(
+      token({ x: 140 + 35, y: 35, width: 0.5, height: 0.5, grid: 140 })
+    );
+    expect(owl).toEqual([{ x: 210, y: 70 }]);
+    expect(geo.snappedPoints(owl, snapTo(140))).toEqual([{ x: 210, y: 70 }]);
+    const creature = geo.snappedPoints(
+      geo.tokenSamplePoints(token({ x: 0, y: 0, grid: 140 })),
+      snapTo(140)
+    );
+    // one space apart, center to center: the 5 ft a measure counts, never a fraction
+    expect(Math.abs(creature[0].x - 210) / 140).toBe(1);
+  });
+
+  it("puts an off-grid 1×1 token in the space its center stands in", () => {
+    expect(geo.snappedPoints([{ x: 130, y: 20 }], snapTo(100))).toEqual([{ x: 150, y: 50 }]);
+  });
+
+  it("keeps one point per space", () => {
+    expect(
+      geo.snappedPoints(
+        [
+          { x: 10, y: 10 },
+          { x: 90, y: 90 },
+          { x: 110, y: 10 }
+        ],
+        snapTo(100)
+      )
+    ).toEqual([
+      { x: 50, y: 50 },
+      { x: 150, y: 50 }
+    ]);
+  });
+
+  it("leaves points already on centers where they are", () => {
+    const pts = geo.tokenSamplePoints(token({ x: 0, y: 0, width: 2, height: 2, grid: 100 }));
+    expect(geo.snappedPoints(pts, snapTo(100))).toEqual(pts);
+  });
+});

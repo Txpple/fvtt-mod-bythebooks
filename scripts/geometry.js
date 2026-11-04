@@ -5,7 +5,7 @@
  */
 import { readFlag, stampedSourceOf, resolveUuid, log } from "./core.js";
 import { collisionsCover, measureCover } from "./decide/cover.js";
-import { lengthUnitKey, rectsOverlap, tokenSamplePoints } from "./decide/geometry.js";
+import { lengthUnitKey, rectsOverlap, snappedPoints, tokenSamplePoints } from "./decide/geometry.js";
 
 /* THE TOKEN (ARCHITECTURE §7 *The shared readers*): which token a subject stands as, by one rule, read here and
  * nowhere else (tools/check-lookups.mjs). A subject is an actor; an actor's or a token's uuid; a token's id on the
@@ -123,16 +123,19 @@ export function creaturesWithin(origin, feet) {
   return out;
 }
 
-/** Every occupied square's center, from the committed SOURCE. ⚠ While a token animates, the
- * document's `x`/`y` are INTERIM; `_source` holds the destination. */
+/** Every occupied square's center, from the committed SOURCE, each snapped to the center of the grid space it
+ * stands in, so two tokens are measured space to space: an adjacent creature is one space away whatever its size
+ * or where in its space it stands (a Tiny owl's token half a square wide read 6.3 ft from the creature beside it,
+ * Session 03 of Echoes of Halruaa). ⚠ While a token animates, the document's `x`/`y` are INTERIM; `_source` holds
+ * the destination. A gridless scene keeps the points as they are. */
 function documentSquares(doc) {
   const grid = doc.parent?.grid?.size;
   if ( !grid ) return [];
   const x = doc._source?.x ?? doc.x, y = doc._source?.y ?? doc.y;
-  const w = Math.max(1, Math.round(doc.width ?? 1)), h = Math.max(1, Math.round(doc.height ?? 1));
-  if ( (w === 1) && (h === 1) ) return [{ x: x + grid / 2, y: y + grid / 2 }];
   // No `object`, so the pure reader never falls back to the drawn center.
-  return tokenSamplePoints({ parent: doc.parent, width: doc.width, height: doc.height, x, y });
+  const points = tokenSamplePoints({ parent: doc.parent, width: doc.width ?? 1, height: doc.height ?? 1, x, y });
+  const g = canvas?.grid;
+  return (g && !g.isGridless && (typeof g.getCenterPoint === "function")) ? snappedPoints(points, p => g.getCenterPoint(p)) : points;
 }
 
 /** A length in the scene's or an item's units, as FEET through the system's own table — or null. */
