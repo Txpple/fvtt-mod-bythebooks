@@ -842,3 +842,60 @@ export function tickRowsHTML({ name, rows, kind = "checkbox" }) {
       </label>`).join("");
   return `<div data-bf-ticks="${attr(name)}" style="margin-top:0.4rem;">${items}</div>`;
 }
+
+/**
+ * A condition's roll reduction named on the formula. dnd5e adds `@reductions.<status>` as a bare number, so
+ * Exhaustion's −2 a level reads "1d20 + 1 - 2" (Session 03 of Echoes of Halruaa: "why do I have minus one
+ * initiative?"); a flavor names it, "1d20 + 1 - 2[Exhaustion]". A part already flavored, any other part, and a
+ * status with no label are kept as they are.
+ * @param {string[]} parts
+ * @param {(status: string) => string|null|undefined} labelOf
+ * @returns {string[]}
+ */
+export function labelReductionParts(parts, labelOf) {
+  return (parts ?? []).map(part => {
+    const m = /^@reductions\.([\w-]+)$/.exec(String(part).trim());
+    if ( !m ) return part;
+    const label = String(labelOf(m[1] ?? "") ?? "").replace(/[[\]]/g, "").trim();
+    return label ? `${part}[${label}]` : part;
+  });
+}
+
+/**
+ * The odds a d20 reroll gives, a whole percent: the chance the new d20, plus the reroll's own bonus, reaches
+ * `target` (an AC or a DC); with no target, the chance it beats the die it replaces. On an attack a natural 20
+ * hits and a natural 1 misses. With Advantage, the better of two dice. Null when the roll cannot be read.
+ * @param {{ total: number, kept: number, target?: number|null, bonus?: number, advantage?: boolean, attack?: boolean }} roll
+ *   `total` the roll's total, `kept` the d20 it kept
+ * @returns {number|null}
+ */
+export function rerollOdds({ total, kept, target = null, bonus = 0, advantage = false, attack = false }) {
+  const t = Number(total), k = Number(kept), b = Number(bonus) || 0;
+  if ( !Number.isFinite(t) || !Number.isFinite(k) ) return null;
+  const aimed = (target !== null) && Number.isFinite(Number(target));
+  const mod = t - k;
+  let wins = 0;
+  for ( let d = 1; d <= 20; d++ ) {
+    const ok = aimed
+      ? ((attack && (d === 20)) || (!(attack && (d === 1)) && ((d + mod + b) >= Number(target))))
+      : ((d + b) > k);
+    if ( ok ) wins++;
+  }
+  const p = wins / 20;
+  return Math.round((advantage ? 1 - ((1 - p) ** 2) : p) * 100);
+}
+
+/**
+ * The amount a pool heal's slider opens at (Lay on Hands; Session 03 of Echoes of Halruaa: Kartor healed 1
+ * before finding the slider): what the creature it aims at is missing, at most the pool; with nothing read for
+ * the creature, the whole pool. Never below 1; null when the pool is empty or unread.
+ * @param {{ pool: number, missing?: number|null }} heal
+ * @returns {number|null}
+ */
+export function poolHealDefault({ pool, missing = null }) {
+  const left = Math.floor(Number(pool));
+  if ( !Number.isFinite(left) || (left < 1) ) return null;
+  const need = Math.floor(Number(missing));
+  if ( (missing === null) || !Number.isFinite(need) ) return left;
+  return Math.max(1, Math.min(left, need));
+}

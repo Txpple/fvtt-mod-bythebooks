@@ -2,7 +2,8 @@
  * By the Books — Table polish: the no-target gate, the drinker default, the cast birth stamps, hidden
  * card buttons, the dialog target block and centering. EDGE layer (ARCHITECTURE.md §7, §8).
  */
-import { MODULE_ID } from "./core.js";
+import { MODULE_ID, log } from "./core.js";
+import { labelReductionParts, poolHealDefault } from "./decide/present.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./decide/registry.js";
 import { EFFECT_CHOICES, answers, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
@@ -54,6 +55,49 @@ listen("dnd5e.preUseActivity", "polish", (activity, _usageConfig, _dialogConfig,
 
   foundry.utils.setProperty(messageConfig, path, [descriptor]);
   token?.setTarget(true, { releaseOthers: false });
+});
+
+/* THE POOL HEAL'S AMOUNT (Session 03 of Echoes of Halruaa: Kartor healed 1 before he found the slider). Lay on Hands'
+ * heal opens dnd5e's amount slider at 1; it opens here at what its one target is missing (the paladin's own Hit Points
+ * with nothing targeted), at most the pool left. A caller's own amount stands. */
+const isLayOnHands = item => (item?.system?.identifier === "lay-on-hands") || (lower(item?.name) === "lay on hands");
+
+listen("dnd5e.preUseActivity", "polish", (activity, usageConfig) => {
+  try {
+    if ( (activity?.type !== "heal") || !isLayOnHands(activity.item) ) return;
+    const scale = activity.consumption?.scaling;
+    if ( !scale?.allowed || !scale.max || !usageConfig || (usageConfig.scaling === false) ) return;
+    if ( Number(usageConfig.scaling) > 0 ) return;
+    const pool = dnd5e.utils.simplifyBonus(scale.max, activity.getRollData());
+    const targets = [...game.user.targets].filter(t => t.actor);
+    const aimed = (targets.length === 1) ? targets[0].actor : (targets.length ? null : activity.actor);
+    const hp = aimed?.system?.attributes?.hp ?? null;
+    const top = Number(hp?.effectiveMax ?? hp?.max);
+    const missing = (hp && Number.isFinite(top) && Number.isFinite(Number(hp.value))) ? top - Number(hp.value) : null;
+    const amount = poolHealDefault({ pool, missing });
+    if ( amount ) usageConfig.scaling = amount - 1;
+  } catch(err) {
+    log.warn(`Lay on Hands' amount could not be preset — the slider opens at 1.`, err);
+  }
+});
+
+/* THE CONDITION'S NAME ON THE FORMULA (Session 03 of Echoes of Halruaa: Kartor's initiative read "1d20 + 1 - 2" and he
+ * asked why). dnd5e adds a condition's roll reduction as a bare number; it is named here, "- 2[Exhaustion]", on
+ * initiative (rolled from the tracker or the sheet) and on every d20 test it builds. */
+const conditionLabel = status => {
+  const name = CONFIG.DND5E?.conditionTypes?.[status]?.name ?? CONFIG.statusEffects?.find?.(s => s.id === status)?.name ?? null;
+  return name ? game.i18n.localize(name) : null;
+};
+const nameReductions = rollConfig => {
+  if ( Array.isArray(rollConfig?.parts) ) rollConfig.parts = labelReductionParts(rollConfig.parts, conditionLabel);
+};
+listen("dnd5e.preConfigureInitiative", "polish", (_actor, rollConfig) => {
+  try { nameReductions(rollConfig); }
+  catch(err) { log.warn(`The initiative formula could not name its conditions.`, err); }
+});
+listen("dnd5e.preRollD20TestV2", "polish", config => {
+  try { for ( const roll of (config?.rolls ?? []) ) nameReductions(roll); }
+  catch(err) { log.warn(`The roll formula could not name its conditions.`, err); }
 });
 
 const activityOf = doc => cardActivity(doc);

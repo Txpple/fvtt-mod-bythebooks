@@ -22,7 +22,7 @@ import { cardRow, armAskTimer, disarmAskTimer, electOwns, openMomentPopup, ackno
 import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, subKindOf, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
-import { esc } from "./decide/present.js";
+import { esc, rerollOdds } from "./decide/present.js";
 import { dieMaxOf, foldCanReach } from "./decide/rescue-hit.js";
 
 /** Per-kind views onto `RESCUE_KINDS`: one copy of each quoted string, shared with the rescue view. */
@@ -982,7 +982,7 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
         title: offers.length === 1 ? labelOf(offers[0]) : `${offers.length} ways to patch this roll`,
         subtitle: `${actor?.name ?? ""} · ${testKindPhrase(flag)}`,
         tone: "pending",
-        lines: offerLines(flag, offers)
+        lines: offerLines(flag, offers, naturalOf(message.rolls?.[0]))
       });
       host.append(block);
 
@@ -1052,11 +1052,29 @@ function testKindPhrase(flag) {
 /** The cost the card says for an offer — the kind's sentence; a verdict kind's own (its uses left). */
 const costOnCard = o => (VERDICT_KINDS.has(o.kind) ? (o.cost ?? SPEND_COST[o.kind]) : SPEND_COST[o.kind]) ?? null;
 
-/** The offer card's body: what can be spent (each cost on its own line), and under holdReveal what it must beat. */
-function offerLines(flag, offers) {
+/**
+ * A reroll's odds in table English (Session 03 of Echoes of Halruaa: Tychon's reroll took him from 7 to 5): the chance
+ * to reach the AC or DC when the table reveals what a roll must beat, else the chance to beat the die it replaces
+ * (an AC never leaks through the odds). Empty when the kept die is unread.
+ */
+function oddsPhrase(flag, o, kept) {
+  if ( !REROLL_KINDS.has(o.kind) || !Number.isFinite(kept) ) return "";
+  const ac = Math.min(...(flag.targets ?? []).map(t => Number(t.ac)).filter(Number.isFinite));
+  const target = !setting(S.holdReveal) ? null : Number.isFinite(flag.dc) ? flag.dc : Number.isFinite(ac) ? ac : null;
+  const pct = rerollOdds({ total: flag.baseTotal, kept, target, bonus: (o.kind === "reroll") ? Number(o.bonus) || 0 : 0,
+    advantage: (o.kind === "reroll") && (o.advantage === true), attack: flag.testKind === "attack" });
+  if ( pct === null ) return "";
+  const goal = (target === null) ? `to beat your ${kept}` : Number.isFinite(flag.dc) ? `to reach DC ${flag.dc}` : `to reach AC ${target}`;
+  return ` · ${pct}% ${goal}`;
+}
+
+/** The offer card's body: what can be spent (each cost on its own line), a reroll's odds, and under holdReveal what it
+ * must beat. */
+function offerLines(flag, offers, kept = Number.NaN) {
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
     + ((o.kind === "reroll") ? ` — reroll the d20${Number(o.bonus) ? `, +${o.bonus}` : ""}${o.advantage ? " with Advantage" : ""}`
       : REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? ` — ${o.says ?? "succeed instead"}` : ` — add ${o.dieFormula}`)
+    + oddsPhrase(flag, o, kept)
     + (costOnCard(o) ? ` <em>(${costOnCard(o)})</em>` : ""));
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) {

@@ -20,7 +20,7 @@ const SECTIONS = {
   3: 'once per roll: a later Initiative change asks nothing new; a reset and a re-roll asks again',
   4: 'an Incapacitated ally is not listed',
   5: 'No: the order stands; an Incapacitated Alert holder is not asked at all',
-  6: 'the clock answers No (timed out)'
+  6: 'the clock answers No (timed out), never sooner than 60 s (a 3 s Decision Timer floors at 60; Session 03 of Echoes of Halruaa: the ask timed out on Tychon at 24 s)'
 };
 const DEPENDS = { 2: ['1'], 3: ['1'] };
 
@@ -218,8 +218,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('decisionTimer', 3);
       const { combat, of } = await fight();
       const card = await until(() => cardFor(combat), { timeout: 6000 });
-      const flag = await until(() => (card?.getFlag(MOD, 'initiativeSwap')?.answer === 'no') ? card.getFlag(MOD, 'initiativeSwap') : null, { timeout: 12000 });
-      ok('6a. the clock answers No (timed out); the order stands', !!flag?.timedOut && (of(tHalfling).initiative === 11),
+      const asked = card?.getFlag(MOD, 'initiativeSwap') ?? null;
+      ok('6a. the swap clock is 60 s though the Decision Timer is 3', (asked?.window === 60) && ((asked?.deadline ?? 0) - Date.now() > 50_000),
+        `window=${asked?.window} left=${Math.round(((asked?.deadline ?? 0) - Date.now()) / 1000)}s`);
+      const flag = await until(() => (card?.getFlag(MOD, 'initiativeSwap')?.answer === 'no') ? card.getFlag(MOD, 'initiativeSwap') : null, { timeout: 75000 });
+      ok('6b. the clock answers No (timed out); the order stands', !!flag?.timedOut && (of(tHalfling).initiative === 11),
         `answer=${card?.getFlag(MOD, 'initiativeSwap')?.answer} timedOut=${!!flag?.timedOut}`);
       await set('decisionTimer', 0);
     });

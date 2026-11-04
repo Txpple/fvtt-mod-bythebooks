@@ -931,3 +931,58 @@ describe("rosterSide — the combat line's side tag", () => {
     expect(p.rosterSide()).toBe(" (foe)");
   });
 });
+
+describe("labelReductionParts — a condition's reduction named on the formula (Session 03: the bare −2)", () => {
+  const label = s => ({ exhaustion: "Exhaustion", poisoned: "Poisoned" })[s] ?? null;
+  it("names dnd5e's reduction part, leaving the rest", () => {
+    expect(p.labelReductionParts(["@mod", "@prof", "@reductions.exhaustion"], label)).toEqual([
+      "@mod",
+      "@prof",
+      "@reductions.exhaustion[Exhaustion]"
+    ]);
+  });
+  it("is idempotent: a part already named is kept", () => {
+    const once = p.labelReductionParts(["@reductions.exhaustion"], label);
+    expect(p.labelReductionParts(once, label)).toEqual(once);
+  });
+  it("keeps a status with no label, and strips brackets out of a label", () => {
+    expect(p.labelReductionParts(["@reductions.weird"], label)).toEqual(["@reductions.weird"]);
+    expect(p.labelReductionParts(["@reductions.x"], () => "A [b]")).toEqual(["@reductions.x[A b]"]);
+  });
+});
+
+describe("rerollOdds — what a reroll offer is worth", () => {
+  it("with no target: the chance to beat the die it replaces (Tychon's 7 rerolled)", () => {
+    expect(p.rerollOdds({ total: 9, kept: 7 })).toBe(65);
+    expect(p.rerollOdds({ total: 22, kept: 20 })).toBe(0);
+  });
+  it("against a DC: the faces that reach it", () => {
+    // +2 on the die, DC 15: 13 or better, 8 faces
+    expect(p.rerollOdds({ total: 6, kept: 4, target: 15 })).toBe(40);
+  });
+  it("on an attack: a natural 20 hits and a natural 1 misses", () => {
+    expect(p.rerollOdds({ total: 6, kept: 1, target: 40, attack: true })).toBe(5);
+    expect(p.rerollOdds({ total: 30, kept: 2, target: 10, attack: true })).toBe(95);
+  });
+  it("adds the reroll's bonus, and takes the better of two with Advantage", () => {
+    expect(p.rerollOdds({ total: 6, kept: 4, target: 15, bonus: 2 })).toBe(50);
+    expect(p.rerollOdds({ total: 6, kept: 4, target: 15, advantage: true })).toBe(64);
+  });
+  it("is null when the roll cannot be read", () => {
+    expect(p.rerollOdds({ total: 9, kept: Number.NaN })).toBeNull();
+  });
+});
+
+describe("poolHealDefault — Lay on Hands opens at what is needed (Session 03: Kartor healed 1)", () => {
+  it("what the creature is missing, at most the pool", () => {
+    expect(p.poolHealDefault({ pool: 10, missing: 7 })).toBe(7);
+    expect(p.poolHealDefault({ pool: 10, missing: 25 })).toBe(10);
+  });
+  it("the whole pool when nothing is read for the creature", () => {
+    expect(p.poolHealDefault({ pool: 10 })).toBe(10);
+  });
+  it("never below 1, and nothing from an empty pool", () => {
+    expect(p.poolHealDefault({ pool: 10, missing: 0 })).toBe(1);
+    expect(p.poolHealDefault({ pool: 0, missing: 5 })).toBeNull();
+  });
+});

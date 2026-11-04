@@ -20,6 +20,9 @@ const SWAP_FLAG = "initiativeSwap";
 /** The combat's own latch — which combatants were already asked (once per combat). */
 const ASKED_FLAG = "initiativeSwapAsked";
 const timers = new Map();
+/** The swap's clock is never shorter than this: the owner reads the whole lineup before answering (Session 03 of
+ * Echoes of Halruaa: the ask timed out on Tychon at 24 s, twice). A table with no clock keeps none. */
+const SWAP_MIN_SECONDS = 60;
 /** Combats this client is posting for right now — the updates of one Roll All land in one tick. */
 const posting = new Set();
 
@@ -98,7 +101,7 @@ async function askFor(combat) {
           role: (o.id === c.id) ? "self" : pickable.has(o.id) ? "ally"
             : (o.token?.disposition === side) ? "incapacitated"
             : (o.token?.disposition === NEUTRAL) ? "neutral" : "enemy" }));
-      const window = decisionWindow();
+      const window = decisionWindow() ? Math.max(decisionWindow(), SWAP_MIN_SECONDS) : 0;
       await postCard({
         actor, token: c.token,
         card: bfCard({ img: found.item.img, eyebrow: `Feat — ${found.name}`, tone: "pending", title: `${found.name} — swap Initiative?` }),
