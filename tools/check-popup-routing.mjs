@@ -128,11 +128,16 @@ const cast = await player.evaluate(async () => {
   const attacker = game.actors.getName('BTB Test PC Attacker');
   const victim = game.actors.getName('BTB Test Victim');
   if (!scene || !attacker || !victim) return { fatal: 'fixtures missing' };
-  const { until, tokenOn } = window.__btb;
-  if (canvas.scene?.id !== scene.id) await scene.view();
+  const { until, tokenOn, viewScene } = window.__btb;
+  // The range viewed through the prelude's own wait, the scene drawn and not only asked for: inside a full battery a
+  // player joining on the world's heavy active scene missed the old 15 s (2026-11-04, three full runs).
+  await viewScene(scene, { timeout: 30000 }).catch(() => null);
   const tok = scene.tokens.find(t => t.actorId === victim.id);
   if (!tok) return { fatal: 'no victim token (run smoke-bythebooks first)' };
-  if (!(await tokenOn(tok.id, { timeout: 15000 }).catch(() => null))) return { fatal: 'the victim token never reached the player\'s canvas' };
+  if (!(await tokenOn(tok.id, { timeout: 30000 }).catch(() => null))) {
+    return { fatal: `the victim token never reached the player's canvas (ready=${canvas.ready} scene=${canvas.scene?.name ?? 'none'} `
+      + `hidden=${tok.hidden} placeables=${canvas.tokens?.placeables?.length ?? 0})` };
+  }
 
   const [spell] = await attacker.createEmbeddedDocuments('Item', [{
     name: 'BTB Topology Probe Save', type: 'spell',
