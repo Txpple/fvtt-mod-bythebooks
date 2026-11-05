@@ -124,6 +124,14 @@ export function foundryConfig(env, identity = 'suite') {
 }
 
 /**
+ * The bridge user's config (FOUNDRY_USER): the one GM client a prod mirror leaves standing on the sandbox, so the
+ * tool that repairs the suite's own identities joins as it (seed-gm-identities.mjs). Prints nothing.
+ */
+export function bridgeConfig(env) {
+  return clientConfig(withAliases(env), host(), 'bridge');
+}
+
+/**
  * The second client's config for two-client probes: the same instance, joined as the player test
  * identity (FOUNDRY_PLAYER_USER). No adminKey: a player never launches the world.
  */
