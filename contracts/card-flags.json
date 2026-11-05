@@ -16551,6 +16551,19 @@
       "recorded": false,
       "fields": []
     },
+    "smiteFor": {
+      "class": "state",
+      "family": "state",
+      "means": "provenance — a smite cast from the hit menu names the attack whose roll its dice rode (its own roll stands down)",
+      "writers": [
+        "hit-menu.js"
+      ],
+      "on": [],
+      "stamp": null,
+      "readBy": [],
+      "recorded": false,
+      "fields": []
+    },
     "sneak": {
       "class": "state",
       "family": "state",
@@ -21980,7 +21993,8 @@
       "family": "state",
       "means": "provenance — how many of an attack's damage rolls are the activity's own, counted before any rider (auto-damage.js); Savage Attacker rerolls those",
       "writers": [
-        "auto-damage.js"
+        "auto-damage.js",
+        "clock-riders.js"
       ],
       "on": [
         "ChatMessage"

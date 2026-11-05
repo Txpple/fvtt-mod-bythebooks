@@ -9,12 +9,14 @@ import { lower, itemNamed, activityNamed, cardActivity, meleeOptions, preferredM
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
 import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } from "./decide/rebukes.js";
+import { castWayCost, WAYS_HEAD } from "./decide/cast-ways.js";
+import { castWayOf, castBy, payPillsFor } from "./cast-ways.js";
 import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets, hitTargets, grantingActor } from "./shared.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenOf } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer, picked } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -23,19 +25,6 @@ const timers = new Map();
 const driving = new Set();
 
 /* --- the offer's facts, off the bearer's sheet ------------------------------------------------ */
-
-/** Does a spell slot stand that this spell can be cast with? Null when the item is not a slotted spell. */
-function slotStands(actor, item) {
-  if ( item?.type !== "spell" ) return null;
-  const level = Number(item.system?.level ?? 0);
-  if ( !(level > 0) ) return null;
-  if ( !["spell", "pact"].includes(item.system?.method ?? "spell") ) return null;   // innate, at will: its uses
-  const spells = actor.system?.spells ?? {};
-  return Object.entries(spells).some(([key, s]) => {
-    const at = (key === "pact") ? Number(s?.level ?? 0) : Number(key.replace(/^spell/, ""));
-    return (at >= level) && (Number(s?.value ?? 0) > 0);
-  });
-}
 
 /** The item's first REACTION activity, or the row's named one. */
 function reactionActivity(item, row) {
@@ -73,28 +62,28 @@ function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = 
     if ( !item ) continue;
     const activity = reactionActivity(item, row);
     if ( !activity && !row.attack ) continue;
-    const pool = activity ? poolOf(actor, activity) : null;
-    // A spell with uses of its own (Fiendish Legacy): while a free cast is left, no slot is asked.
-    const ownUses = (item.type === "spell") && (Number(item.system?.uses?.max) > 0);
-    const usesMax = Number((pool ?? (ownUses ? item : null))?.system?.uses?.max ?? 0);
-    const usesLeft = (usesMax > 0) ? Number((pool ?? item).system.uses.value ?? 0) : null;
-    const free = (item.type === "spell") && (usesLeft !== null) && (usesLeft > 0);
+    // A levelled spell is paid the shared way (cast-ways.js): a free cast left on any copy (Fiendish Legacy), else the
+    // lowest slot that can cast it, a Pact slot too, through the copy that owns that slot.
+    const route = activity ? castWayOf(actor, item, activity) : null;
+    const pool = (activity && !route) ? poolOf(actor, activity) : null;
+    const usesMax = Number(pool?.system?.uses?.max ?? 0);
+    const usesLeft = (usesMax > 0) ? Number(pool.system.uses.value ?? 0) : null;
     const reach = rebukeReach(row, activity ? feetOf(activity.range?.value, activity.range?.units) : null);
     const blocked = rebukeBlocked({
       self: actor.uuid === source.uuid, hp: Number(actor.system?.attributes?.hp?.value ?? 0),
       reactionSpent: reactionSpent(actor), distance, reach,
-      usesLeft: (item.type === "spell") ? null : usesLeft,              // a spell with no free cast left may still take a slot
-      slot: free ? null : slotStands(actor, item),
+      usesLeft,
+      slot: route ? (route.way.kind !== "none") : null,
       whileStands: row.while ? wearsEffectNamed(actor, row.while) : null,
       equipped: row.equipped ? !!item.system?.equipped : null,
       // a ward's: the one who hit stands on another side of the map (the tokens' dispositions)
       side: (row.ward && ward) ? (!!bearer && !!damager && (bearer.document.disposition !== damager.document.disposition)) : null
     });
     if ( blocked ) continue;
-    out.push({ name, itemId: item.id, activityId: activity?.id ?? null, img: item.img, reach,
-      attack: row.attack ?? null, advantage: !!row.advantage, free, handUse: free && !pool,
+    out.push({ name, itemId: route?.copy?.id ?? item.id, activityId: route?.activity?.id ?? activity?.id ?? null, img: item.img, reach,
+      attack: row.attack ?? null, advantage: !!row.advantage, ...(route ? { spell: true } : {}),
       ...(row.opportunity ? { opportunity: true } : {}), ...((row.ward && ward) ? { ward: true } : {}),
-      cost: rebukeCost({ usesLeft, usesMax, spell: !free && (slotStands(actor, item) !== null) }),
+      cost: route ? castWayCost(route.way) : rebukeCost({ usesLeft, usesMax }),
       ...(row.follow?.length ? { follow: [...row.follow] } : {}) });
   }
   return { distance, options: out };
@@ -283,8 +272,9 @@ function armTimer(message) {
 
 /* --- the answer ------------------------------------------------------------------------------- */
 
-/** One answer: folded where this client may write, relayed otherwise; a Use drives the use HERE. */
-async function answerRebuke(message, answer, index = null) {
+/** One answer: folded where this client may write, relayed otherwise; a Use drives the use HERE. `pay` the way the
+ * player picked to pay a spell (a pill's key, cast-ways.js), the module's own pick when none. */
+async function answerRebuke(message, answer, index = null, pay = null) {
   const flag = readFlag(message, REBUKE_FLAG);
   if ( flag?.status !== "pending" ) return;
   const option = (answer === "use") ? flag.options?.[index] : null;
@@ -296,7 +286,7 @@ async function answerRebuke(message, answer, index = null) {
       current.status = "resolved"; current.answer = answer; current.choice = option?.name ?? null; current.answeredAt = Date.now();
       claimed = true;
     });
-    if ( claimed && option ) await driveRebuke(message, option);
+    if ( claimed && option ) await driveRebuke(message, option, pay);
     return;
   }
   // The relay carries the answer to the keeper; the drive runs here at once.
@@ -307,7 +297,7 @@ async function answerRebuke(message, answer, index = null) {
       tone: option ? "good" : "neutral", title: rebukeLine({ ...flag, answer, choice: option?.name ?? null }) }),
     flags: { [MODULE_ID]: { rebukeAnswer: { messageId: message.id, answer, choice: option?.name ?? null } } }
   });
-  if ( option ) await driveRebuke(message, option);
+  if ( option ) await driveRebuke(message, option, pay);
 }
 
 registerRelay("rebukeAnswer", {
@@ -322,7 +312,7 @@ registerRelay("rebukeAnswer", {
 
 /** THE DRIVE: the real use at the damager, aimed first so every card names it; the Reaction spent
  * after. An attack row rolls the attack; anything else is the ordinary pipeline's. */
-async function driveRebuke(message, option) {
+async function driveRebuke(message, option, pay = null) {
   const key = `${message.id}|${option.name}`;
   if ( driving.has(key) ) return;
   driving.add(key);
@@ -342,12 +332,15 @@ async function driveRebuke(message, option) {
       } else {
         const activity = item?.system?.activities?.get(option.activityId) ?? null;
         if ( activity?.type !== "attack" ) {
-          // The free cast: the activity's item-use target pays, else the spell's uses by hand.
-          const usage = option.free ? { consume: { spellSlot: false } } : {};
-          if ( activity ) {
-            const done = await activity.use(usage, { configure: false }, { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
-            if ( done && option.handUse && item ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
-          }
+          if ( !activity ) return;
+          const data = { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } };
+          // A spell: paid the way picked while it is left, else the way read NOW (a free cast spent since the offer
+          // falls to a slot), cast-ways.js.
+          const route = option.spell ? castWayOf(actor, item, activity, { pick: pay }) : null;
+          if ( route ) {
+            if ( route.way.kind === "none" ) { ui.notifications?.warn(`${actor.name} has no way left to cast ${option.name} (${route.way.why}).`); return; }
+            await castBy(route, { message: data });
+          } else await activity.use({}, { configure: false }, data);
           return;
         }
         attack = activity;
@@ -375,7 +368,15 @@ async function showPopup(message) {
   const flag = readFlag(message, REBUKE_FLAG);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
-  const lines = flag.options.flatMap(o => [`<strong>${esc(o.name)}</strong> · ${esc(o.cost)} · reach ${o.reach} ft`,
+  // A spell's ways to pay as pills under its line (cast-ways.js), read off the sheet NOW, the module's pick ticked.
+  const pills = flag.options.map((o, i) => {
+    if ( !o.spell ) return null;
+    const item = actor?.items?.get(o.itemId) ?? null;
+    return payPillsFor(actor, item, item?.system?.activities?.get(o.activityId) ?? null, `bf-pay-${i}`, { head: WAYS_HEAD });
+  });
+  const lines = flag.options.flatMap((o, i) => [
+    `<strong>${esc(o.name)}</strong> · ${esc(pills[i] ? "a Reaction" : o.cost)} · reach ${o.reach} ft`,
+    ...(pills[i] ? [pills[i].html] : []),
     ruleLine(REBUKES[o.name]?.rule ?? ""), ...(REBUKES[o.name]?.caveat ? [`<em>${esc(REBUKES[o.name].caveat)} — the table's call</em>`] : [])]);
   await openMomentPopup(message, REBUKE_FLAG, actor, {
     title: `Reaction — ${flag.actorName}`, icon: "fa-solid fa-bolt",
@@ -386,7 +387,8 @@ async function showPopup(message) {
         : `${flag.amount} damage${(flag.distance !== null) ? ` · ${flag.distance} ft away` : ""}`, lines })
       + holdBarHTML(flag, "to answer"),
     buttons: [
-      ...flag.options.map((o, i) => ({ action: `use-${i}`, label: o.name, default: i === 0, callback: () => { void answerRebuke(message, "use", i); } })),
+      ...flag.options.map((o, i) => ({ action: `use-${i}`, label: o.name, default: i === 0,
+        callback: (_event, button) => { void answerRebuke(message, "use", i, pills[i] ? picked(button?.form, `bf-pay-${i}`) : null); } })),
       { action: "pass", label: "Pass", callback: () => { void answerRebuke(message, "pass"); } }
     ]
   });

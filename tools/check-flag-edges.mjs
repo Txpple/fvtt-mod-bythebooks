@@ -81,6 +81,7 @@ const ALLOW = new Map([
   ["cast-riders.js emanation", "a surge finds its bearer's own aura region by the region's fingerprint (emanations.js)"],
   ["cast.js healPending", "the cast's heal applier reads the birth claim polish.js stamps on a healing roll (the self-aimed target)"],
   ["cast.js healReroll", "the heal applier waits while the Healer's reroll (heal-rerolls.js) is due, pending or answering: the second claim the dice changers put on damage"],
+  ["damage-casts.js smiteFor", "a smite cast from the hit menu (hit-menu.js) rolls no damage of its own: its dice rode the hit's roll"],
   ["chip-spend.js against", "a use chip's target stamp (use-chips.js, Studied Attacks): the chip is spent only by a roll at the creature it names"],
   ["chip-spend.js reactionEffect", "the tidy owns the hold's reaction effect (hold/) beside the module's chips: an expired Shield must not read as still up"],
   ["chip-spend.js reminder", "the spend honours the net the gate showed (reminders.js's record on the roll) for the kinds it listed"],

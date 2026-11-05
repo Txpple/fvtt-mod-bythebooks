@@ -57,6 +57,7 @@ listen("dnd5e.postUseActivity", "damage-casts", (activity, _usageConfig, results
   try {
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;                                          // used with create: false — no card, no bus
+    if ( readFlag(message, "smiteFor") ) return;                     // a smite's dice rode the hit's roll (hit-menu.js)
     const targets = targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
     if ( !drives(activity, targets.length) ) return;                 // nothing aimed — the humans have it
     if ( readFlag(message, "damageCast") ) return;          // never re-drive

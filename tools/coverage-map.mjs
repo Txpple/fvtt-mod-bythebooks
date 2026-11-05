@@ -105,6 +105,11 @@ export const ORDER = [
     name: "smoke-goliath", note: "the Goliath walk's pass 2 — Large Form's token size, the rebuke offered within its reach and driven at the damager (none out of reach), Stone's Endurance holding a non-attack damage at the applier",
     needs: ["fixture-suite"]
   },
+  // BTB Test Goliath is lent two copies of Hellish Rebuke (a granted one with its free cast, a Pact Magic one) and two Pact slots.
+  {
+    name: "smoke-free-casts", note: "a granted spell's free cast first, then the slots — the rebuke offered and driven at the free cast, then a Pact slot through the right copy, nothing when neither; the sheet's cast window folding the (free casting) twin into one line",
+    needs: ["fixture-suite"]
+  },
   // BTB Test Halfling is lent Relentless Endurance (and Death Ward's effect).
   {
     name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed; the Death Saving Throw asked at the dying Halfling's turn start, the 20, the 1, Stable, damage at 0, the buzzer",

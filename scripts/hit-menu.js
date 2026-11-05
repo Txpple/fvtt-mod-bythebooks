@@ -6,7 +6,7 @@
 import { MODULE_ID, readFlag, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, claimLanding, claimHolds, statContext, decisionWindow, selfIds, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
-import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveDie, superiorityStandIn } from "./lookup.js";
+import { featureNamed, activityNamed, activityOfType, itemsNamed, namesAnswering, profileEffects, resolveDie, superiorityStandIn } from "./lookup.js";
 import { REMINDER_FLAG } from "./decide/reminders.js";
 import { hitMenuEntries } from "./decide/registry.js";
 import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
@@ -14,14 +14,16 @@ import { pactWeaponFits } from "./lookup.js";
 import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
-import { hitMenu, hitPick, optionReaches, picksOf, pluralOf, sweepVerdict } from "./decide/hit-menu.js";
+import { hitMenu, hitPick, optionReaches, picksOf, pluralOf, scaledDice, sweepVerdict } from "./decide/hit-menu.js";
+import { WAYS_HEAD } from "./decide/cast-ways.js";
+import { castBy, castWayOf, castWaysOf, payPillsFor } from "./cast-ways.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { nearestFeet, tokenOf } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer, pickInputs, closePopup } from "./ui.js";
+import { armAskTimer, subjectOwns, openMomentPopup, registerRelay, registerResumable, registerOfferPart, pendingRow, postCard, postAnswer, pickInputs, picked, closePopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { closeLedger, hitPointsOf, landingSteps } from "./ledger.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -59,7 +61,29 @@ function menuFor(attackMessage, activity) {
   const dice = {};
   const hits = attackMessage ? hitTargets(attackMessage) : [];
   const facts = hitFacts(attacker, activity);
+  const spells = [];
   for ( const [gkey, group] of Object.entries(HIT_GROUPS) ) {
+    // THE SMITE (`pool: "spell"`): each option a spell on the sheet, paid the shared cast way, its damage the die.
+    if ( group.pool === "spell" ) {
+      for ( const [key, row] of Object.entries(HIT_OPTIONS) ) {
+        if ( row.group !== gkey ) continue;
+        const spell = castableSpell(attacker, row.feature);
+        const cast = spell ? ((row.activity ? usableNamed(spell, row.activity) : null) ?? activityOfType(spell, "damage")) : null;
+        const ways = cast ? castWaysOf(attacker, spell, cast) : null;
+        if ( !ways?.ways.length ) continue;
+        eligible[key] = optionReaches({ row, ...facts, own: false });
+        // `unholy` (Divine Smite): its Fiend-or-Undead damage when every creature hit is one
+        const die = ((row.unholy && allOfTypes(hits, ["fiend", "undead"])) ? usableNamed(spell, row.unholy) : null) ?? cast;
+        const formula = dieFormulaOf(attacker, die);
+        const partType = [...(die.damage?.parts?.[0]?.types ?? [])][0] ?? null;
+        pools[key] = { left: ways.ways.some(w => !w.off) ? 1 : 0, max: 0, die: formula, type: partType,
+          cost: formula ? `${formula}${partType ? ` ${partType}` : ""}` : "" };
+        edge[key] = { item: spell, dieActivity: die, castActivity: cast, saveActivity: null, effectActivity: null, pool: null,
+          formula, type: partType, paidBySave: false, spell: true };
+        spells.push(row.feature);
+      }
+      continue;
+    }
     // A group with no paying feature (a text-only parent) requires nothing.
     if ( group.feature && !featureNamed(attacker, group.feature) ) continue;
     // `requires.forgo` (Brutal Strike, B3): only a hit whose attack RECORDED the forgo opens the group.
@@ -123,9 +147,23 @@ function menuFor(attackMessage, activity) {
     }
   }
   const melee = activity.attack?.type?.value !== "ranged";
-  const menu = hitMenu({ groups: groupsFor(attacker), options: HIT_OPTIONS, listed, features, melee, pools, fits, eligible, used, dice });
+  const menu = hitMenu({ groups: groupsFor(attacker), options: HIT_OPTIONS, listed, features: [...features, ...spells], melee, pools, fits, eligible, used, dice });
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;
   return { attacker, menu, edge, type };
+}
+
+/** The attacker's copy of a spell it can cast now: prepared, or of a method that needs no preparing (Pact Magic, innate).
+ * @param {any} actor
+ * @param {string} name */
+function castableSpell(actor, name) {
+  return itemsNamed(actor, name, { types: ["spell"] })
+    .find(i => (Number(i.system?.prepared) > 0) || (String(i.system?.method ?? "spell") !== "spell")) ?? null;
+}
+
+/** Is every creature hit one of these creature types (Divine Smite's Fiend or Undead)? False with none read. */
+function allOfTypes(hits, types) {
+  const read = hits.map(h => String(resolveUuid(h.uuid)?.system?.details?.type?.value ?? "").toLowerCase());
+  return !!read.length && read.every(t => types.includes(t));
 }
 
 /** HIT_GROUPS with each `maxAt` read off the attacker (D1, Improved Brutal Strike: two effects at Barbarian 17). */
@@ -266,16 +304,34 @@ registerOfferPart({
     if ( !read?.menu.groups.length ) return null;
     const { menu, edge, type } = read;
     const chosen = new Set();
+    /** the offer's element once drawn: the smite's pills are read off it at the commit */
+    let root = null;
+    const payField = key => `bf-smite-pay-${key}`;
     // An option-pool group counts USES, a shared pool DICE.
     const leftTag = g => g.free ? "free"
       : (g.perOption || g.ownDice)
         ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : pluralOf(g.dieLabel)} left` : `no ${pluralOf(g.dieLabel)} left`)
         : (g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left");
-    const groupsView = menu.groups.map(g => ({
-      key: g.key, label: g.label, max: g.max, off: !g.free && (g.left <= 0),
-      tag: leftTag(g),
-      rows: g.rows.map(r => ({ key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable }))
-    }));
+    // THE SMITE, compact: a row a spell (its dice at the way the module picks), the Bonus Action once under the heading,
+    // one "Cast using" block after the rows — each smite's own pills, shown only while its row is ticked (wire below)
+    /** a smite's dice by way, for the row's cost to follow the pill picked */
+    const smiteDice = {};
+    const groupsView = menu.groups.map(g => {
+      const rows = g.rows.map(r => {
+        const facts = edge[r.key];
+        if ( !facts?.spell ) return { key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable };
+        const at = castWaysOf(read.attacker, facts.item, facts.castActivity);
+        smiteDice[r.key] = Object.fromEntries((at?.ways ?? []).map(w => [w.key, smiteDiceText(read.attacker, facts, w)]));
+        return { key: r.key, label: r.label, cost: (at?.pick && smiteDice[r.key][at.pick]) || r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable };
+      });
+      const extra = g.spell ? g.rows.map(r => {
+        const facts = edge[r.key];
+        const pills = facts ? payPillsFor(read.attacker, facts.item, facts.castActivity, payField(r.key), { head: WAYS_HEAD, always: true }) : null;
+        return pills ? `<div data-bf-pay-for="${r.key}" style="display:none;">${pills.html}</div>` : "";
+      }).join("") : null;
+      return { key: g.key, label: g.label, max: g.max, off: !g.free && (g.left <= 0), tag: g.spell ? "" : leftTag(g),
+        note: g.spell ? (HIT_GROUPS[g.key]?.note ?? null) : null, extra, rows };
+    });
     // The offer line in the group's own voice; with two groups, the rule both share.
     const live = menu.groups.some(g => g.free || (g.left > 0));
     const solo = menu.groups.length === 1 ? menu.groups[0] : null;
@@ -287,7 +343,38 @@ registerOfferPart({
       html: hitMenuHTML({ groups: groupsView }),
       lines: [`<strong>${heading}</strong> — ${summary}`],
       wire(element) {
+        root = element;
         const boxes = pickInputs(element, "bf-hit");
+        // a smite's pill picked ticks its row; nothing is ticked unless the hit is a critical hit, which ticks the first
+        // smite that can be paid (RULINGS *Free casts, then slots*, the smite)
+        const smites = menu.groups.filter(g => g.spell).flatMap(g => g.rows);
+        const tick = key => {
+          const box = pickInputs(element, "bf-hit", key)[0];
+          if ( !box || box.checked || box.disabled ) return;
+          box.checked = true;
+          box.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+        // the ticked smite's pills show, the others' hide (read after the group's own untick of a sibling, below)
+        const showPay = () => {
+          for ( const r of smites ) {
+            const block = element.querySelector?.(`[data-bf-pay-for="${r.key}"]`);
+            if ( block ) block.style.display = pickInputs(element, "bf-hit", r.key)[0]?.checked ? "" : "none";
+          }
+        };
+        for ( const r of smites ) {
+          pickInputs(element, "bf-hit", r.key)[0]?.addEventListener("change", () => queueMicrotask(showPay));
+          // the row's dice follow the pill: a higher slot, more dice
+          const cost = element.querySelector?.(`[data-bf-hit-row="${r.key}"] [data-bf-hit-cost]`);
+          for ( const pill of pickInputs(element, payField(r.key)) ) pill.addEventListener("change", () => {
+            if ( !pill.checked ) return;
+            tick(r.key);
+            const text = smiteDice[r.key]?.[pill.value];
+            if ( cost && text ) cost.textContent = text;
+          });
+        }
+        const critical = !!attackMessage?.rolls?.[0]?.isCritical;
+        const first = critical ? smites.find(r => r.affordable) : null;
+        if ( first ) queueMicrotask(() => tick(first.key));
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {
@@ -307,6 +394,7 @@ registerOfferPart({
         const { picks } = hitPick({ menu, chosen });
         const records = picks.filter(p => edge[p.row.key]).map(p => {
           const facts = edge[p.row.key];
+          if ( facts.spell ) return smiteRecord(p, facts, read.attacker, root ? picked(root, payField(p.row.key)) : null);
           return { key: p.row.key, group: p.group, feature: p.row.feature, label: p.row.label, mode: p.row.mode,
             formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null,
             activity: HIT_OPTIONS[p.row.key]?.activity ?? null, paidBySave: facts.paidBySave, ...(facts.standIn ? { standIn: facts.standIn } : {}),
@@ -348,6 +436,20 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
           parts: [pick.formula],
           options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
         });
+      }
+      // THE SMITE: the spell cast the way picked, at the creatures hit; its dice rode above, its own roll stands down. The
+      // spend is the cast's own (its card's line and flash for a free cast's use; a slot, as any spell's): none rides this
+      // card, which would flash it twice, once under the weapon's name.
+      if ( pick.spell ) {
+        void castSmite(attacker, pick, attackMessage).catch(err => log.error(`${pick.feature} could not be cast — cast it from the sheet and spend its cost by hand.`, err));
+        out.push({
+          key: pick.key, feature: row.label ?? row.feature, group: group.label, dieLabel: group.dieLabel,
+          eyebrow: group.eyebrow ?? "Spell", maneuver: false, formula: pick.formula, type: pick.type ?? null, mode: "ride", rides,
+          rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: null, poolSpend: null,
+          save: false, onFail: null, effects: false, itemUuid: pick.itemUuid, clock: null, press: null, activity: null,
+          paidBySave: false, poolUuid: null
+        });
+        continue;
       }
       // One use spent on the item the activity names; the count left is read after the spend. A save option
       // paid by its own activity (Stunning Strike) spends at its use, in the consequences.
@@ -403,6 +505,59 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
     log.error(`The maneuver's die failed to ride — add it by hand.`, err);
   }
 });
+
+/**
+ * A smite's pick on the attack message: the way picked (its pill's key, the module's own when none), the spell's dice
+ * at that way's level (a slot above the spell's: its scaling; a free cast: the spell's own level).
+ * @param {any} p       the pick (`hitPick`)
+ * @param {any} facts   its edge facts
+ * @param {any} attacker
+ * @param {string|null} pay
+ */
+function smiteRecord(p, facts, attacker, pay) {
+  const route = castWayOf(attacker, facts.item, facts.castActivity, { pick: pay });
+  const formula = smiteFormula(attacker, facts, route?.way ?? null);
+  return { key: p.row.key, group: p.group, feature: p.row.feature, label: p.row.label, mode: "ride", formula, type: facts.type,
+    itemUuid: facts.item.uuid, poolUuid: null, activity: null, paidBySave: false, spell: true,
+    pay: (route?.way.kind !== "none") ? route?.way.key ?? pay : pay, castActivityId: facts.castActivity.id };
+}
+
+/**
+ * A smite's dice cast the way given: a slot above the spell's level adds the part's scaling; a free cast or none is the
+ * spell's own level.
+ * @param {any} attacker
+ * @param {any} facts   its edge facts
+ * @param {any} way     a cast way (decide/cast-ways.js), or null
+ */
+function smiteFormula(attacker, facts, way) {
+  const level = Number(facts.item.system?.level) || 1;
+  const delta = (way?.kind === "slot") ? Math.max(0, Number(way.slotLevel) - level) : 0;
+  const part = facts.dieActivity?.damage?.parts?.[0];
+  const scaled = part ? scaledDice({ number: part.number, denomination: part.denomination, bonus: part.bonus, custom: part.custom, scaling: part.scaling }, delta) : null;
+  return scaled ? (resolveDie(attacker, riderPartFormula(scaled)) ?? facts.formula) : facts.formula;
+}
+
+/** A smite's dice and type as its row's cost reads them ("3d8 radiant"). */
+const smiteDiceText = (attacker, facts, way) => {
+  const formula = smiteFormula(attacker, facts, way);
+  return formula ? `${formula}${facts.type ? ` ${facts.type}` : ""}` : "";
+};
+
+/** The smite cast for real at the creatures hit, the way picked (cast-ways.js): its card, its Concentration, the cast
+ * riders after Divine Smite; its own damage roll stands down (damage-casts.js reads `smiteFor`). */
+async function castSmite(attacker, pick, attackMessage) {
+  // live only: the smite is cast from the sheet's own copy of the spell, read now
+  const spell = resolveUuid(pick.itemUuid);
+  const act = spell?.system?.activities?.get(pick.castActivityId) ?? null;
+  const route = act ? castWayOf(attacker, spell, act, { pick: pick.pay }) : null;
+  if ( !route || (route.way.kind === "none") ) {
+    ui.notifications?.warn(`${TITLE}: ${attacker.name} has no way left to cast ${pick.feature} — its dice rode the hit; spend its cost by hand.`);
+    return;
+  }
+  const tokens = hitTargets(attackMessage).map(t => tokenOf(t.uuid)).filter(Boolean);
+  await withTargets(tokens, () => castBy(route, { usage: { subsequentActions: false, create: { measuredTemplate: false } },
+    message: { data: { flags: { [MODULE_ID]: { smiteFor: attackMessage.id } } } } }));
+}
 
 /* --- the consequences: the save at the target, the effect, the sweep card ------------------ */
 

@@ -49,6 +49,7 @@ export const LAYER_OF = {
   "mastery.js": "machines",
   "mastery-record.js": "machines", // the Weapon Mastery paperwork — the fill, the line, the swap, the party view (issue #3)
   "summon-art.js": "machines",     // the Summon Art window — a table's own token and portrait per summoned creature, behind a settings button (issue #1)
+  "free-casts.js": "machines",     // a granted spell's free cast in the sheet's cast window: the picker's twins out, one line in the window
   "summons.js": "machines",        // summons — the one popup off the cast card, the placement, the elect's landing, Dismiss (issue #1)
   "transforms.js": "machines",     // Wild Shape and the polymorph spells — the chooser switched off, the one popup, the elect's transform, the form's end, the Long Rest swap (issue #2)
   "topple.js": "machines",        // the Topple demand off mastery's card
@@ -115,6 +116,7 @@ export const LAYER_OF = {
   "effect-riders.js": "services",
   "gallery.js": "services",        // the shared creature picker — the pool off the packs, the ruled-C rows, the placement preview (issues #1, #2)
   "auto-damage.js": "services",
+  "cast-ways.js": "services",      // the way a spell is paid: the free cast left on any copy, else the lowest slot, a Pact slot too — every driven cast
 
   // SPINE — how a moment is presented, and the shared EDGE readers
   "ui.js": "spine",
@@ -164,6 +166,7 @@ export const LAYER_OF = {
   "decide/drop-to-one.js": "decision",    // the drop-to-1 save facet: the DC from the damage, the exemptions, the words (Undead Fortitude, Death Throes)
   "decide/wards.js": "decision",          // the wards: which use is gated, what ends one, the words
   "decide/duplicates.js": "decision",     // the duplicates: the dice, the face that redirects, who sees through, the chips
+  "decide/cast-ways.js": "decision",     // the way a spell is paid: the free cast, the lowest slot, the button's cost, the window's line
   "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line
   "decide/damage-shares.js": "decision",  // the damage share: what the caster takes, the reach, the end
   "decide/heal-on-hit.js": "decision",    // the heal on hit: the share of what landed, by type

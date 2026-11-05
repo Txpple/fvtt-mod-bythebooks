@@ -15,6 +15,8 @@ import { armHoldTimer } from "./clock.js";
 import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass, useAtZero } from "./answer.js";
 import { activityNamed, d20FactsOf } from "../lookup.js";
 import { continueHold } from "./continue.js";
+import { payPillsFor } from "../cast-ways.js";
+import { WAYS_HEAD } from "../decide/cast-ways.js";
 import { SURFACES } from "../surfaces.js";
 import { listen } from "../dispatch.js";
 import { receiptEntries } from "../auto-apply.js";
@@ -343,8 +345,27 @@ function maneuverPopupContent(attackMessage, target, actor, hold) {
   }) + holdBarHTML(hold, "to answer");
 }
 
-/** The reaction rendered as itself (portrait, enriched text, the math if revealed), not a confirm box. */
-async function holdPopupContent(target, roll, actor, hold) {
+/** A held spell's ways to pay as pills (cast-ways.js), the module's pick ticked; null for anything else (a feature, a
+ * statblock's Spellcasting, a spell with one way). The activity is the one Cast uses (answer.js `castReaction`).
+ * @param {any} actor
+ * @param {any} target */
+function holdPayPills(actor, target) {
+  const own = target.itemId ? (actor?.items?.get(target.itemId) ?? null) : null;
+  const item = own ?? reactionItem(actor, target.reaction, target);
+  if ( (item?.type !== "spell") || (item.actor !== actor) ) return null;
+  const activity = (target.activityId ? item.system.activities?.get(target.activityId) : null)
+    ?? item.system.activities?.contents?.find(a => a.activation?.type === "reaction") ?? item.system.activities?.contents?.[0] ?? null;
+  return payPillsFor(actor, item, activity, "bf-pay", { head: WAYS_HEAD });
+}
+
+/** The reaction rendered as itself (portrait, enriched text, the math if revealed), not a confirm box. `pay` the
+ * spell's pills, drawn before the rule.
+ * @param {any} target
+ * @param {any} roll
+ * @param {any} actor
+ * @param {any} hold
+ * @param {{html: string}|null} [pay] */
+async function holdPopupContent(target, roll, actor, hold, pay = null) {
   // ⚠ The reaction's real item, not a bare-name match (a worn shield shares the spell's name).
   const item = reactionItem(actor, target.reaction, target);
   const img = item?.img ?? "icons/svg/shield.svg";
@@ -385,6 +406,7 @@ async function holdPopupContent(target, roll, actor, hold) {
   </div>
   ${holdBarHTML(hold)}
   <div style="padding:0.6rem 0.1rem;">${situation}</div>
+  ${pay?.html ?? ""}
   ${ruleLine(rule)}`;
 }
 
@@ -414,13 +436,14 @@ async function showHoldPopup(attackMessage, hold) {
 
     // The same two buttons for everyone; a maneuver's answer button is its name.
     const maneuver = !!target.reduce;
+    const pay = maneuver ? null : holdPayPills(actor, target);
     await openMomentPopup(attackMessage, target.uuid, actor, {
       title: maneuver ? `${target.reaction} — ${actor?.name ?? ""}` : target.reaction,
       icon: maneuver ? "fa-solid fa-hand-back-fist" : "fa-solid fa-shield-halved", width: 460,
-      content: maneuver ? maneuverPopupContent(attackMessage, target, actor, hold) : await holdPopupContent(target, roll, actor, hold),
+      content: maneuver ? maneuverPopupContent(attackMessage, target, actor, hold) : await holdPopupContent(target, roll, actor, hold, pay),
       buttons: [
         { action: "cast", label: maneuver ? target.reaction : `Cast ${target.reaction}`, default: true,
-          callback: () => castReaction(attackMessage, target) },
+          callback: (_event, button) => castReaction(attackMessage, target, { pay: pay ? picked(button?.form, "bf-pay") : null }) },
         { action: "pass", label: "Pass",
           callback: () => answerHold(attackMessage, target.uuid, "pass") }
       ]

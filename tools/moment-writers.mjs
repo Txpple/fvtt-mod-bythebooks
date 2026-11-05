@@ -229,6 +229,8 @@ const WORLD_WRITERS = {
   "cast-riders.js": "the surge's line is state (castRider) — the table posts its own card and Tides of Chaos is the sheet's use; Inspiring Smite's hand-out is the rest song's record (restSong)",   // Persistent Rage, Uncanny Metabolism (its heal receipted on the card)
   "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll
   "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect
+  "cast-ways.js": "the spell's use, paid the chosen way — the usage card is the platform's and the caller's record its resolve (a rebuke's, a hold's, a summon's, a smite's); a free cast with no forward spends its copy's use by hand beside it, a slot through a feature's copy of the spell is spent by hand, and a feature's copy not on the sheet yet is made as dnd5e's CastActivity makes it",
+  "free-casts.js": "the sheet's own cast, made again the way picked in its window — the usage card is the platform's; nothing of the module's is stamped",
   "summons.js": ["summon", "effectReceipt", "transform"],   // the creature landed by the elect; the shared resistance receipted on the cast card; the familiar empowered (the transform record stamped at the cast, asked to revert when the empower effect goes)
   "transforms.js": ["transform", "formSwap", "summon"],   // the form landed and ended by the elect; the Long Rest's known-form change landed by the elect; the empowered companion's record re-pointed at the revert
   "mastery-record.js": ["masterySwap"],   // the Long Rest's change landed by the elect; the fill's writes are state on the sheet's own list (masteryFill)

@@ -26,6 +26,7 @@ import "./effect-riders.js";
 import "./mastery.js";
 import "./mastery-record.js";
 import "./summons.js";
+import "./free-casts.js";
 import "./summon-art.js";
 import "./transforms.js";
 import "./topple.js";

@@ -36,6 +36,7 @@ import { momentButton, registerResumable, pendingRow, confirmPopup } from "./ui.
 import { SURFACES } from "./surfaces.js";
 import { closeLedger, landingSteps } from "./ledger.js";
 import { listen, listenOnce } from "./dispatch.js";
+import { castWayOf, useOf } from "./cast-ways.js";
 import { tokenDocOf, tokenOnScene, tokensOf } from "./geometry.js";
 
 const SUMMON_FLAG = "summon";
@@ -253,6 +254,32 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
     // a use sent to its card (`[MODULE_ID].toCard`: a macro, an automation, the live suites) skips the window: the card
     // posts its record asked and its own "Place the creature" answers it
     if ( usageConfig?.[MODULE_ID]?.toCard ) return;
+    // a summon spell's way picked in the window (the shared "Cast using" pills, free-casts.js): Place casts that way — a
+    // free cast through its forward, a slot named, a feature's cast or pool, on whichever copy holds it (cast-ways.js)
+    const pay = usageConfig?.[PAY_FIELD] ?? null;
+    if ( pay && (activity.item?.type === "spell") ) {
+      const live = liveActivity(activity) ?? activity;
+      const route = castWayOf(live.actor, live.item, live, { pick: pay });
+      if ( !route || (route.way.kind === "none") || (route.way.key !== pay) ) {
+        ui.notifications?.warn(`${TITLE}: ${activity.actor.name} has none of that way left to cast ${activity.item.name} — cast it again.`);
+        return false;
+      }
+      const concentration = usageConfig.concentration ? foundry.utils.deepClone(usageConfig.concentration) : undefined;
+      const level = (route.way.kind === "slot") ? route.way.slotLevel : (Number(live.item.system?.level) || live.relevantLevel);
+      const empower = empowerAnswers.get(activity.uuid) ?? null;
+      empowerAnswers.delete(activity.uuid);
+      void (async () => {
+        const plan = await useOf({ ...route, want: route.want ?? live });
+        if ( !plan ) return;
+        const asked = { ...plan.usage, concentration };
+        if ( empower?.empower ) await openEmpowerMenu(plan.activity, asked, level, empower.companionMessageId, plan.after);
+        else await openCastMenu(plan.activity, asked, level, empower?.dismiss ? empower.companionMessageId : null, plan.after);
+      })().catch(err => {
+        log.error(`The summon menu failed — cast the spell again.`, err);
+        ui.notifications?.error(`${TITLE}: the summon menu could not open (${err?.message ?? err}).`);
+      });
+      return false;
+    }
     // another way ticked in the dialog (Wild Companion's Wild Shape use): Place casts with that activity, its own spend
     const way = paidWith.get(activity.uuid);
     paidWith.delete(activity.uuid);
@@ -307,8 +334,9 @@ listen("dnd5e.preActivityConsumption", "summons", (activity, usageConfig) => {
 });
 
 /** The module's menu after the system's dialog, at the cast's level; Place casts with the dialog's answer.
- * `dismisses` a companion's message id the landing dismisses forever (the empower question's "Summon a new one"). */
-async function openCastMenu(activity, asked, level, dismisses = null) {
+ * `dismisses` a companion's message id the landing dismisses forever (the empower question's "Summon a new one");
+ * `after` what the way picked spends by hand once the cast went through (a slot through a feature's copy, cast-ways.js). */
+async function openCastMenu(activity, asked, level, dismisses = null, after = null) {
   const item = activity.item;
   const facts = await castFacts(activity, level);
   const was = companionOf(item.name) ? currentCompanion(summonRecords(), activity.actor.uuid, rulesName(item.name)) : null;
@@ -317,7 +345,10 @@ async function openCastMenu(activity, asked, level, dismisses = null) {
   await askSummon(`cast-${activity.uuid}`, facts, { light: lightRowOf(item.name) }, async answer => {
     const usage = castUsage(asked, { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true, lightOn: answer.lightOn ?? null } });
     planned.set(activity.uuid, dismisses ? { ...answer, dismisses } : answer);
-    try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); }
+    try {
+      const done = await activity.use(usage, { configure: false }, {});
+      if ( done ) await after?.();
+    } finally { planned.delete(activity.uuid); }
   });
 }
 
@@ -328,7 +359,7 @@ async function openCastMenu(activity, asked, level, dismisses = null) {
  * companion keeps its own), no placement (it stands where it is). Empower casts with the dialog's answer;
  * the card then carries a transform record for transforms.js to land (RULINGS *Summons*, the Battle Familiar pass).
  */
-async function openEmpowerMenu(activity, asked, level, companionMessageId) {
+async function openEmpowerMenu(activity, asked, level, companionMessageId, after = null) {
   const item = activity.item;
   const erow = empowerRowOf(item.name);
   const companionMessage = game.messages.get(companionMessageId);
@@ -352,8 +383,12 @@ async function openEmpowerMenu(activity, asked, level, companionMessageId) {
         const usage = castUsage(asked, { create: { summons: false }, [MODULE_ID]: { [CONCENTRATION_ASKED]: true } });
         planned.set(activity.uuid, { empower: { companionMessageId, profileId: profile.id, level: Number(level) || 0,
           pick: { uuid: profile.uuid, name: profile.label || profile.name, img: profile.img ?? null } } });
-        void (async () => { try { await activity.use(usage, { configure: false }, {}); } finally { planned.delete(activity.uuid); } })()
-          .catch(err => log.error(`${item.name} could not be cast — cast it again.`, err));
+        void (async () => {
+          try {
+            const done = await activity.use(usage, { configure: false }, {});
+            if ( done ) await after?.();
+          } finally { planned.delete(activity.uuid); }
+        })().catch(err => log.error(`${item.name} could not be cast — cast it again.`, err));
       } },
       { action: "cancel", label: "Not now" }
     ]
@@ -410,6 +445,9 @@ const payWays = item => [...(item?.system?.activities ?? [])].filter(a => takes(
 /** The way a use was switched to in its dialog, by the dialog's activity uuid: the other activity's id. */
 const paidWith = new Map();
 
+/** The shared pills' field on the system's own form (free-casts.js): a summon spell's way rides the use's config. */
+const PAY_FIELD = "bf-pay";
+
 /** The pool an item-uses activity spends (Wild Companion's Wild Shape use): the item, its uses left, its name. */
 function usesPoolOf(activity) {
   const target = activity?.consumption?.targets?.find?.(t => t.type === "itemUses") ?? null;
@@ -428,7 +466,8 @@ function usesPoolOf(activity) {
 listen("renderActivityUsageDialog", "summons", (app, element) => {
   try {
     const activity = app?.activity;
-    if ( !takes(activity) || !element?.querySelector || element.querySelector("[data-bf-pay-way]") ) return;
+    // a summon SPELL's ways are the shared "Cast using" pills (free-casts.js); these lines are a feature's (Wild Companion)
+    if ( !takes(activity) || (activity.item?.type === "spell") || !element?.querySelector || element.querySelector("[data-bf-pay-way]") ) return;
     const others = payWays(activity.item).filter(w => w.id !== activity.id);
     if ( !others.length ) return;
     // ⚠ the system's tick is the one consume field with a `checked` (a dnd5e-checkbox, or an input on older sheets)

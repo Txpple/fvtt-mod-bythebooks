@@ -1204,6 +1204,10 @@ export function tableIndex(table, keyOf = null) {
  *   line     the card's words for a consequence the table plays;  melee  melee attacks only
  *   activity the option's own activity BY NAME (several options on one item: Open Hand Technique's three)
  *   label    the row's words when several options share a feature;  noDie  no die: the pool (or nothing) pays
+ *   spell    the option is a SPELL on the sheet (a `pool: "spell"` group, the smite): paid by the cast way picked
+ *            (cast-ways.js), its damage activity's dice riding the hit at the slot's level;  unholy  the damage activity
+ *            used instead when every creature hit is a Fiend or an Undead (Divine Smite)
+ *   weapons "melee"  a Melee weapon or an Unarmed Strike (the smites)
  *   oncePerTurn  a per-OPTION turn chit (the rider chit, keyed by the option); greyed "used this turn"
  *   unarmed  an Unarmed Strike only;  weapons "monk"  a Monk weapon or an Unarmed Strike;  weapon  a weapon only
  *   only     "flurry" — an Unarmed Strike after Flurry of Blows THIS turn (its use writes a chit; out of combat
@@ -1215,7 +1219,8 @@ export function tableIndex(table, keyOf = null) {
  *            and the save follows with no dice and no second spend;  weapons "ammunition"  a ranged Ammunition weapon
  *   onceKey  the turn chit's key, shared by every option of a group that is once per turn as a whole (Arcane Shot)
  * A group's `feature` is the paying feature (null: nothing to carry — Giant Ancestry); `pool` "feature"
- * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid) | "pactSlot" (B4, Eldritch Smite: a
+ * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid) | "spell" (each option a spell, paid the
+ * shared cast way: the smite) | "pactSlot" (B4, Eldritch Smite: a
  * Pact Magic slot — `system.spells.pact`, every slot one level, so no picker; Q9's `poolOf` branch); `max` picks
  * (`maxAt` { levels, at, max } — D1: the group's `max` rises at a class level read off the attacker's roll data);
  * `ownDice` each option shows its own die beside the pool's one use (Monk's Focus); the rest are the card's words.
@@ -1271,7 +1276,15 @@ export const HIT_GROUPS = Object.freeze({
   // condition lands on the failure); Bursting's die rides the hit (`ownDice`). Piercing and Seeking Shot replace the attack roll — text.
   "arcane-shot": Object.freeze({ feature: "Arcane Shot", pool: "feature", ownDice: true, label: "Arcane Shot", max: 1,
     dieLabel: "use", eyebrow: "Arcane Archer", heading: "Arcane Shot", per: "one option per hit, once per turn, on a ranged Ammunition weapon", from: "Fighter — Arcane Archer 3 (Arcana Unleashed)",
-    rule: Object.freeze({ item: "Arcane Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunArcaneShot000" }) })
+    rule: Object.freeze({ item: "Arcane Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunArcaneShot000" }) }),
+  // THE SMITE (RULINGS *Free casts, then slots*, the smite): a smite spell cast as a Bonus Action right after a Melee weapon
+  // or Unarmed Strike hit, `pool: "spell"` — each option is a spell on the sheet, paid the shared way (cast-ways.js: the
+  // free cast — Paladin's Smite — then the slots) by its row's "Cast using" pills. Its damage rides the hit's roll at the
+  // slot's level (doubled on a critical hit); the cast is real, its own damage roll stands down (damage-casts.js). Unticked
+  // unless the hit is a critical hit. `note` the group's one line under its heading (the Bonus Action, once for all).
+  "smite": Object.freeze({ feature: null, pool: "spell", label: "Smite", max: 1, dieLabel: "cast", eyebrow: "Spell", heading: "Smite",
+    per: "one smite per hit", note: "Requires a Bonus Action — determined by the table", from: "the smite spells",
+    rule: Object.freeze({ item: "Divine Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDivineSmit" }) })
 });
 
 export const HIT_OPTIONS = Object.freeze({
@@ -1374,7 +1387,31 @@ export const HIT_OPTIONS = Object.freeze({
     line: "Played at the table: the brambles hold for 1 minute or until you use this option again; the Escape Check (Athletics against your Arcane Shot DC) is the sheet's.",
     rule: Object.freeze({ item: "Grasping Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunGraspingShot0" }) }),
   "shadow-shot": Object.freeze({ feature: "Shadow Shot", group: "arcane-shot", save: true, saveDice: true, ownType: true, oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition",
-    rule: Object.freeze({ item: "Shadow Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunShadowShot000" }) })
+    rule: Object.freeze({ item: "Shadow Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunShadowShot000" }) }),
+  // THE SMITE (HIT_GROUPS `smite`): the eight smite spells; `activity` the damage activity that rides (none: the spell's
+  // first damage activity), `unholy` Divine Smite's against a Fiend or an Undead.
+  "divine-smite": Object.freeze({ feature: "Divine Smite", group: "smite", spell: true, activity: "Cast", unholy: "Unholy Creature Damage", label: "Divine Smite", melee: true, weapons: "melee",
+    rule: Object.freeze({ item: "Divine Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDivineSmit" }) }),
+  "searing-smite": Object.freeze({ feature: "Searing Smite", group: "smite", spell: true, activity: null, label: "Searing Smite", melee: true, weapons: "melee",
+    line: "the burn at the start of each of its turns and its Constitution save are the spell card's.",
+    rule: Object.freeze({ item: "Searing Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSearingSmi" }) }),
+  "thunderous-smite": Object.freeze({ feature: "Thunderous Smite", group: "smite", spell: true, activity: null, label: "Thunderous Smite", melee: true, weapons: "melee",
+    line: "the Strength save against the push and Prone is the spell card's.",
+    rule: Object.freeze({ item: "Thunderous Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplThunderous" }) }),
+  "wrathful-smite": Object.freeze({ feature: "Wrathful Smite", group: "smite", spell: true, activity: null, label: "Wrathful Smite", melee: true, weapons: "melee",
+    line: "the Wisdom save against Frightened is the spell card's.",
+    rule: Object.freeze({ item: "Wrathful Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplWrathfulSm" }) }),
+  "shining-smite": Object.freeze({ feature: "Shining Smite", group: "smite", spell: true, activity: null, label: "Shining Smite", melee: true, weapons: "melee",
+    rule: Object.freeze({ item: "Shining Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplShiningSmi" }) }),
+  "blinding-smite": Object.freeze({ feature: "Blinding Smite", group: "smite", spell: true, activity: null, label: "Blinding Smite", melee: true, weapons: "melee",
+    line: "the end-of-turn Constitution save against Blinded is the spell card's.",
+    rule: Object.freeze({ item: "Blinding Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBlindingSm" }) }),
+  "staggering-smite": Object.freeze({ feature: "Staggering Smite", group: "smite", spell: true, activity: null, label: "Staggering Smite", melee: true, weapons: "melee",
+    line: "the Wisdom save against Stunned is the spell card's.",
+    rule: Object.freeze({ item: "Staggering Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplStaggering" }) }),
+  "banishing-smite": Object.freeze({ feature: "Banishing Smite", group: "smite", spell: true, activity: null, label: "Banishing Smite", melee: true, weapons: "melee",
+    line: "the banishment below 50 Hit Points is the spell card's.",
+    rule: Object.freeze({ item: "Banishing Smite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBanishingS" }) })
 });
 
 

@@ -352,7 +352,10 @@ export function optionAskHTML(asks) {
 /**
  * THE HIT MENU on the damage offer (RULINGS *The hit menu*): a group per paying feature, one
  * pick per group (the EDGE unticks the sibling); a spent group greys, its tag saying why.
- * @param {{groups: {key: string, label: string, tag: string, off: boolean,
+ * A group's `note` is a quiet line under its heading (the smite's Bonus Action, once for every row); its `extra` is
+ * markup drawn after its rows (the smite's "Cast using" pills, payPillsHTML). A row's cost is marked so a pick can
+ * rewrite it (the smite's dice at the slot picked).
+ * @param {{groups: {key: string, label: string, tag: string, off: boolean, note?: string|null, extra?: string|null,
  *          rows: {key: string, label: string, cost: string, caveat?: string|null, rule: object|string|null, affordable: boolean}[]}[]}} view
  */
 export function hitMenuHTML({ groups }) {
@@ -364,7 +367,7 @@ export function hitMenuHTML({ groups }) {
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.affordable ? "cursor:pointer;" : "opacity:0.5;"}">
         ${pickInputHTML({ name: "bf-hit", value: r.key, data: { "bf-hit-group": g.key }, disabled: !r.affordable, style: "margin:0;" })}
         <span style="font-weight:bold;">${attr(r.label)}</span>
-        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${attr(r.cost)}</span>
+        <span data-bf-hit-cost style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${attr(r.cost)}</span>
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");
     return `
@@ -373,7 +376,9 @@ export function hitMenuHTML({ groups }) {
         <span style="font-weight:bold;font-size:var(--font-size-12,12px);">${attr(g.label)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;opacity:0.85;${g.off ? "color:var(--color-level-error,#b44);" : ""}">${attr(g.tag)}</span>
       </div>
+      ${g.note ? `<div style="font-size:var(--font-size-11,11px);opacity:0.8;font-style:italic;">${attr(g.note)}</div>` : ""}
       ${items}
+      ${g.extra ? `<div data-bf-hit-extra="${attr(g.key)}" style="margin:0 0 0.3rem 0.5rem;">${g.extra}</div>` : ""}
     </div>`;
   }).join("");
   return `
@@ -841,6 +846,22 @@ export function tickRowsHTML({ name, rows, kind = "checkbox" }) {
         ${foldedRuleHTML(r.rule ?? "").replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");
   return `<div data-bf-ticks="${attr(name)}" style="margin-top:0.4rem;">${items}</div>`;
+}
+
+/**
+ * THE WAY TO PAY (RULINGS *Free casts, then slots*): a spell's ways as radio pills, in the order the module picks (the
+ * free casts, then each slot from the lowest), `pick` ticked, a way none is left of greyed with its count: the sheet's
+ * standing at a glance, one click to cast the pick. `head` a line of its own above them ("Cast using:"), the pills
+ * under it one to a line, their left edges aligned.
+ * @param {{name: string, ways: {key: string, label: string, count: string, off: boolean}[], pick: string|null, head?: string}} view
+ */
+export function payPillsHTML({ name, ways, pick, head = "" }) {
+  const pills = (ways ?? []).map(w => `<label data-bf-pay-way="${attr(w.key)}" style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;
+      border:1px solid var(--color-border-dark,#0006);border-radius:12px;${w.off ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}">
+      ${pickInputHTML({ kind: "radio", name, value: w.key, checked: !w.off && (w.key === pick), disabled: !!w.off, style: "margin:0;" })}
+      <span>${esc(w.label)}</span><span style="opacity:0.7;font-size:var(--font-size-11,11px);">${esc(w.count)}</span></label>`).join("");
+  return `<div data-bf-pay="${attr(name)}" style="display:flex;flex-direction:column;align-items:flex-start;gap:0.3rem;margin:0.3rem 0;">`
+    + `${head ? `<span style="opacity:0.8;font-size:var(--font-size-12,12px);">${esc(head)}:</span>` : ""}${pills}</div>`;
 }
 
 /**

@@ -7,17 +7,18 @@
 
 /**
  * The menu for one hit: each group whose feature stands with a resolved pool, and its listed options
- * in table order. `pool: "option"` pays per OPTION, `"free"` pays nothing; `fits` false greys a row, null leaves it open.
+ * in table order. `pool: "option"` pays per OPTION, `"spell"` too (each option a spell, its pool entry 1 left while a
+ * cast way stands, its `cost` the row's words), `"free"` pays nothing; `fits` false greys a row, null leaves it open.
  * @param {{groups: Readonly<Record<string, any>>, options: Readonly<Record<string, any>>,
  *          listed: Iterable<string>, features: Iterable<string>, melee?: boolean,
- *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null}|null|undefined>,
+ *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null, cost?: string}|null|undefined>,
  *          fits?: Record<string, boolean|null|undefined>, eligible?: Record<string, boolean|undefined>,
  *          used?: Record<string, boolean|undefined>, dice?: Record<string, {die: string|null, type?: string|null}|undefined>}} facts
  *        `pools` keyed by group (by option for an option-pool group); null when unreadable. `eligible` false: the
  *        hit's facts rule the option out (not this weapon, no Flurry) — no row. `used` true: its once-per-turn chit
  *        stands — greyed. `dice` an `ownDice` group's option's own die.
  * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number|null, rule: object|string|null,
- *            perOption: boolean, free: boolean, ownDice: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
+ *            perOption: boolean, free: boolean, ownDice: boolean, spell: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
  *            rows: {key: string, feature: string, label: string, cost: string, mode: string, save: boolean,
  *                   line: string|null, caveat: string|null, rule: object|string|null, affordable: boolean}[]}[]}}
  */
@@ -28,7 +29,8 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
   const out = [];
   for ( const [gkey, group] of Object.entries(groups ?? {}) ) {
     if ( group.feature && !have.has(lower(group.feature)) ) continue;
-    const perOption = group.pool === "option";
+    const spell = group.pool === "spell";
+    const perOption = (group.pool === "option") || spell;
     const free = group.pool === "free";
     const ownDice = !!group.ownDice;
     const shared = (perOption || free) ? null : pools?.[gkey];
@@ -50,7 +52,7 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       const spent = !!row.oncePerTurn && !!used?.[key];
       const own = ownDice ? (dice?.[key] ?? null) : null;
       const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${(Number(pool.max) || rowLeft) === 1 ? group.dieLabel : pluralOf(group.dieLabel)} left`;
-      const cost = perOption
+      const cost = pool.cost ? pool.cost : perOption
         ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
         : free ? (own?.die ? `${own.die}${own.type ? ` ${own.type}` : ""} · free` : "free")
           : ownDice ? `${own?.die ? `${own.die}${own.type ? ` ${own.type}` : ""} · ` : ""}1 ${group.dieLabel}`
@@ -69,10 +71,24 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
     }
     if ( !rows.length ) continue;
     out.push({ key: gkey, label: group.label, max: group.max ?? 1, die: (perOption || ownDice) ? null : (shared?.die ?? null), left, rule: group.rule,
-      perOption, free, ownDice, heading: group.heading ?? group.label, per: group.per ?? "one pick per hit",
+      perOption, free, ownDice, spell, heading: group.heading ?? group.label, per: group.per ?? "one pick per hit",
       eyebrow: group.eyebrow ?? "Maneuver", dieLabel: group.dieLabel, rows });
   }
   return { groups: out };
+}
+
+/**
+ * A damage part cast at a higher level (the smite through a higher slot): its dice raised by the part's scaling, `delta`
+ * levels above the spell's ("whole" adds its number a level, "half" every second level, none adds nothing).
+ * @param {{number?: number, denomination?: number, bonus?: string, custom?: object, scaling?: {mode?: string, number?: number}}} part
+ * @param {number} delta
+ */
+export function scaledDice(part, delta) {
+  const up = Math.max(0, Number(delta) || 0);
+  const step = Number(part?.scaling?.number) || 0;
+  const mode = String(part?.scaling?.mode ?? "");
+  const more = (mode === "whole") ? up * step : (mode === "half") ? Math.floor(up / 2) * step : 0;
+  return { ...part, number: (Number(part?.number) || 0) + more };
 }
 
 /** A pool's word counted: "Superiority Die" → "Superiority Dice", "Focus Point" → "Focus Points". */
@@ -91,6 +107,8 @@ export function optionReaches({ row, unarmed, weapon, monkWeapon, own, flurry, a
   if ( row.unarmed && !unarmed ) return false;
   if ( row.weapon && !weapon ) return false;
   if ( (row.weapons === "monk") && !(unarmed || monkWeapon) ) return false;
+  // the smites: a Melee weapon or an Unarmed Strike (`melee` rules out the ranged attack)
+  if ( (row.weapons === "melee") && !(weapon || unarmed) ) return false;
   // Arcane Shot: a RANGED attack with a weapon that has the Ammunition property.
   if ( (row.weapons === "ammunition") && !ammunition ) return false;
   if ( (row.only === "own") && !own ) return false;

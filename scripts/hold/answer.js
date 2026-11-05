@@ -21,6 +21,7 @@ import { originData } from "../decide/card.js";
 import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { listen } from "../dispatch.js";
 import { tokenOf } from "../geometry.js";
+import { castWayOf, castBy } from "../cast-ways.js";
 
 /**
  * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): the first that ACTS settles it;
@@ -473,9 +474,13 @@ async function bendFromTheSheet(actor, name) {
 
 /**
  * The Cast button REALLY casts; the usage hook answers the hold. ⚠ Never merely record "cast":
- * the hold would resolve against an unchanged AC (ARCHITECTURE.md §6).
+ * the hold would resolve against an unchanged AC (ARCHITECTURE.md §6). `pay` the way the player picked to pay a
+ * spell (a pill's key, cast-ways.js), the module's own pick when none.
+ * @param {any} attackMessage
+ * @param {any} target
+ * @param {{pay?: string|null}} [options]
  */
-export async function castReaction(attackMessage, target) {
+export async function castReaction(attackMessage, target, { pay = null } = {}) {
   const actor = await resolveUuidAsync(target.uuid);
   // Parry's pack activity is a heal that would post its own card: spent by hand instead.
   if ( target.reduce?.formula ) return parryReaction(attackMessage, target, actor);
@@ -518,8 +523,17 @@ export async function castReaction(attackMessage, target) {
   const data = multiplierRow?.failDamage
     ? { data: { flags: { [MODULE_ID]: { failDamage: { ...multiplierRow.failDamage, attackId: attackMessage.id, takenBy: actor.uuid, by: multiplierKey } } } } }
     : {};
-  // No usage dialog (the lowest slot; upcast from the sheet); the module drives what follows.
-  const cast = () => activity.use({ subsequentActions: false }, { configure: false }, data);
+  // No usage dialog; the module drives what follows. A levelled spell is paid the way the player picked on the popup
+  // while it is left, else the shared way (cast-ways.js): its free cast while one is left (Magic Initiate's Shield),
+  // else the lowest slot, a Pact slot too.
+  const route = (activity.item?.type === "spell") ? castWayOf(actor, activity.item, activity, { pick: pay }) : null;
+  if ( route?.way.kind === "none" ) {
+    ui.notifications.warn(`${TITLE}: ${actor?.name ?? target.name} has no way left to cast ${target.reaction} (${route.way.why}).`);
+    return;
+  }
+  const cast = () => route
+    ? castBy(route, { usage: { subsequentActions: false }, message: data })
+    : activity.use({ subsequentActions: false }, { configure: false }, data);
   await (aim ? withTargets([aim], cast) : cast());
   // C1 — a multiplier row's typed effect (Superior Hunter's Defense, `effects: "type"`) lands in auto-apply.js AFTER the held
   // share has landed: landed here, the platform's Resistance would halve the share a second time on top of the hold's half.

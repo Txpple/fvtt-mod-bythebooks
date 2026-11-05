@@ -16,6 +16,7 @@ import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMute
 import { facesThatTurn } from "../decide/stored-dice.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
+import { castWayOf } from "../cast-ways.js";
 
 /** The item types a reaction's or a spell's row means: a spell or a monster's feature, never the
  * +1 Shield armor that shares the Shield spell's identifier. */
@@ -65,13 +66,16 @@ export async function usableReaction(actor, name) {
     // A text-only feature (Uncanny Dodge) counts; the answer spends the Reaction chip itself.
     if ( !isReactionItem(item) && !isTextOnlyFeature(item) ) continue;
 
+    // A levelled spell is paid the shared way (cast-ways.js): a free cast spent still leaves the slots (Magic Initiate's Shield).
+    const route = (item.type === "spell") ? castWayOf(actor, item) : null;
     const uses = limitedUses(item);
-    if ( uses === "spent" ) continue;                 // limited-use feature, none left
+    if ( !route && (uses === "spent") ) continue;     // limited-use feature, none left
     if ( item.type === "spell" ) {
       // ⚠ `prepared` is a PC concept: every levelled spell on a 2024 statblock reads prepared 0.
       if ( (actor.type === "character") && !item.system.prepared ) continue;
+      if ( route ) { if ( route.way.kind === "none" ) continue; }
       // ⚠ A statblock spell can be paid by its OWN x/day uses instead of a slot.
-      if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
+      else if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
     }
     return { item, activity: null };
   }

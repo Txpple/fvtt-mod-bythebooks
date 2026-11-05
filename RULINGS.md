@@ -1041,8 +1041,8 @@ on the user's word. The full battery proved them on 2026-09-26.
   Drop to 0 or the clock lands the 0; never against an outright kill); Death Ward is automatic, its
   effect removed. Sheet-typed HP goes around it (the register). Slice B adds its monster rows.
   `smoke-drop`.
-- **Hellish Rebuke from Fiendish Legacy**: a spell with its own use left needs no slot — the
-  rebuke casts with `consume.spellSlot: false` and the use pays.
+- **Hellish Rebuke from Fiendish Legacy**: a spell with its own use left needs no slot; once spent, a
+  slot pays — the shared way, *Free casts, then slots* (2026-11-04).
 
 ## The origin feats (2026-09-25, off `prototypes/origin-feats.html`)
 
@@ -2624,7 +2624,7 @@ NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the use
 | Wild Magic Surge, a slot cast | the cast card's line "Wild Magic Surge — d20: 14, nothing"; on a 20 "a SURGE — …" and the table's card |
 | Wild Magic Surge, a second cast the same turn | no line |
 | Tides of Chaos spent, a slot cast | "Tides of Chaos spent: the surge rolls — …; Tides of Chaos regained"; the sheet's Tides back |
-| Inspiring Smite after Divine Smite | the dice on a card; the popup "Share 13 Temporary Hit Points", a tick per creature within 30 ft, the paladin ticked, each ticked row's share beside it ("+7", "+6") and "13 among 2"; OK: the card names each share and "1 Channel Divinity spent"; No: nothing spent |
+| Inspiring Smite after Divine Smite | the dice on a card; the popup "Share 13 Temporary Hit Points", its cost in the module's spend words ("OK spends 1 Channel Divinity; No spends nothing · Channel Divinity: 2 of 3 remaining", since 2026-11-04: the user asked it be "more explicit about costing 1 channel divinity and x remaining"), a tick per creature within 30 ft, the paladin ticked, each ticked row's share beside it ("+7", "+6") and "13 among 2"; OK: the card names each share and "1 Channel Divinity spent"; No: nothing spent |
 | Inspiring Smite, the timer runs out | all of it to the paladin, "(timer: all to the giver)" |
 
 ## The PHB classes — B1 (2026-09-30, Session 0 stage B1)
@@ -4403,6 +4403,89 @@ The suites: `smoke-class-warlock` §21 (the card is dnd5e's healing card, `type:
 ⟨fallen⟩ falls"); `smoke-class-wizard` §41j–k (a friend's miss a stored 20 turns: a Critical Hit, the damage rolled critical); `smoke-class-paladin` §23
 (Sacred Weapon worn: the effect's light and +Cha, the weapon drop refused, Radiant ticked and unticked on a hit, a re-use one effect); `smoke-class-paladin` §40 (13 shared, the paladin ticked alone: +13; the PC ticked too: +7 and +6 shown,
 7 and 6 landed; No; the clock's 13 to the paladin); `tests/decide-classes-a7.test.js` (`evenSplit`), `tests/decide-token-lights.test.js` (`wornChanges`), `tests/decide-classes-a1.test.js` (the Radiant rider).
+
+## Free casts, then slots (2026-11-04)
+
+**A granted spell's one free cast first, then the caster's slots, on every copy and every road.** User, 2026-11-04,
+off Lysandra Vane's Hellish Rebuke on the sandbox (the free cast spent, the rebuke refused "no 1st level spell
+slots" with both Pact slots open): *"gets 1 hellish rebuke, then can use spell slots. i see this pattern a lot
+where theres the free 1, then rest are slots. we need to make a pattern to solve for this"* — Magic Initiate,
+Paladin's Smite's Divine Smite, Familiar Friend, Fey Touched *"and many more"*.
+
+- **The shape is dnd5e's, so no table**: the granting feature leaves a copy of the spell with one use and a
+  "(free casting)" forward spending it; the slots cast the same spell through its main activity, on that copy or
+  another (the Warlock's own Hellish Rebuke beside the species' copy; Kartor's "Divine Smite - Free Cast" beside the
+  Paladin's). Copies are one spell by identifier, source or name, at one level. Any granted spell of that shape
+  takes part, named or not.
+- **The ways, and the player's pick** (`decide/cast-ways.js`, `cast-ways.js`). User, the same day: *"i would like
+  the player to be able to choose, with the default in your defined order ... the standard radio button choice of
+  which to use first, overridable by player and so they can see what their sheet has, but option to click thru fast
+  and easy"*. Every way the sheet holds is a radio pill under *Cast using* (the Player's Handbook's own verb: "cast the
+  spell using any spell slots you have"), in dnd5e's own words, in the module's order: each free cast (its granter
+  named, "Free Casting (Fiendish Legacy) 1/1"), then each slot at or above the spell's level, from the lowest, a Pact slot
+  before a numbered one of its level (it comes back on a Short Rest). A way with none left is greyed with its count.
+  The first left is picked, so one click casts; another pill overrides it. A free cast goes through its forward
+  (dnd5e spends the use, no slot); a slot is named outright (dnd5e defaults a granted "spell"-method copy to a level 1
+  slot, which a Warlock does not have), through the copy whose method owns it, else any copy a slot can cast. A pick
+  spent since the popup opened falls to the first way left. Nothing left: nothing is offered, "no spell slot".
+- **The roads**: the rebuke's popup (`rebukes.js`: the pills under the spell's line when it has two ways or more,
+  the offer's cost the module's pick), the reaction hold's Cast popup (`hold/views.js`, `hold/answer.js`; the hold's
+  lookup no longer lets a spent free copy hide a reaction the slots still pay for), and the sheet's own cast window
+  (`free-casts.js`): the "(free casting)" twins leave the activity picker (a spell left with one activity opens its
+  window at once), and a spell with any way but slots (a free cast, at will, a pool) on any copy shows its ways as
+  pills in place of the system's slot line, slot pick and a feature's own spend line, which are hidden and set to the
+  pick. A slot picked is the system's own cast; a free cast
+  picked is cast again through the free cast before anything is spent, its Concentration and template answers
+  carried.
+- **Summons and the other casts** (user, the same day: *"find familiar and other summons, other casts should be moved
+  here"*). A summon spell's window shows the same pills (Familiar Friend's Find Familiar beside a Wizard's, Faithful
+  Steed's Find Steed); the summon machine's veto takes the pick, and Place casts that way on whichever copy holds it
+  (`summons.js`). The summon machine's own lines stay only for a feature's ways (Wild Companion: a spell slot or a
+  Wild Shape use).
+- **A feature's own cast** (dnd5e's second shape). A "cast" activity on a feature puts its own copy of the spell on
+  the sheet (`cachedFor`), spending what the activity names. It is a way like any other: its uses or the activity's
+  a free cast ("Free Casting (Favored Enemy) 2/2"); no spend at will ("At Will (Armor of Shadows)", first); another
+  item's uses a pool, after the slots ("Channel Divinity (War God's Blessing) 1/2", "Monk's Focus ×2 (Shadow Arts)").
+  dnd5e never lets that copy spend a slot, so once the feature's casts are spent a Ranger whose only Hunter's Mark is
+  Favored Enemy's had no slot way at all. A slot picked through it is named for the cast, the feature's spend switched
+  off, and the slot spent by hand. Its scaling is the feature's (Favored Enemy's allows none), so it is cast at its
+  base level. A slot through a sheet copy is preferred where one stands.
+- **The smite on the hit** (user, the same day: *"smite should also"*; *"for the offer on smite, default to no, but if
+  its a crit, default to yes"*; the Bonus Action told, *"Requires a Bonus Action - determined by the table"*; then *"any
+  ideas how to compress this? it can easily get to be a really long list"*, the compact form below). The hit menu
+  gains a Smite group (`HIT_GROUPS.smite`, `pool: "spell"`): a row for each smite spell the attacker can cast now
+  (Divine, Searing, Thunderous, Wrathful, Shining, Blinding, Staggering, Banishing Smite), on a hit with a Melee
+  weapon or an Unarmed Strike, as the 2024 spells' casting time says. The group says "Requires a Bonus Action —
+  determined by the table" once under its heading; each row is one line, its tick, its name and its dice. Nothing is
+  ticked unless the hit is a critical hit, which ticks the first smite that can be paid. One "Cast using" block
+  follows the rows, the ticked smite's own pills (a free cast is one spell's, the slots every smite's), hidden while
+  none is ticked; the ticked row's dice follow the pill ("2D8 RADIANT" at a level 1 slot, "3D8" at a level 2). The
+  spell's damage activity's dice ride the hit's roll at the picked way's level (a higher slot adds the part's
+  scaling; the free cast is the spell's own level), so a critical hit doubles them, as the rule's "from the attack"
+  has it; Divine Smite rides its Fiend-or-Undead damage when every creature hit is one. The spell is cast for real the
+  way picked, at the creatures hit (its card, its Concentration, Inspiring Smite and Smite of Protection after Divine
+  Smite), its own damage roll standing down (`smiteFor`, `damage-casts.js`); a save the spell asks (Thunderous'
+  push, Wrathful's Frightened) is its card's Save, the row's line says so. The spend is the cast's own: its card's
+  line and flash for a free cast's use, a slot as any spell's (never flashed); none rides the damage card, whose record
+  flashed it twice, once under the weapon's name (the sandbox, "Kartor Bloodaxe used Battleaxe — Free Casting
+  (Paladin)").
+- **The inventory** (2026-11-04, every Item pack of the six rulebooks; the scan reads each item's advancements and
+  activities and each description's "without a spell slot"):
+
+  | Shape | What dnd5e builds | Rulebook grants | Here |
+  |---|---|---|---|
+  | Free casting | an ItemGrant or ItemChoice advancement with spell uses: the copy's use and its "(free casting)" forwards | PHB: Paladin's Smite (Divine Smite), Faithful Steed (Find Steed), Contact Patron, Star Map (Guiding Bolt, Wisdom modifier a Long Rest), the Elven and Gnomish lineages, the three Fiendish Legacies, Fey-Touched, Shadow-Touched, Magic Initiate, Telepathic. Arcana Unleashed: Familiar Friend (Find Familiar), Warlike Familiar (Battle Familiar), Magic Connoisseur, the eight Mastered schools, Shape-Shifter (Polymorph), Undead Thralls (Animate Dead), Wondrous Alteration (Alter Self). Heroes of Faerûn: Boon of Revelry, Enclave Magic. Ravenloft: Empowered Channeling (Spirit Guardians), Hexblood (Disguise Self, Hex), Watchers. | the pills, every road |
+  | A feature's cast, its own uses | a "cast" activity spending the feature's or the activity's uses | PHB: Favored Enemy (Hunter's Mark), Steps of the Fey (Misty Step), Gift of the Depths (Water Breathing). Arcana Unleashed: Dispelling Recovery (Dispel Magic). Heroes of Faerûn: Spellfire Spark. Ravenloft: Voice of Death, Refined Reanimation, Gathered Whispers' Augury, Second Skin, the Dark Gift marks. DMG: the Supernatural Gift charms. | the pills; a slot spent by hand through it |
+  | A feature's cast, another pool | a "cast" activity spending another item's uses | PHB: Shadow Arts (Darkness, Monk's Focus), War God's Blessing (Shield of Faith, Spiritual Weapon; Channel Divinity). Ravenloft: Beasts of Ill Omen (Summon Beast, 3 Sorcery Points). | the pills, the pool after the slots |
+  | A feature's cast, at will | a "cast" activity spending nothing | PHB: the Eldritch Invocations (Armor of Shadows, Ascendant Step, Mask of Many Faces, Master of Myriad Forms, Misty Visions, One with Shadows, Otherworldly Leap, Visions of Distant Realms, Whispers of the Grave), Misty Escape, Mage Hand Legerdemain. Heroes of Faerûn: Dread Allegiance's cantrips. Ravenloft: Channeler, Living Shadow, Touch of Death. | the pills, at will first |
+  | A summon on a feature | a feature's own summon activity | PHB: Wild Companion (a slot or Wild Shape), Pact of the Chain and Investment of the Chain Master (Find Familiar), Phantasmal Creatures, Primal Companion, Invoke Duplicity. Arcana Unleashed: Semblance of Life, Elemental and Otherworldly Familiar. | the summon machine's own lines (*Summons*) |
+  | Text only | nothing a cast can read: the description alone | PHB: Dragon Companion (Summon Dragon), Fey Reinforcements (Summon Fey), Misty Wanderer, Mystic Arcanum, Natural Recovery, Signature Spells, Spell Mastery, Divine Intervention, Bewitching Magic, Mantle of Majesty, Telekinetic Master, The Third Eye, Fiendish Vigor. Heroes of Faerûn: Mind Magic. | none: the MCP's `add-free-cast` gives a sheet the first shape |
+
+  Magic items' charges (a wand's, a staff's: 300-odd "cast" activities in the DMG and Arcana Unleashed) are the
+  item's own casts, not a copy of a spell the caster holds, and stay the item's. A monster's Spellcasting is its
+  statblock's.
+- Pinned by `tests/decide-cast-ways.test.js` and `smoke-free-casts` (§1-§4 the rebuke on a Fighter lent both
+  copies and two Pact slots by override, §5 the window, §6 the popup's pick overridden).
 
 ## Rulings the code carried
 

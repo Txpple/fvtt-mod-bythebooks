@@ -7,7 +7,7 @@
 import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statContext, resolveUuid, resolveUuidAsync, log, claimLanding, claimHolds } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML, ruleLine } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, foldedRuleHTML, pickInputHTML, ruleLine, spendLine } from "./decide/present.js";
 import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
 import { evenSplit } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
@@ -676,11 +676,15 @@ async function showDividePopup(message, flag, actor, row) {
       <span data-bf-share-n style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.8;"></span>
       <span style="width:2.5rem;text-align:right;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
   const reach = Number.isFinite(flag.reach) ? `within ${flag.reach} ft` : "on the scene";
+  // the cost in the module's spend words, as the maneuvers' popups say it: what OK spends and what stands now
+  const pool = flag.cost?.itemId ? actor.items.get(flag.cost.itemId) : null;
+  const costLine = flag.cost ? `<strong>OK spends 1 ${esc(flag.cost.name)}</strong>; No spends nothing${pool
+    ? ` · ${esc(spendLine({ pool: flag.cost.name, left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0) }))}` : ""}` : "";
   const dialog = await openMomentPopup(message, SONG_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-heart", width: 420,
     content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: flag.row, tone: "pending",
-      title: `Share ${flag.amount} Temporary Hit Points`, subtitle: `tick creatures ${reach}, you among them — split evenly${flag.cost ? ` · 1 ${flag.cost.name}` : ""}`,
-      lines: [row?.rule ? foldedRuleHTML(row.rule) : ""] })
+      title: `Share ${flag.amount} Temporary Hit Points`, subtitle: `tick creatures ${reach}, you among them — split evenly`,
+      lines: [costLine, row?.rule ? foldedRuleHTML(row.rule) : ""].filter(Boolean) })
       + `<div data-bf-share data-total="${flag.amount}" style="margin:0.4rem 0;">${flag.candidates.map(rowOf).join("")}`
       + `<div data-bf-share-left style="text-align:right;font-size:var(--font-size-11,11px);opacity:0.8;"></div></div>`
       + holdBarHTML(flag, "to answer"),

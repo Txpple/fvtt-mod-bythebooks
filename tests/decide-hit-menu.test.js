@@ -50,14 +50,30 @@ describe("the table", () => {
       "Improved Brutal Strike",
       "Improved Brutal Strike"
     ]);
-    expect(rows).toHaveLength(28); // + Eldritch Smite (B4), Hurl Through Hell (C1), Arcana Unleashed's six Arcane Shot options
+    // the smite: the eight smite spells, each on a Melee weapon or an Unarmed Strike hit, its Bonus Action said
+    expect(by("smite")).toEqual([
+      "Divine Smite",
+      "Searing Smite",
+      "Thunderous Smite",
+      "Wrathful Smite",
+      "Shining Smite",
+      "Blinding Smite",
+      "Staggering Smite",
+      "Banishing Smite"
+    ]);
+    for (const r of rows.filter(r => r.group === "smite")) {
+      expect(r).toMatchObject({ spell: true, melee: true, weapons: "melee" });
+    }
+    // the Bonus Action said once, on the group (the compact smite)
+    expect(reg.HIT_GROUPS.smite.note).toBe("Requires a Bonus Action — determined by the table");
+    expect(rows).toHaveLength(36); // + Eldritch Smite (B4), Hurl Through Hell (C1), Arcana Unleashed's six Arcane Shot options, the eight smites
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expectPointer(row.rule, row.feature);
       expect(row.rule.item).toBe(row.feature);
     }
     for (const [key, g] of Object.entries(reg.HIT_GROUPS)) {
-      expect(["feature", "option", "free", "pactSlot"], key).toContain(g.pool); // pactSlot: Eldritch Smite (B4)
+      expect(["feature", "option", "free", "pactSlot", "spell"], key).toContain(g.pool); // pactSlot: Eldritch Smite (B4); spell: the smite
       expect(g.eyebrow && g.heading && g.per && g.dieLabel, key).toBeTruthy();
     }
     expect(reg.HIT_OPTIONS["sweeping-attack"]).toMatchObject({ mode: "sweep", melee: true });
@@ -275,5 +291,89 @@ describe("sweepVerdict — would the original roll hit the second creature?", ()
     expect(h.sweepVerdict({ total: 3, isCritical: true, ac: 25 })).toBe("hit");
     expect(h.sweepVerdict({ total: 30, isFumble: true, ac: 10 })).toBe("miss");
     expect(h.sweepVerdict({ total: 18, ac: null })).toBe("unknown");
+  });
+});
+
+describe("the smite", () => {
+  const smite = () => ({ smite: reg.HIT_GROUPS.smite });
+  const options = () => ({ "divine-smite": reg.HIT_OPTIONS["divine-smite"] });
+  const listed = ["divine smite"];
+  it("a spell group pays per option: the row's own words, affordable while a cast way stands", () => {
+    const on = h.hitMenu({
+      groups: smite(),
+      options: options(),
+      listed,
+      features: ["Divine Smite"],
+      melee: true,
+      pools: {
+        "divine-smite": { left: 1, max: 0, die: "2d8", type: "radiant", cost: "2d8 radiant" }
+      }
+    });
+    expect(on.groups[0]).toMatchObject({ key: "smite", spell: true, perOption: true });
+    expect(on.groups[0].rows[0]).toMatchObject({
+      key: "divine-smite",
+      cost: "2d8 radiant",
+      affordable: true
+    });
+    const spent = h.hitMenu({
+      groups: smite(),
+      options: options(),
+      listed,
+      features: ["Divine Smite"],
+      melee: true,
+      pools: {
+        "divine-smite": { left: 0, max: 0, die: "2d8", type: "radiant", cost: "2d8 radiant" }
+      }
+    });
+    expect(spent.groups[0].rows[0].affordable).toBe(false);
+  });
+  it("no smite on a ranged hit, nor without the spell on the sheet", () => {
+    const pools = {
+      "divine-smite": { left: 1, max: 0, die: "2d8", type: "radiant", cost: "2d8 radiant" }
+    };
+    expect(
+      h.hitMenu({
+        groups: smite(),
+        options: options(),
+        listed,
+        features: ["Divine Smite"],
+        melee: false,
+        pools
+      }).groups
+    ).toEqual([]);
+    expect(
+      h.hitMenu({ groups: smite(), options: options(), listed, features: [], melee: true, pools })
+        .groups
+    ).toEqual([]);
+  });
+  it("a Melee weapon or an Unarmed Strike reaches it", () => {
+    const row = reg.HIT_OPTIONS["divine-smite"];
+    const at = o =>
+      h.optionReaches({
+        row,
+        unarmed: false,
+        weapon: false,
+        monkWeapon: false,
+        own: false,
+        flurry: null,
+        ...o
+      });
+    expect(at({ weapon: true })).toBe(true);
+    expect(at({ unarmed: true })).toBe(true);
+    expect(at({})).toBe(false);
+  });
+  it("the dice at a higher slot: whole adds the step a level, half every second level", () => {
+    expect(
+      h.scaledDice({ number: 2, denomination: 8, scaling: { mode: "whole", number: 1 } }, 2)
+    ).toMatchObject({ number: 4 });
+    expect(
+      h.scaledDice({ number: 2, denomination: 8, scaling: { mode: "whole", number: 1 } }, 0)
+    ).toMatchObject({ number: 2 });
+    expect(h.scaledDice({ number: 5, denomination: 10, scaling: { mode: "" } }, 3)).toMatchObject({
+      number: 5
+    });
+    expect(
+      h.scaledDice({ number: 1, denomination: 6, scaling: { mode: "half", number: 1 } }, 3)
+    ).toMatchObject({ number: 2 });
   });
 });
