@@ -135,7 +135,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const granted = foundry.utils.mergeObject(foundry.utils.deepClone(base), {
       'system.method': 'spell', 'system.prepared': 2,
       'system.uses': { max: '1', spent: 0, recovery: [{ period: 'lr', type: 'recoverAll' }] },
-      [`system.activities.btbfreecast0000`]: { _id: 'btbfreecast0000', type: 'forward', name: 'Save (free casting)', activity: { id: mainId },
+      [`system.activities.btbfreecast00000`]: { _id: 'btbfreecast00000', type: 'forward', name: 'Save (free casting)', activity: { id: mainId },
         consumption: { targets: [{ type: 'itemUses', target: '', value: '1', scaling: {} }], scaling: { allowed: false }, spellSlot: true } }
     }, { inplace: false, performDeletions: false });
     const pactData = foundry.utils.mergeObject(foundry.utils.deepClone(base), { 'system.method': 'pact', 'system.prepared': 1 }, { inplace: false });
@@ -144,7 +144,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     created.items.push(grantedCopy.id, pactCopy.id);
     const legacy = () => gol.items.get(grantedCopy.id);
     const spent = () => Number(legacy()?.system.uses?.spent) || 0;
-    if (!legacy()?.system.activities.get('btbfreecast0000')) return { fatal: 'the granted copy\'s forward did not land', results, log, skips };
+    if (!legacy()?.system.activities.get('btbfreecast00000')) return { fatal: 'the granted copy\'s forward did not land', results, log, skips };
 
     // ---- helpers
     const since = t => game.messages.filter(m => m.timestamp >= t);
