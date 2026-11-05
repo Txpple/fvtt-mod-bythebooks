@@ -350,9 +350,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(4)) await section(4, async () => {
       const dmg = await until(() => { const d = damageFor(originId3); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       const sd = dmg?.getFlag(MOD, 'sneakDamage');
-      const formulas = (dmg?.rolls ?? []).map(r => r.formula);
+      const formulas = (dmg?.rolls ?? []).map(r => String(r.formula ?? '').replace(/\[[^\]]*\]/g, ''));   // the dice; the part is named "6d6[Sneak Attack]"
       ok('4a. the sneak dice ride the weapon\'s damage roll as their own part — 6d6 piercing after Trip\'s 1d6',
-        !!dmg && formulas.some(f => /^6d6$/.test(f)) && (dmg.rolls.find(r => /^6d6$/.test(r.formula))?.options?.type === 'piercing'),
+        !!dmg && formulas.some(f => /^6d6$/.test(f)) && (dmg.rolls.find(r => /^6d6$/.test(String(r.formula ?? '').replace(/\[[^\]]*\]/g, '')))?.options?.type === 'piercing') && dmg.rolls.some(r => r.formula === '6d6[Sneak Attack]'),
         `formulas=[${formulas.join(' | ')}] types=[${(dmg?.rolls ?? []).map(r => r.options?.type).join()}]`);
       ok('4b. the damage message records it: formula 6d6, cost 1, Trip, DC 17 — and the attack message is marked rolled',
         !!sd && (sd.formula === '6d6') && (sd.cost === 1) && (sd.cunning?.[0]?.key === 'trip') && (sd.dc === 17)

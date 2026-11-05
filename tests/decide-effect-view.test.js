@@ -443,6 +443,24 @@ describe('a fighting style\'s face in the panel (user, 2026-09-26: "i only want 
   });
 });
 
+describe("a value that names its effect reads as its number (RULINGS *Every part of a roll says where it came from*)", () => {
+  it("strips the name before reading the sign", () => {
+    expect(
+      changeSign({
+        key: "system.bonuses.abilities.save",
+        type: "add",
+        value: "3[Aura of Protection]"
+      })
+    ).toBe("bonus");
+    expect(
+      changeSign({ key: "system.bonuses.mwak.attack", type: "add", value: "-2[Sundered]" })
+    ).toBe("penalty");
+    expect(
+      changeSign({ key: "system.bonuses.abilities.save", type: "dnd5e.bonus", value: "-1d4[Bane]" })
+    ).toBe("penalty");
+  });
+});
+
 describe('a switching face stands on the bar (user, 2026-11-05: "always be Dueling on his buff bar, either green for active or red for inactive")', () => {
   const face = over =>
     fact({

@@ -377,7 +377,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         const ci = await lend(bard, 'Combat Inspiration');
         const scale = foundry.utils.getProperty(bard.getRollData(), 'scale.bard.inspiration');
         const die = String(scale?.formula ?? scale?.die ?? '').trim();          // clock-riders.js inspiredFrom's read
-        const norm = s => String(s ?? '').replace(/\s+/g, '').replace(/^1d/, 'd');
+        const norm = s => String(s ?? '').replace(/\[[^\]]*\]/g, '').replace(/\s+/g, '').replace(/^1d/, 'd');   // the dice, not the part's name
         // The d20-folds suite's seed: the effect's origin is the Bard's Bardic Inspiration (grantingActor → the Bard).
         const seed = async () => (await pcAttacker.createEmbeddedDocuments('ActiveEffect', [{ name: 'Inspired',
           img: 'icons/magic/light/hand-sparks-smoke-green.webp', origin: bardic.uuid, duration: { seconds: 3600 },

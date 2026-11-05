@@ -105,6 +105,25 @@ describe("faceSwitches (2026-11-05: the faces that stand on the effect view's ba
   });
 });
 
+describe("numberedFace (2026-11-05: Kartor's Dueling, its pack effect gone)", () => {
+  const live = { live: true, word: "longsword", detail: "Longsword in one hand" };
+  it("keeps the face as it is when its number was found, or when it needs none", () => {
+    expect(d.numberedFace(live, { needs: "damage", found: true })).toBe(live);
+    expect(d.numberedFace(live, { needs: null })).toBe(live);
+    expect(d.numberedFace(live)).toBe(live);
+  });
+  it("is off, and says why, when the number lives on an effect no one has", () => {
+    expect(d.numberedFace(live, { needs: "damage", found: false })).toEqual({
+      live: false,
+      word: "no bonus",
+      detail: "no damage bonus on the feat — its own effect is missing"
+    });
+    expect(d.numberedFace(live, { needs: "AC", found: false }).detail).toBe(
+      "no AC bonus on the feat — its own effect is missing"
+    );
+  });
+});
+
 describe("rollFits", () => {
   it("Great Weapon Fighting: melee, two hands, a Two-Handed or Versatile weapon", () => {
     expect(

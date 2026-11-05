@@ -1426,7 +1426,8 @@ const KEY_LABELS = {
   "system.attributes.movement.speed": v => `Speed ×${v}`
 };
 function describeChanges(changes) {
-  const parts = (changes ?? []).map(c => (KEY_LABELS[c.key] ?? (v => `${c.key} ${v}`))(c.value));
+  // A value may name its effect ("3[Aura of Protection]", decide/present.js `namedBonusChanges`): the card says the number.
+  const parts = (changes ?? []).map(c => (KEY_LABELS[c.key] ?? (v => `${c.key} ${v}`))(String(c.value ?? "").replace(/\[[^\]]*\]/g, "").trim()));
   return parts.length ? parts.join(", ") : "the effect as the pack ships it";
 }
 

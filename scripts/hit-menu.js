@@ -9,7 +9,7 @@ import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityNamed, activityOfType, itemsNamed, namesAnswering, profileEffects, resolveDie, superiorityStandIn } from "./lookup.js";
 import { REMINDER_FLAG } from "./decide/reminders.js";
 import { hitMenuEntries } from "./decide/registry.js";
-import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
+import { forceStatus, hitTargets, namedPart, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
 import { pactWeaponFits } from "./lookup.js";
 import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
@@ -433,7 +433,7 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
           // No `properties`: the die takes the weapon's type but not its magic, which decides
           // physical-resistance bypass.
           data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
-          parts: [pick.formula],
+          parts: [namedPart(pick.formula, row.feature ?? pick.key)],
           options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
         });
       }

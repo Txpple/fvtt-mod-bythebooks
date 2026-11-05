@@ -385,6 +385,53 @@ objection, and a spendable-actions surface was never the need.
 Not picked: a count badge, tracker chip lines, a turn-start card. Pinned by
 `tests/decide-effect-view.test.js` and `tools/probe-effect-view.mjs`.
 
+## Every part of a roll says where it came from (2026-11-05)
+
+**dnd5e builds every roll from named parts and drops the names; the module puts them back as the formula's own
+flavors, and dnd5e's breakdown draws them.** Session 03 of Echoes of Halruaa: Kartor asked why his initiative read
+"1d20 + 1 − 2" (3.4.23 named the condition). Then the user: "we should always be showing the modifiers in the drop
+downs"; "presumably we should be showing +2 Dex here to. ... same with attack rolls ... any d20 test"; "damage too".
+A second review (the user: "is this a hacky work around, or best practice? ... it seems that we are fighting a lot
+of bases dnd5e functionality") split it in two: name what dnd5e builds, kept; re-derive what it merges or redraw
+what it renders, dropped.
+
+- **The labels** (`polish.js`; `decide/present.js` `labelRollParts`): a part's flavor, Foundry's own bracket
+  ("2[Dex]"), added at `dnd5e.postBuildRollConfig`, dnd5e's documented hook after a roll's parts are built, dialog or
+  none; initiative from the tracker is never built and is named at `dnd5e.preConfigureInitiative`. The ability's
+  short name ("Dex"), only when the part is that ability's modifier. Proficiency, Expertise, or the half feature
+  (Jack of All Trades, Remarkable Athlete, else Half Proficiency), by the part's size against the Proficiency Bonus;
+  Alert for an initiative's proficiency on a creature with Alert. The cover status ("Half Cover"); Magic Weapon;
+  Magic Ammunition; Alert (the older +5); Situational; a condition's reduction by its condition ("Exhaustion"); the
+  initiative tiebreaker. Left bare: a part worth 0 (the breakdown drops a bare 0 and would show a named one), a value
+  that is not one plain term, and the bonuses dnd5e merges into one part (the effects' `@ruleBonus`, a concentration
+  or death save bonus, a caller's or an activity's bonus).
+- **3.4.23's condition label moved here.** It hooked `dnd5e.preRollD20TestV2`, which fires before a skill's, a
+  tool's and an attack's parts are built: on the sandbox Lysandra's Arcana read "1d20 − 1 + 2 − 2", her attacks
+  "+ 3 + 2 − 2".
+- **The module's own parts are named where it adds them** (`shared.js` `namedPart`): a Fighting Style's number
+  ("2[Dueling]", "@mod[Two-Weapon Fighting]"), a spell-damage bonus ("Potent Spellcasting"), the attack's plus
+  ("Sundered"), and the dice that ride a hit: Sneak Attack, a smite or maneuver picked at the hit (its feature), a
+  clock rider (its label), a hit rider (its source), Commander's Strike, Riposte, a maneuver's die.
+- **An effect the module writes names its own roll bonuses** (`preCreateActiveEffect`; `namedBonusChanges`): an
+  `add` change on a roll-bonus key, "1d4" → "1d4[Blessed]" (the PHB's Bless effect is named Blessed), so dnd5e's own
+  sum carries the name into every roll the bonus rides (`probe-roll-labels` §4: a save built "1d20 + 2[Cha] +
+  3[Proficiency] + 1d4[Blessed] + 1", its breakdown's row "Blessed"). The
+  module's writes only, the class `drawnAlways` draws; a worn item's effect and one applied by hand keep their
+  words, so the Cloak of Protection's +1 stays unnamed. A reader of a value strips the name first (the effect
+  view's tone, an emanation card's line).
+- **Damage is named the same way, and dnd5e does not show it.** Its damage breakdown sums a type's flat numbers into
+  one and labels the row by its type, on purpose (`CONFIG.DND5E.aggregateDamageDisplay`); the names reach the
+  formula text and Session Scribe's roll lines. A label is never a damage or healing type word: dnd5e reads a damage
+  term's flavor as its type.
+- **Not built, and why:** splitting a merged bonus back into its effects re-derives dnd5e's own aggregation, and
+  Foundry 14's `applyActiveEffect` hook fires only for custom changes, so there is no seam; redrawing dnd5e's damage
+  breakdown overwrites its HTML on every render and breaks on its next template. Upstream is heading the same way
+  for advantage (dnd5e #5175, #7101); a labeller that names only bare parts steps aside when dnd5e names them.
+
+Pinned by `tests/decide-present.test.js` and `tools/probe-roll-labels.mjs`; the riders' names by `smoke-riders` 1
+("1d6[Hunter's Mark]") and `smoke-sneak` 4a ("6d6[Sneak Attack]"), an aura's by `smoke-emanations` 2b. The suites
+that weigh a rider's dice read them with the name stripped.
+
 ## Chips and clocks — where a chip belongs, and who keeps its time
 
 **Combat chips are TEMPORARY effects; Passive is for what a character wears** (2026-09-01).
@@ -1101,6 +1148,13 @@ Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-gua
   why when off); a face that switches stands on the bar too (below). Where the pack ships an UNGATED effect (Defense, Dueling — their
   notes say "disable it when …"), the machine switches that off and the face carries the rule
   (Defense's AC change, read off the pack's effect); unlisting the style gives it back.
+- **A feat that lost its effect reads the original's number** (2026-11-05: Kartor's Dueling had lost the pack's
+  effect, its face stood live and his damage carried no +2). A row whose number lives on the pack's effect (Dueling's
+  +2, Defense's +1 AC) reads it off the feat's own effect, else off the compendium original the feat came from
+  (`_stats.compendiumSource`), read ahead on every client that owns the feat, since a roll cannot wait; the face
+  carries it too (its `bonus`) for a client that cannot read the pack. With neither, the face is off: "no damage bonus
+  on the feat — its own effect is missing". (The faces resync on a change to the sheet, not on the elect's first load:
+  `isActiveGM` waits on the window election, so the read-ahead, not the face, is what a first swing reads.)
 - **The face on the panel is ONE line, no suffix** (the walk, 2026-09-26: "i only want one line";
   then "just remove the (weapon) suffix. the player can figure things out"): "Fighting Style:
   Great Weapon Fighting"; why it is off is the hover title. Consistent across every style

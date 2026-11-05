@@ -329,8 +329,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(3)) await section(3, async () => {
       await refill();
       const { msg, dmg, hm } = await swingWith('trip-attack');
-      const formulas = (dmg?.rolls ?? []).map(r => r.formula);
-      const part = (dmg?.rolls ?? []).find(r => /^1d8(min3)?$/.test(r.formula));
+      // A part reads as its dice: the module names each maneuver's ("1d8[Trip Attack]").
+      const formulas = (dmg?.rolls ?? []).map(r => String(r.formula ?? '').replace(/\[[^\]]*\]/g, ''));
+      const part = (dmg?.rolls ?? []).find(r => /^1d8(min3)?$/.test(String(r.formula ?? '').replace(/\[[^\]]*\]/g, '')));
       ok('3a. the die rides the weapon\'s damage roll as its own part — 1d8 slashing',
         !!dmg && !!part && (part.options?.type === 'slashing'), `formulas=[${formulas.join(' | ')}] type=${part?.options?.type}`);
       ok('3b. the damage message records it: Trip Attack, 1d8, one Superiority Die spent, 3 left — and the attack message is marked rolled',
@@ -409,7 +410,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(6)) await section(6, async () => {
       await refill();
       const { dmg, hm } = await swingWith('sweeping-attack');
-      const formulas = (dmg?.rolls ?? []).map(r => r.formula);
+      const formulas = (dmg?.rolls ?? []).map(r => String(r.formula ?? '').replace(/\[[^\]]*\]/g, ''));   // the dice: a sweep's die must not ride, named or not
       ok('6a. nothing rides the damage roll — the die is not on it; the pool is spent',
         !!hm && (hm.key === 'sweeping-attack') && (hm.mode === 'sweep') && !hm.rides && !formulas.some(f => /^1d8$/.test(f)) && (poolLeft() === 3),
         `formulas=[${formulas.join(' | ')}] pool=${poolLeft()} hm=${JSON.stringify(hm)}`);
@@ -478,7 +479,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refill();
       const { dmg, hm } = await swingWith('goading-attack', { d20: 20 });
       // The crit rewrites the part's formula (1d8 → 2d8) rather than adding a die.
-      const part = (dmg?.rolls ?? []).find(r => /^[12]d8(min3)?$/.test(r.formula));
+      const part = (dmg?.rolls ?? []).find(r => /^[12]d8(min3)?$/.test(String(r.formula ?? '').replace(/\[[^\]]*\]/g, '')));
       const eights = part?.dice?.filter(d => d.faces === 8).reduce((n, d) => n + d.number, 0) ?? 0;
       ok('9. a forced 20: the die is crit-doubled by the same stamp — the maneuver part rolls 2d8',
         !!hm && dmg?.rolls?.[0]?.isCritical && (eights === 2), `crit=${dmg?.rolls?.[0]?.isCritical} eights=${eights} formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
@@ -642,7 +643,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const dmg = await until(() => { const x = damageFor(msg?._source.system?.origin ?? msg?.id); return x?.getFlag(MOD, 'receipt') ? x : null; }, { timeout: 12000 });
             await until(() => victim.statuses?.has?.('prone'), { timeout: 6000 });
             const picks13 = (dmg?.getFlag(MOD, 'hitManeuver')?.picks ?? []).map(p => p.key);
-            const formulas13 = (dmg?.rolls ?? []).map(r => r.formula);
+            const formulas13 = (dmg?.rolls ?? []).map(r => String(r.formula ?? '').replace(/\[[^\]]*\]/g, ''));
             ok('13b. both picks ride the one hit: Trip Attack\'s 1d8 on the roll and a Superiority Die spent, Hill\'s Tumble\'s Prone on the victim',
               (picks13.join() === 'trip-attack,hills-tumble') && formulas13.some(f => /^1d8(min3)?$/.test(f)) && victim.statuses?.has?.('prone') && (poolLeft() === 3),
               `picks=${picks13.join()} formulas=${formulas13.join(' | ')} prone=${victim.statuses?.has?.('prone')} pool=${poolLeft()}`);

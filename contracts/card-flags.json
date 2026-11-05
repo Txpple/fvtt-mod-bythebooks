@@ -7626,7 +7626,7 @@
     "fightingStyle": {
       "class": "state",
       "family": "state",
-      "means": "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (damage-rules.js, 2026-09-26)",
+      "means": "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line, and `bonus`: the number a row reads off the pack's effect, or off the feat's compendium original when its own is gone). Presentation and bookkeeping — the number rode the roll's own config (damage-rules.js, 2026-09-26)",
       "writers": [
         "damage-rules.js"
       ],

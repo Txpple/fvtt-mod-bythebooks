@@ -9,13 +9,13 @@ import { lower, featureNamed, wieldsAs } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
-  typesInNames, typedFace, ignoredResistances, typeChoicesLeft, spellRuleFits } from "./decide/damage-rules.js";
+  typesInNames, typedFace, numberedFace, ignoredResistances, typeChoicesLeft, spellRuleFits } from "./decide/damage-rules.js";
 import { isCard, CARD, originIdInData } from "./decide/card.js";
 import { changeCopy, changesSignature } from "./decide/changes.js";
 import { bfCard, esc, holdBarHTML, ruleLine, pickInputHTML } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
-import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
+import { namedPart, withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenOf, tokensOf } from "./geometry.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, keeperOwns, registerRelay, pendingRow, closePopup, postCard, postAnswer, picked } from "./ui.js";
@@ -67,16 +67,56 @@ function heldRows(actor) {
 /** The pack's own effects on the feat that carry a change — the ones a `takesOver` row switches off. */
 const packEffectsOf = feature => [...(feature?.effects ?? [])].filter(e => (e.changes ?? e.system?.changes ?? []).length);
 
-/** A change the pack's own effect carries, by a key test — the number is the content's (N1). */
-function packChange(feature, test) {
-  for ( const effect of packEffectsOf(feature) ) {
+/** A change one of `effects` carries, by a key test — the number is the content's (N1). */
+function changeIn(effects, test) {
+  for ( const effect of effects ?? [] ) {
     const change = (effect.changes ?? effect.system?.changes ?? []).find(c => test(String(c.key ?? "")));
     if ( change ) return change;
   }
   return null;
 }
-const damageBonusOf = feature => packChange(feature, k => /damage/i.test(k))?.value ?? null;
-const acChangeOf = feature => packChange(feature, k => /attributes\.ac\./i.test(k));
+const DAMAGE_KEY = k => /damage/i.test(k);
+const AC_KEY = k => /attributes\.ac\./i.test(k);
+const damageBonusOf = feature => changeIn(packEffectsOf(feature), DAMAGE_KEY)?.value ?? null;
+
+/** THE ORIGINAL'S EFFECTS: a feat whose own copy lost the effect its row reads (a `bonus` or `ac` of "effect") reads the
+ * number off the compendium original it came from, still the content's own (N1). Loaded once per source, on every
+ * client that owns such a feat (`warmOriginals`), so a roll, which cannot wait, reads it at once; the face carries what
+ * the elect found too, for a client that cannot read the pack. */
+const originals = new Map();       // compendium uuid → the promise of its effects
+const originalsRead = new Map();   // compendium uuid → its effects, once read
+const sourceUuidOf = feature => {
+  const uuid = feature?._stats?.compendiumSource ?? feature?.flags?.core?.sourceId ?? null;
+  return (uuid && String(uuid).startsWith("Compendium.")) ? uuid : null;
+};
+function originalEffectsOf(feature) {
+  const uuid = sourceUuidOf(feature);
+  if ( !uuid ) return Promise.resolve([]);
+  if ( !originals.has(uuid) ) {
+    originals.set(uuid, resolveUuidAsync(uuid).then(doc => {
+      const effects = packEffectsOf(doc);
+      originalsRead.set(uuid, effects);
+      return effects;
+    }).catch(() => []));
+  }
+  return originals.get(uuid);
+}
+
+/** The original's damage bonus as this client has read it, or null. */
+function originalBonusOf(feature) {
+  const uuid = sourceUuidOf(feature);
+  const effects = uuid ? originalsRead.get(uuid) : null;
+  if ( !effects && uuid ) void originalEffectsOf(feature);   // the next roll has it
+  return effects ? (changeIn(effects, DAMAGE_KEY)?.value ?? null) : null;
+}
+
+/** Read ahead the originals this actor's bare feats need, on any client that owns it. */
+function warmOriginals(actor) {
+  if ( !actor?.isOwner ) return;
+  for ( const { row, feature } of heldRows(actor) ) {
+    if ( ((row.bonus === "effect") || (row.ac === "effect")) && !packEffectsOf(feature).length ) void originalEffectsOf(feature);
+  }
+}
 
 /** Unarmed Fighting's two dice, as the feat's own attacks ship them — for the face's line. */
 function unarmedDiceOf(feature) {
@@ -88,19 +128,28 @@ function unarmedDiceOf(feature) {
 
 /* --- THE FACE ----------------------------------------------------------------------------------- */
 
-/** The face this row should wear on this actor — the effect's data, bar the ids. */
-function desiredFace({ name, row, feature, types }, held) {
-  const state = row.typed ? typedFace(name, types) : faceState(row.gate, held, row.gate === "unarmed" ? unarmedDiceOf(feature) : {});
-  const change = row.ac === "effect" ? acChangeOf(feature) : null;
+/** The face this row should wear on this actor — the effect's data, bar the ids. `original`: the compendium original's
+ * effects, read when the feat's own are gone. */
+function desiredFace({ name, row, feature, types, original = [] }, held) {
+  const own = packEffectsOf(feature);
+  const effects = own.length ? own : original;
+  const bonus = (row.bonus === "effect") ? (changeIn(effects, DAMAGE_KEY)?.value ?? null) : null;
+  const change = (row.ac === "effect") ? changeIn(effects, AC_KEY) : null;
+  const needs = (row.bonus === "effect") ? "damage" : ((row.ac === "effect") ? "AC" : null);
+  const state = numberedFace(row.typed ? typedFace(name, types) : faceState(row.gate, held, row.gate === "unarmed" ? unarmedDiceOf(feature) : {}),
+    { needs, found: (needs === "damage") ? (String(bonus ?? "").trim() !== "") : !!change });
   return {
     name, img: feature.img, origin: feature.uuid, transfer: false, disabled: !state.live,
     changes: change ? [{ ...changeCopy(change), value: String(change.value) }] : [],
     flags: { [MODULE_ID]: { [STYLE_FLAG]: { key: row.key, live: state.live, word: state.word, detail: state.detail,
-      ...(row.feat ? { feat: true } : {}) } } }
+      ...(row.feat ? { feat: true } : {}), ...((String(bonus ?? "").trim() !== "") ? { bonus: String(bonus) } : {}) } } }
   };
 }
 
 const faceOf = effect => readFlag(effect, STYLE_FLAG) ?? null;
+
+/** The number a face carries for its row (off the feat or its original, at the sync), for a roll on any client. */
+const faceBonusOf = (actor, key) => [...(actor?.effects ?? [])].map(faceOf).find(f => f?.key === key)?.bonus ?? null;
 const sameChanges = (a, b) => changesSignature(a) === changesSignature(b);
 
 const syncing = new Map();
@@ -123,12 +172,16 @@ async function syncFaces(actor) {
     const faces = [...(actor.effects ?? [])].filter(e => faceOf(e));
     const creates = [], updates = [], deletes = [];
     for ( const found of rows ) {
+      // A row whose number lives on the pack's effect, on a feat that lost it: the original's.
+      if ( ((found.row.bonus === "effect") || (found.row.ac === "effect")) && !packEffectsOf(found.feature).length ) {
+        found.original = await originalEffectsOf(found.feature);
+      }
       const want = desiredFace(found, held);
       const have = faces.find(e => faceOf(e).key === found.row.key);
       if ( !have ) { creates.push(want); continue; }
       const f = faceOf(have);
       if ( (have.disabled !== want.disabled) || (f.detail !== want.flags[MODULE_ID][STYLE_FLAG].detail) || (f.word !== want.flags[MODULE_ID][STYLE_FLAG].word)
-        || (have.name !== want.name) || !sameChanges(have.changes, want.changes) ) {
+        || (f.bonus !== want.flags[MODULE_ID][STYLE_FLAG].bonus) || (have.name !== want.name) || !sameChanges(have.changes, want.changes) ) {
         updates.push({ _id: have.id, name: want.name, disabled: want.disabled, changes: want.changes,
           [`flags.${MODULE_ID}.${STYLE_FLAG}`]: want.flags[MODULE_ID][STYLE_FLAG] });
       }
@@ -170,13 +223,20 @@ function syncAll() {
   for ( const token of canvas?.tokens?.placeables ?? [] ) if ( token.actor && !token.document.actorLink ) scheduleSync(token.actor);
 }
 
-listenOnce("ready", "damage-rules", () => { try { syncAll(); } catch(err) { log.warn(`fighting styles: the first pass failed.`, err); } });
+listenOnce("ready", "damage-rules", () => {
+  try { for ( const actor of game.actors ?? [] ) warmOriginals(actor); } catch(err) { log.warn(`fighting styles: the originals could not be read ahead.`, err); }
+  try { syncAll(); } catch(err) { log.warn(`fighting styles: the first pass failed.`, err); }
+});
 listen("canvasReady", "damage-rules", () => {
   for ( const token of canvas?.tokens?.placeables ?? [] ) if ( token.actor && !token.document.actorLink ) scheduleSync(token.actor);
 });
 listen("createActor", "damage-rules", actor => scheduleSync(actor));
 for ( const hook of ["createItem", "updateItem", "deleteItem"] ) {
-  listen(hook, "damage-rules", item => { if ( item?.parent instanceof Actor ) scheduleSync(item.parent); });
+  listen(hook, "damage-rules", item => {
+    if ( !(item?.parent instanceof Actor) ) return;
+    warmOriginals(item.parent);
+    scheduleSync(item.parent);
+  });
 }
 // The list is the switch: a change re-reads every actor (an unlisted style's face goes, its pack effect comes back).
 
@@ -234,10 +294,10 @@ listen("dnd5e.preRollDamage", "damage-rules", (config, _dialog, message) => {
       }
       const offhand = (row.gate === "offhand") || (row.gate === "offhandCrossbow");
       if ( offhand && offhandAdded ) continue;
-      const amount = row.bonus === "effect" ? damageBonusOf(feature) : row.bonus;
+      const amount = row.bonus === "effect" ? (damageBonusOf(feature) ?? originalBonusOf(feature) ?? faceBonusOf(attacker, row.key)) : row.bonus;
       const gain = Number(resolve(amount));
       if ( !parts || !amount || !Number.isFinite(gain) || (gain <= 0) ) continue;
-      parts.push(String(amount));
+      parts.push(String(namedPart(amount, name)));
       if ( offhand ) offhandAdded = true;
       styles.push({ key: row.key, feature: name, gain, note: offhand ? "on the off-hand" : null });
     }
@@ -302,7 +362,7 @@ function spellRules(config, activity, message) {
     let gain = NaN;
     try { gain = Number(Roll.replaceFormulaData(String(row.bonus), roll.data ?? caster.getRollData?.() ?? {}, { missing: "0" })); } catch { gain = NaN; }
     if ( !Number.isFinite(gain) || (gain <= 0) ) continue;
-    parts.push(String(row.bonus));
+    parts.push(String(namedPart(row.bonus, name.split(": ").at(-1))));   // "Blessed Strikes: Potent Spellcasting" says "Potent Spellcasting"
     if ( row.once === "spell" ) markSpellOnce(castId, row.key);
     styles.push({ key: row.key, feature: name, gain, ...(row.once === "turn" ? { turnChit: true } : {}) });
   }

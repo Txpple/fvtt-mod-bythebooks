@@ -7,7 +7,7 @@ import { ruleHTML } from "./rule-text.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
-import { chipData, placeOf, poolSpendsOn, spendReaction } from "./shared.js";
+import { chipData, namedPart, placeOf, poolSpendsOn, spendReaction } from "./shared.js";
 import { bfCard, momentBarHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { openMomentPopup, acknowledgeMoment, momentAcknowledged, pendingRow } from "./ui.js";
@@ -111,9 +111,9 @@ listen("dnd5e.preRollDamage", "command", (config, _dialog, message) => {
     const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? "";
     if ( formula ) {
       const base = (config.rolls ?? []).find(r => r.base === true);
-      if ( base ) base.parts = [...(base.parts ?? []), formula];
+      if ( base ) base.parts = [...(base.parts ?? []), namedPart(formula, "Commander's Strike")];
       // ⚠ Clone the data: damage rules WRITE into a roll's data, and a shared object carries the last rider's type onto roll 0.
-      else config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
+      else config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [namedPart(formula, "Commander's Strike")], options: { type, types: type ? [type] : [] } });
     }
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.commandRide`, {
       ...statContext(actor.uuid), cardId: readFlag(chip, "cardId") ?? null, formula: formula ?? null, type,

@@ -6,7 +6,7 @@ import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
-import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets, attackIdOf, d20FoldSpends } from "./shared.js";
+import { forceStatus, grantingActor, hitTargets, namedPart, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets, attackIdOf, d20FoldSpends } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable, registerOfferPart, postCard, pickInputs } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
@@ -400,7 +400,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         config.rolls.push({
           // No `properties`: a feature's extra damage never bypasses physical resistance as the weapon's magic.
           data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
-          parts: [r.formula],
+          parts: [namedPart(r.formula, r.label)],
           options: { type, types: type ? [type] : [] }
         });
       }

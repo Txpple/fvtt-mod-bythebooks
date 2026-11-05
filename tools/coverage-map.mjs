@@ -187,6 +187,10 @@ export const ORDER = [
     name: "probe-effect-view", note: "the effect view — the bar, the hover card, the held key, the fold",
     needs: ["fixture-suite"]
   },
+  {
+    name: "probe-roll-labels", note: "every part of a roll says where it came from — dnd5e's parts, Exhaustion on every d20 test, the module's own part, an effect's bonus, a feat's lost number",
+    needs: ["fixture-suite"]
+  },
   { name: "smoke-resources", note: "the resource notices — the flash, the card line, the silences, the spend stamp" },
   // ⚠ LAST because of what it CREATES: a real MeasuredTemplate would join smoke-saves' containment
   // arithmetic. It deletes its own in a `finally`.

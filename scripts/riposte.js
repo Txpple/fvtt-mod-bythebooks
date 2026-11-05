@@ -6,7 +6,7 @@ import { MODULE_ID, readFlag, isActiveGM, queueFlagWrite, canAnswerFor, statCont
 import { cardActivity, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
-import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
+import { hitTargets, namedPart, reactionSpent, spendReaction } from "./shared.js";
 import { bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
@@ -247,10 +247,10 @@ listen("dnd5e.preRollDamage", "riposte", (config, _dialog, message) => {
     riposteDie.delete(actor.uuid);   // one-shot, consumed
     // The die folds INTO the base roll (one group, crit-doubles by rule); the typed push is a fallback.
     const base = (config.rolls ?? []).find(r => r.base === true);
-    if ( base ) base.parts = [...(base.parts ?? []), armed.formula];
+    if ( base ) base.parts = [...(base.parts ?? []), namedPart(armed.formula, "Riposte")];
     else config.rolls.push({
       data: config.rolls[0]?.data ?? {},
-      parts: [armed.formula],
+      parts: [namedPart(armed.formula, "Riposte")],
       options: { type: armed.type, types: armed.type ? [armed.type] : [] }
     });
   } catch(err) {

@@ -932,22 +932,136 @@ describe("rosterSide — the combat line's side tag", () => {
   });
 });
 
-describe("labelReductionParts — a condition's reduction named on the formula (Session 03: the bare −2)", () => {
-  const label = s => ({ exhaustion: "Exhaustion", poisoned: "Poisoned" })[s] ?? null;
-  it("names dnd5e's reduction part, leaving the rest", () => {
-    expect(p.labelReductionParts(["@mod", "@prof", "@reductions.exhaustion"], label)).toEqual([
-      "@mod",
-      "@prof",
-      "@reductions.exhaustion[Exhaustion]"
+describe("nameFormula — a part named for what added it (RULINGS *Every part of a roll says where it came from*)", () => {
+  it("flavors every term of a plain sum, keeping its signs", () => {
+    expect(p.nameFormula("2", "Dueling")).toBe("2[Dueling]");
+    expect(p.nameFormula(2, "Dueling")).toBe("2[Dueling]");
+    expect(p.nameFormula("2d8", "Divine Smite")).toBe("2d8[Divine Smite]");
+    expect(p.nameFormula("1d4 + 1", "Bless")).toBe("1d4[Bless] + 1[Bless]");
+    expect(p.nameFormula("1d4-1", "Bless")).toBe("1d4[Bless] - 1[Bless]");
+    expect(p.nameFormula("-2", "Sundered")).toBe("-2[Sundered]");
+    expect(p.nameFormula("+1d4", "Bless")).toBe("+1d4[Bless]");
+    expect(p.nameFormula("@mod", "Two-Weapon Fighting")).toBe("@mod[Two-Weapon Fighting]");
+    expect(p.nameFormula("@abilities.wis.mod", "Potent Spellcasting")).toBe(
+      "@abilities.wis.mod[Potent Spellcasting]"
+    );
+    expect(p.nameFormula("4d6r1", "Sneak Attack")).toBe("4d6r1[Sneak Attack]");
+  });
+  it("leaves alone what it cannot name plainly", () => {
+    expect(p.nameFormula("1d4[Bless]", "Bless")).toBe("1d4[Bless]");
+    expect(p.nameFormula("(1d4 + 1)", "X")).toBe("(1d4 + 1)");
+    expect(p.nameFormula("max(1, @mod)", "X")).toBe("max(1, @mod)");
+    expect(p.nameFormula("2 * 1d6", "X")).toBe("2 * 1d6");
+    expect(p.nameFormula("{1d20, 1d20}kh", "X")).toBe("{1d20, 1d20}kh");
+    expect(p.nameFormula("", "X")).toBe("");
+    expect(p.nameFormula("2", "")).toBe("2");
+  });
+  it("never labels with a damage or healing type word, and strips brackets from a label", () => {
+    expect(p.nameFormula("2", "Fire", { forbidden: ["fire", "healing"] })).toBe("2");
+    expect(p.nameFormula("2", "healing", { forbidden: ["fire", "healing"] })).toBe("2");
+    expect(p.nameFormula("2", "A [b]")).toBe("2[A b]");
+  });
+});
+
+describe("labelRollParts — dnd5e's bare parts named (Session 03: the bare −2; then every modifier)", () => {
+  const labels = {
+    mod: "Dex",
+    prof: "Proficiency",
+    cover: "Half Cover",
+    "reductions.exhaustion": "Exhaustion",
+    situational: "Situational"
+  };
+  const label = k => labels[k] ?? null;
+  it("names each known part by its key, leaving the rest", () => {
+    const data = { mod: 2, prof: "2", ruleBonus: "1d4 + 1", reductions: { exhaustion: -2 } };
+    const at = k => k.split(".").reduce((o, x) => o?.[x], data);
+    expect(
+      p.labelRollParts(["@mod", "@prof", "@ruleBonus", "@reductions.exhaustion", "1d20"], label, at)
+    ).toEqual([
+      "@mod[Dex]",
+      "@prof[Proficiency]",
+      "@ruleBonus",
+      "@reductions.exhaustion[Exhaustion]",
+      "1d20"
     ]);
   });
-  it("is idempotent: a part already named is kept", () => {
-    const once = p.labelReductionParts(["@reductions.exhaustion"], label);
-    expect(p.labelReductionParts(once, label)).toEqual(once);
+  it("leaves a part worth 0, a merged value and a typed situational bare", () => {
+    const data = { mod: 0, cover: 0, situational: "1d4[Guidance]", prof: "1d4 + 1" };
+    const at = k => data[k];
+    expect(p.labelRollParts(["@mod", "@cover", "@situational", "@prof"], label, at)).toEqual([
+      "@mod",
+      "@cover",
+      "@situational",
+      "@prof"
+    ]);
   });
-  it("keeps a status with no label, and strips brackets out of a label", () => {
-    expect(p.labelReductionParts(["@reductions.weird"], label)).toEqual(["@reductions.weird"]);
-    expect(p.labelReductionParts(["@reductions.x"], () => "A [b]")).toEqual(["@reductions.x[A b]"]);
+  it("names a single die, and is idempotent", () => {
+    const at = k => ({ prof: "1d6", situational: "2" })[k];
+    const once = p.labelRollParts(["@prof", "@situational"], label, at);
+    expect(once).toEqual(["@prof[Proficiency]", "@situational[Situational]"]);
+    expect(p.labelRollParts(once, label, at)).toEqual(once);
+  });
+});
+
+describe("proficiencyLabel — which proficiency a roll adds", () => {
+  it("reads the part against the Proficiency Bonus", () => {
+    expect(p.proficiencyLabel({ value: "2", bonus: 2 })).toBe("Proficiency");
+    expect(p.proficiencyLabel({ value: "4", bonus: 2 })).toBe("Expertise");
+    expect(p.proficiencyLabel({ value: "6", bonus: 3 })).toBe("Expertise");
+  });
+  it("calls half proficiency by the feature that gives it, rounded either way", () => {
+    expect(p.proficiencyLabel({ value: "1", bonus: 2, half: "Jack of All Trades" })).toBe(
+      "Jack of All Trades"
+    );
+    expect(p.proficiencyLabel({ value: "1", bonus: 3, half: "Jack of All Trades" })).toBe(
+      "Jack of All Trades"
+    );
+    expect(p.proficiencyLabel({ value: "2", bonus: 3, half: "Remarkable Athlete" })).toBe(
+      "Remarkable Athlete"
+    );
+    expect(p.proficiencyLabel({ value: "1", bonus: 2 })).toBe("Half Proficiency");
+  });
+  it("reads proficiency dice by their count", () => {
+    expect(p.proficiencyLabel({ value: "1d4", bonus: 2 })).toBe("Proficiency");
+    expect(p.proficiencyLabel({ value: "2d4", bonus: 2 })).toBe("Expertise");
+  });
+});
+
+describe("namedBonusChanges — an effect's roll bonuses carry its name", () => {
+  const typeOf = c => c.type;
+  it("names an added bonus on a roll key, old and new", () => {
+    const changes = [
+      { key: "system.bonuses.abilities.save", type: "add", value: "1d4" },
+      { key: "system.bonuses.mwak.attack", type: "add", value: "1d4" },
+      { key: "system.rolls.ability.check.bonus", type: "add", value: "1d4" },
+      { key: "system.abilities.dex.save.roll.bonus", type: "add", value: "2" },
+      { key: "system.attributes.init.roll.bonus", type: "add", value: "+5" }
+    ];
+    expect(p.namedBonusChanges(changes, "Bless", { typeOf }).map(c => c.value)).toEqual([
+      "1d4[Bless]",
+      "1d4[Bless]",
+      "1d4[Bless]",
+      "2[Bless]",
+      "+5[Bless]"
+    ]);
+  });
+  it("leaves an AC, a spell DC, a passive score, an override and a custom change alone, returning the same array", () => {
+    const changes = [
+      { key: "system.attributes.ac.bonus", type: "add", value: "2" },
+      { key: "system.bonuses.spell.dc", type: "add", value: "1" },
+      { key: "system.skills.prc.bonuses.passive", type: "add", value: "5" },
+      { key: "system.bonuses.abilities.save", type: "override", value: "1" },
+      { key: "system.bonuses.abilities.save", type: "custom", value: "1" }
+    ];
+    expect(p.namedBonusChanges(changes, "X", { typeOf })).toBe(changes);
+  });
+  it("isRollBonusKey: the keys a roll adds", () => {
+    expect(p.isRollBonusKey("system.rolls.attack.mwak.bonus")).toBe(true);
+    expect(p.isRollBonusKey("system.rolls.damage.rwak.bonus")).toBe(true);
+    expect(p.isRollBonusKey("system.skills.ste.roll.bonus")).toBe(true);
+    expect(p.isRollBonusKey("system.attributes.concentration.bonuses.save")).toBe(true);
+    expect(p.isRollBonusKey("system.attributes.ac.bonus")).toBe(false);
+    expect(p.isRollBonusKey("system.rolls.ability.check.min")).toBe(false);
   });
 });
 

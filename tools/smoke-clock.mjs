@@ -193,7 +193,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await until(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, { timeout: 12000 });
       return { attackMsg, dmg, originId };
     };
-    const riderPart = (dmg, re) => (dmg?.rolls ?? []).find(r => re.test(r.formula));
+    // A part reads as its dice: the module names each rider's ("2d6[Dreadful Strike]").
+    const riderPart = (dmg, re) => (dmg?.rolls ?? []).find(r => re.test(String(r.formula ?? '').replace(/\[[^\]]*\]/g, '')));
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const startCombat = async (...entries) => {
       if (game.combat) await game.combat.delete();

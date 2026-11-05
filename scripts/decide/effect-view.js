@@ -102,7 +102,8 @@ export function changeSign(change) {
   if ( /disadvantage/.test(key) ) return "penalty";
   if ( /advantage/.test(key) ) return "bonus";
   const type = String(change.type ?? "");
-  const text = String(change.value ?? "").trim();
+  // A value names its effect ("-2[Sundered]", decide/present.js `namedBonusChanges`): the name is not the number.
+  const text = String(change.value ?? "").replace(/\[[^\]]*\]/g, "").trim();
   if ( type === "dnd5e.advantage" ) return ADVANTAGE_DOWN.test(text) ? "penalty" : (ADVANTAGE_UP.test(text) ? "bonus" : null);
   if ( type === "dnd5e.bonus" ) return text.startsWith("-") ? "penalty" : (text ? "bonus" : null);
   if ( type === "downgrade" ) return "penalty";

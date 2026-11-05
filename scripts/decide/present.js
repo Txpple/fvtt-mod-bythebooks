@@ -864,22 +864,116 @@ export function payPillsHTML({ name, ways, pick, head = "" }) {
     + `${head ? `<span style="opacity:0.8;font-size:var(--font-size-12,12px);">${esc(head)}:</span>` : ""}${pills}</div>`;
 }
 
+/* --- THE PARTS NAMED (RULINGS *Every part of a roll says where it came from*) ----------------------------------- */
+
+/** One plain term of a sum: a number, a die (its modifiers kept), or a roll-data reference. */
+const PLAIN_TERM = /^(\d+(\.\d+)?|\d*d\d+[a-z0-9<>=]*|@[\w.-]+)$/i;
+
+/** A label a flavor can carry: brackets out, trimmed. */
+const cleanLabel = label => String(label ?? "").replace(/[[\]]/g, "").trim();
+
 /**
- * A condition's roll reduction named on the formula. dnd5e adds `@reductions.<status>` as a bare number, so
- * Exhaustion's −2 a level reads "1d20 + 1 - 2" (Session 03 of Echoes of Halruaa: "why do I have minus one
- * initiative?"); a flavor names it, "1d20 + 1 - 2[Exhaustion]". A part already flavored, any other part, and a
- * status with no label are kept as they are.
+ * A FORMULA NAMED: every term of a plain sum carries `label` as its flavor, the bracket every Foundry formula accepts —
+ * "1d4" → "1d4[Bless]", "1d4 + 1" → "1d4[Bless] + 1[Bless]", "-2" → "-2[Sundered]", "@mod" → "@mod[Two-Weapon Fighting]".
+ * Returned as it is: a formula already flavored, one with parentheses, a function, a product or a pool, an empty label,
+ * and a label that is a damage or healing type (dnd5e reads a damage term's flavor as its type — `forbidden`).
+ * @param {string|number} formula
+ * @param {string} label
+ * @param {{forbidden?: Iterable<string>}} [opts]
+ * @returns {string|number}  the formula unchanged when it cannot be named
+ */
+export function nameFormula(formula, label, { forbidden = [] } = {}) {
+  const name = cleanLabel(label);
+  if ( !name || [...forbidden].some(f => String(f).toLowerCase() === name.toLowerCase()) ) return formula;
+  const text = String(formula ?? "").trim();
+  if ( !text || /[[\](){},*/%^]/.test(text) ) return formula;
+  const lead = /^[+-]/.exec(text)?.[0] ?? "";
+  const pieces = text.slice(lead.length).trim().split(/\s*([+-])\s*/);
+  const terms = pieces.filter((_, i) => i % 2 === 0);
+  if ( !terms.length || !terms.every(t => PLAIN_TERM.test(t)) ) return formula;
+  return pieces.map((p, i) => (i % 2 === 0) ? `${p}[${name}]` : ` ${p} `).join("").replace(/^/, lead);
+}
+
+/**
+ * THE PARTS NAMED: each bare `@key` part dnd5e builds a roll from (`@mod`, `@prof`, `@cover`, `@reductions.exhaustion` …)
+ * wears the label `labelOf(key)` gives it, so dnd5e's own breakdown names it ("Dex +2", "Exhaustion −2"). Kept as they
+ * are: a part already flavored, a key with no label, a value of 0 (the breakdown drops a bare 0 and would show a named
+ * one), and a value that is not one plain term (a merged bonus, a typed situational bonus keep their own words).
  * @param {string[]} parts
- * @param {(status: string) => string|null|undefined} labelOf
+ * @param {(key: string) => string|null|undefined} labelOf
+ * @param {(key: string) => unknown} valueAt  the part's value in the roll's data
  * @returns {string[]}
  */
-export function labelReductionParts(parts, labelOf) {
+export function labelRollParts(parts, labelOf, valueAt) {
   return (parts ?? []).map(part => {
-    const m = /^@reductions\.([\w-]+)$/.exec(String(part).trim());
-    if ( !m ) return part;
-    const label = String(labelOf(m[1] ?? "") ?? "").replace(/[[\]]/g, "").trim();
-    return label ? `${part}[${label}]` : part;
+    const key = /^@([\w.-]+)$/.exec(String(part).trim())?.[1];
+    if ( !key ) return part;
+    const label = cleanLabel(labelOf(key));
+    if ( !label ) return part;
+    const text = String(valueAt(key) ?? "").trim();
+    if ( !text || (Number(text) === 0) || !PLAIN_TERM.test(text.replace(/^[+-]\s*/, "")) ) return part;
+    return `${part}[${label}]`;
   });
+}
+
+/**
+ * Which proficiency a roll's `@prof` adds, by its size against the creature's Proficiency Bonus: twice is Expertise,
+ * once Proficiency, less (half, rounded either way) the half-proficiency feature the creature has (`half`). Proficiency
+ * dice read by their count.
+ * @param {{value: unknown, bonus: unknown, half?: string|null}} facts
+ * @returns {string}
+ */
+export function proficiencyLabel({ value, bonus, half = null }) {
+  const v = Number(value), b = Number(bonus);
+  if ( !Number.isFinite(v) || !Number.isFinite(b) || (b <= 0) ) {
+    const dice = /^(\d+)d\d+/i.exec(String(value ?? "").trim());
+    return (dice && (Number(dice[1]) >= 2)) ? "Expertise" : "Proficiency";
+  }
+  const share = v / b;
+  if ( share >= 1.5 ) return "Expertise";
+  if ( share >= 0.75 ) return "Proficiency";
+  return half || "Half Proficiency";
+}
+
+/** The change keys whose value is a formula ADDED to a roll: dnd5e 6's `rolls.*` and `….roll.bonus` fields, and the
+ * older `bonuses.*` keys the packs still write. Not a passive score, a spell DC or an AC. */
+const ROLL_BONUS_KEYS = [
+  /^system\.rolls\.[\w.]+\.bonus$/,
+  /^system\.abilities\.\w+\.(check|save|attack)\.roll\.bonus$/,
+  /^system\.(skills|tools)\.[\w-]+\.roll\.bonus$/,
+  /^system\.attributes\.(init|concentration|death)\.roll\.bonus$/,
+  /^system\.bonuses\.(mwak|rwak|msak|rsak)\.(attack|damage)$/,
+  /^system\.bonuses\.abilities\.(check|save|skill)$/,
+  /^system\.abilities\.\w+\.bonuses\.(check|save)$/,
+  /^system\.(skills|tools)\.[\w-]+\.bonuses\.check$/,
+  /^system\.attributes\.init\.bonus$/,
+  /^system\.attributes\.concentration\.bonuses\.save$/
+];
+
+/** @param {string} key @returns {boolean} */
+export function isRollBonusKey(key) {
+  return ROLL_BONUS_KEYS.some(rx => rx.test(String(key ?? "")));
+}
+
+/**
+ * THE BONUS NAMED AT ITS SOURCE: an effect's added roll bonuses carry the effect's name ("1d4" → "1d4[Blessed]"), so
+ * dnd5e's own sum carries the name into every roll the bonus rides. Only an `add` change on a roll-bonus key is named;
+ * the array comes back as it went in when nothing changes.
+ * @param {{key: string, value: unknown}[]} changes
+ * @param {string} name  the effect's
+ * @param {{typeOf: (change: object) => string|null, forbidden?: Iterable<string>}} opts
+ * @returns {object[]}
+ */
+export function namedBonusChanges(changes, name, { typeOf, forbidden = [] }) {
+  let touched = false;
+  const out = (changes ?? []).map(c => {
+    if ( !c || !isRollBonusKey(c.key) || (typeOf(c) !== "add") ) return c;
+    const value = nameFormula(/** @type {string|number} */ (c.value), name, { forbidden });
+    if ( value === c.value ) return c;
+    touched = true;
+    return { ...c, value };
+  });
+  return touched ? out : changes;
 }
 
 /**

@@ -6,7 +6,7 @@ import { TITLE, selfAndGmIds, resolveUuid, log } from "./core.js";
 import { lower } from "./lookup.js";
 import { MARK_USES, riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
-import { effectSourceOf, hitTargets } from "./shared.js";
+import { effectSourceOf, hitTargets, namedPart } from "./shared.js";
 import { bfCard } from "./decide/present.js";
 import { CARD, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -52,7 +52,7 @@ function ridersAgainst(attacker, targetActor) {
     const identifier = src.item.system?.identifier;
     if ( !identifier || !listed.some(e => e.name === identifier) ) continue;
     const source = riderUpgrade(identifier, attacker) ?? src.item;
-    for ( const part of riderParts(source) ) found.set(riderKey(identifier, part), part);
+    for ( const part of riderParts(source) ) found.set(riderKey(identifier, part), { ...part, name: source.name });
   }
   return found;
 }
@@ -112,7 +112,7 @@ listen("dnd5e.preRollDamage", "hit-riders", (config, _dialog, message) => {
       // No `properties`: the rider must not inherit the weapon's magical/silvered bypass. ⚠ The data is
       // CLONED: dnd5e writes `damageType` into each roll's data, and a shared object leaks it onto roll 0.
       data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
-      parts: [part.formula],
+      parts: [namedPart(part.formula, part.name)],
       options: { type: part.type, types: part.type ? [part.type] : [] }
     });
   }

@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, canAnswerFor, drivesMomentFor, queueFlagWrite, cla
 import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
-import { chipData, hitTargets, placeOf, poolSpendsOn, chipSpendsOn } from "./shared.js";
+import { chipData, hitTargets, namedPart, placeOf, poolSpendsOn, chipSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, riderMenuHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
@@ -278,12 +278,12 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
     const names = listed();
     const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? null;
     // ⚠ Per-roll damage rules WRITE into a roll's data, so each rider gets its own copy.
-    const push = formula => config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
+    const push = (formula, label) => config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [namedPart(formula, label)], options: { type, types: type ? [type] : [] } });
     const rode = [];
     // Lunging: the chip on the attacker, a melee hit, the offer's tick (absent: rides).
     const lunge = lungeFor(attackMessage, activity);
     if ( lunge?.die && (readFlag(attackMessage, "lungePick") !== false) ) {
-      push(lunge.die);
+      push(lunge.die, lunge.row.key);
       rode.push({ key: lunge.row.key, formula: lunge.die, type, why: lunge.row.rider.caveat, rule: lunge.row.rule });
       void lunge.chip.delete().catch(() => {});
     }
@@ -304,7 +304,7 @@ listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => 
       const act = activityNamed(feat, row.use);
       const die = act ? dieOf(attacker, act) : null;
       if ( !die ) continue;
-      push(die);
+      push(die, key);
       rode.push({ key, formula: die, type, why: `the feint at ${hits.map(t => t.name).join(", ")}`, rule: row.rule });
       // ⚠ The marker is NOT deleted here: the attack roll already SPENDS it through the chip-spend
       // machine, and a second delete races it.

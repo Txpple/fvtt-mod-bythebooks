@@ -103,6 +103,16 @@ export function faceState(gate, held, dice = {}) {
   }
 }
 
+/** A face whose number lives on the pack's effect (Dueling's +2, Defense's +1 AC) is off when none can be found — the
+ * feat's own effect gone and no original to read it from — and says why; any other face is as `state` has it.
+ * @param {{live: boolean, word: string, detail: string}} state
+ * @param {{needs?: "damage"|"AC"|null, found?: boolean}} [number]
+ * @returns {{live: boolean, word: string, detail: string}} */
+export function numberedFace(state, { needs = null, found = false } = {}) {
+  if ( !needs || found ) return state;
+  return { live: false, word: "no bonus", detail: `no ${needs} bonus on the feat — its own effect is missing` };
+}
+
 /** Does THIS roll fit? The attack's mode decides the grip (none: Two-Handed is two hands). `ownTurn`
  * is false only on someone else's combat turn (Heavy Weapon Mastery's "on your turn").
  * @param {string} gate

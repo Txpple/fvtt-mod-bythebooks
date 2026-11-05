@@ -121,7 +121,6 @@ export const VETOABLE = Object.freeze([
   "dnd5e.preRollDamage",
   "dnd5e.preRollSavingThrow",
   "dnd5e.preRollAbilityCheck",
-  "dnd5e.preRollD20TestV2",
   "dnd5e.postRollConfiguration",
   "dnd5e.postDamageRollConfiguration",
   "dnd5e.rollDeathSave"

@@ -6,7 +6,7 @@ import { MODULE_ID, readFlag, activeCombatFor, drivesMomentFor, queueFlagWrite, 
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable, registerOfferPart, pickInputs } from "./ui.js";
-import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
+import { damagePartsOf, hitTargets, namedPart, statSourceOf, withTargets, writeTurnChit, savesOf, saveSourceOf } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
 import { cunningMenu, cunningPick, sneakFormula } from "./decide/sneak.js";
@@ -149,7 +149,7 @@ listen("dnd5e.preRollDamage", "sneak", (config, _dialog, message) => {
       config.rolls.push({
         // ⚠ No `properties`: the weapon's type but not its magic (no resistance bypass).
         data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
-        parts: [formula],
+        parts: [namedPart(formula, "Sneak Attack")],
         options: { type: sneak.type ?? null, types: sneak.type ? [sneak.type] : [] }
       });
     }

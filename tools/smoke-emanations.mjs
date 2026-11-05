@@ -200,7 +200,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update(inside, mv());
       const fx = await until(() => memberFx(ranger, region.id)[0] ?? null, { timeout: 6000 });
       ok('2a. the Ranger receives "Protected — BTB Test Paladin"', fx?.name === 'Protected — BTB Test Paladin', `effects=${memberFx(ranger).map(e => e.name).join(',')}`);
-      ok('2b. …with the PALADIN\'s Charisma (+3), not the Ranger\'s', String(fx?.changes?.[0]?.value) === String(chaMod), `value=${fx?.changes?.[0]?.value} paladinCha=${chaMod} rangerCha=${ranger.system.abilities.cha.mod}`);
+      // The value names its aura ("3[Protected — BTB Test Paladin]"), so every roll it rides says where it came from.
+      const value2b = String(fx?.changes?.[0]?.value ?? '');
+      ok('2b. …with the PALADIN\'s Charisma (+3), not the Ranger\'s, named for the aura',
+        (value2b.replace(/\[[^\]]*\]/g, '') === String(chaMod)) && value2b.endsWith('[Protected — BTB Test Paladin]'),
+        `value=${value2b} paladinCha=${chaMod} rangerCha=${ranger.system.abilities.cha.mod}`);
       ok('2c. the Ranger\'s save bonus now carries it', String(saveBonus()).includes(String(chaMod)), `before="${saveBefore}" after="${saveBonus()}"`);
       // ⚠ The three floors are serialized (one create each): wait for all three, not the first.
       await until(() => (memberFx(ranger).length === 3) ? true : null, { timeout: 6000 });

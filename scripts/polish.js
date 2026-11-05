@@ -3,12 +3,13 @@
  * card buttons, the dialog target block and centering. EDGE layer (ARCHITECTURE.md §7, §8).
  */
 import { MODULE_ID, log } from "./core.js";
-import { labelReductionParts, poolHealDefault } from "./decide/present.js";
+import { labelRollParts, namedBonusChanges, poolHealDefault, proficiencyLabel } from "./decide/present.js";
+import { changeType } from "./decide/changes.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./decide/registry.js";
 import { EFFECT_CHOICES, answers, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, itemUuidOf, targetsOf } from "./decide/card.js";
-import { targetDescriptorOf, dispositionStyle, holdOf } from "./shared.js";
+import { targetDescriptorOf, dispositionStyle, holdOf, typeWords } from "./shared.js";
 import { cardActivity, cardItem, featureNamed, lower, profileEffectSync } from "./lookup.js";
 import { listen } from "./dispatch.js";
 import { SURFACES } from "./surfaces.js";
@@ -81,23 +82,112 @@ listen("dnd5e.preUseActivity", "polish", (activity, usageConfig) => {
   }
 });
 
-/* THE CONDITION'S NAME ON THE FORMULA (Session 03 of Echoes of Halruaa: Kartor's initiative read "1d20 + 1 - 2" and he
- * asked why). dnd5e adds a condition's roll reduction as a bare number; it is named here, "- 2[Exhaustion]", on
- * initiative (rolled from the tracker or the sheet) and on every d20 test it builds. */
+/* EVERY PART OF A ROLL SAYS WHERE IT CAME FROM (RULINGS *Every part of a roll says where it came from*). dnd5e builds
+ * each roll from named parts (`@mod`, `@prof`, `@cover`, `@reductions.exhaustion` …) and drops the names; each bare one
+ * is named here as a flavor, which dnd5e's own breakdown draws ("Dex +2", "Proficiency +2", "Exhaustion −2"). At
+ * dnd5e's post-build hook, which every built roll passes through, dialog or none: an earlier hook misses a skill's,
+ * a tool's and an attack's parts, built after it. Initiative from the tracker is never built and is named at its own
+ * hook. A bonus dnd5e merges keeps its own words; an effect the module writes names its bonuses itself (below). */
 const conditionLabel = status => {
   const name = CONFIG.DND5E?.conditionTypes?.[status]?.name ?? CONFIG.statusEffects?.find?.(s => s.id === status)?.name ?? null;
   return name ? game.i18n.localize(name) : null;
 };
-const nameReductions = rollConfig => {
-  if ( Array.isArray(rollConfig?.parts) ) rollConfig.parts = labelReductionParts(rollConfig.parts, conditionLabel);
+
+/** An ability's short name, "Dex". */
+const abilityLabel = key => {
+  const abbr = CONFIG.DND5E?.abilities?.[key]?.abbreviation;
+  const text = abbr ? game.i18n.localize(abbr) : "";
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : null;
 };
-listen("dnd5e.preConfigureInitiative", "polish", (_actor, rollConfig) => {
-  try { nameReductions(rollConfig); }
-  catch(err) { log.warn(`The initiative formula could not name its conditions.`, err); }
+
+/** The cover a creature stands in, by its status ("Half Cover"). */
+const coverLabel = actor => {
+  const id = ["coverThreeQuarters", "coverHalf"].find(s => actor?.statuses?.has?.(s));
+  const name = id ? CONFIG.statusEffects?.find?.(s => s.id === id)?.name : null;
+  return name ? game.i18n.localize(name) : "Cover";
+};
+
+/** The features that add half the Proficiency Bonus, by name. */
+const HALF_FEATURES = ["Jack of All Trades", "Remarkable Athlete"];
+
+/** What each of dnd5e's part keys is called on this roll; null leaves the part bare. */
+function partLabel({ actor, ability, data, initiative = false }) {
+  return key => {
+    switch ( key ) {
+      case "mod": {
+        // Only the ability the part really is: its modifier must be the roll's.
+        const mod = actor?.system?.abilities?.[ability]?.mod;
+        return (Number.isFinite(Number(mod)) && (Number(data?.mod) === Number(mod))) ? abilityLabel(ability) : null;
+      }
+      case "prof": {
+        const label = proficiencyLabel({ value: data?.prof, bonus: actor?.system?.attributes?.prof,
+          half: HALF_FEATURES.find(n => featureNamed(actor, n)) ?? null });
+        // Alert's Initiative Proficiency is the only proficiency an initiative roll adds.
+        return (initiative && (label === "Proficiency") && featureNamed(actor, "Alert")) ? "Alert" : label;
+      }
+      case "cover": return coverLabel(actor);
+      case "weaponMagic": case "magicalBonus": return "Magic Weapon";
+      case "ammoMagic": case "ammoBonus": return "Magic Ammunition";
+      case "alert": return "Alert";
+      case "situational": return "Situational";
+      default: {
+        const reduction = /^reductions\.([\w-]+)$/.exec(key);
+        return reduction ? conditionLabel(reduction[1]) : null;
+      }
+    }
+  };
+}
+
+/** One roll config's parts named in place. */
+function nameParts(config, { actor, ability, initiative = false }) {
+  if ( !Array.isArray(config?.parts) ) return;
+  const data = config.data ?? {};
+  config.parts = labelRollParts(config.parts, partLabel({ actor, ability, data, initiative }),
+    key => foundry.utils.getProperty(data, key));
+}
+
+listen("dnd5e.postBuildRollConfig", "polish", (process, config) => {
+  try {
+    const subject = process?.subject;
+    const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
+    const data = config?.data ?? {};
+    // A skill's ability, a check's or an attack's, the roll's; a damage roll's is its activity's.
+    const ability = data.abilityId ?? data.roll?.ability ?? config?.options?.ability ?? process?.ability ?? subject?.ability ?? null;
+    nameParts(config, { actor, ability });
+  } catch(err) {
+    log.warn(`The roll's parts could not be named.`, err);
+  }
 });
-listen("dnd5e.preRollD20TestV2", "polish", config => {
-  try { for ( const roll of (config?.rolls ?? []) ) nameReductions(roll); }
-  catch(err) { log.warn(`The roll formula could not name its conditions.`, err); }
+
+listen("dnd5e.preConfigureInitiative", "polish", (actor, rollConfig) => {
+  try {
+    const ability = rollConfig?.data?.roll?.ability ?? rollConfig?.options?.ability ?? null;
+    nameParts(rollConfig, { actor, ability, initiative: true });
+    // dnd5e's tiebreaker, the ability score in hundredths, is a literal part.
+    if ( game.settings.get("dnd5e", "initiativeDexTiebreaker") ) {
+      const score = Number(actor?.system?.abilities?.[ability]?.value);
+      const at = Number.isFinite(score) ? (rollConfig.parts ?? []).lastIndexOf(String(score / 100)) : -1;
+      if ( at >= 0 ) rollConfig.parts[at] = `${rollConfig.parts[at]}[Tiebreaker]`;
+    }
+  } catch(err) {
+    log.warn(`The initiative formula could not name its parts.`, err);
+  }
+});
+
+/* An effect the module writes on a creature names its own roll bonuses ("1d4" → "1d4[Blessed]"); dnd5e's own sum then
+ * carries the name into every roll the bonus rides. The module's own writes only, the class the effect view draws on
+ * the token (decide/effect-view.js `drawnAlways`); a worn item's effect and one applied by hand keep their words. */
+listen("preCreateActiveEffect", "polish", (effect, data) => {
+  try {
+    if ( !(effect.parent instanceof Actor) || (data?.transfer === true) || !data?.flags?.[MODULE_ID] ) return;
+    const path = Array.isArray(data?.system?.changes) ? "system.changes" : (Array.isArray(data?.changes) ? "changes" : null);
+    if ( !path ) return;
+    const changes = foundry.utils.getProperty(data, path);
+    const named = namedBonusChanges(changes, data.name ?? effect.name, { typeOf: changeType, forbidden: typeWords() });
+    if ( named !== changes ) effect.updateSource({ [path]: named });
+  } catch(err) {
+    log.warn(`An effect's roll bonuses could not be named.`, err);
+  }
 });
 
 const activityOf = doc => cardActivity(doc);

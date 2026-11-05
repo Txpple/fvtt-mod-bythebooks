@@ -474,8 +474,9 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
         if ( exceptedFor(row, e, attacker.uuid) || notOnlyFor(row, e, attacker.uuid) ) continue;
         if ( (row.against === "attacker") && (!attacker?.uuid || (e?.against !== attacker.uuid)) ) continue;
         const signed = `${Number(row.plus) < 0 ? "−" : "+"}${Math.abs(Number(row.plus))}`;
-        out.push(Object.assign(reminderSource("effect", null, `${targetName} is ${(row.named || row.against) ? (e?.name ?? row.named ?? key) : key} — ${signed} to this attack roll`, row.rule),
-          { plus: Number(row.plus) }, e.id ? { effectId: e.id } : {}, row.spend ? { spend: row.spend } : {}));
+        const plusName = (row.named || row.against) ? (e?.name ?? row.named ?? key) : key;
+        out.push(Object.assign(reminderSource("effect", null, `${targetName} is ${plusName} — ${signed} to this attack roll`, row.rule),
+          { plus: Number(row.plus), plusName }, e.id ? { effectId: e.id } : {}, row.spend ? { spend: row.spend } : {}));
       }
     }
     if ( row.target && targetRowHere && judged(row) ) {

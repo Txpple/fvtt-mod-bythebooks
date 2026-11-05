@@ -261,7 +261,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const results = await act.use({ ...opts }, { configure: false }, {});
       return results?.message ?? null;
     };
-    const riderPart = (dmg, re) => (dmg?.rolls ?? []).find(r => re.test(r.formula));
+    // A part reads as its dice: the module names each maneuver's ("1d8[Feinting Attack]").
+    const riderPart = (dmg, re) => (dmg?.rolls ?? []).find(r => re.test(String(r.formula ?? '').replace(/\[[^\]]*\]/g, '')));
 
     // ---- 1. Parry
     if (want(1)) await section(1, async () => {

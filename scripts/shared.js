@@ -9,7 +9,20 @@ import { foldsFrom, hitsAmong } from "./decide/verdict.js";
 import { storedChipName, withoutFace } from "./decide/stored-dice.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
+import { nameFormula } from "./decide/present.js";
 import { tokenDocOf } from "./geometry.js";
+
+/** The words dnd5e reads as a damage or healing type off a term's flavor: never a label. */
+export function typeWords() {
+  return [...Object.keys(CONFIG.DND5E?.damageTypes ?? {}), ...Object.keys(CONFIG.DND5E?.healingTypes ?? {})];
+}
+
+/** A part the module adds to a roll, named for what added it ("2" → "2[Dueling]", "2d8" → "2d8[Divine Smite]"), so
+ * the roll says where it came from (RULINGS *Every part of a roll says where it came from*); left as it is when it
+ * cannot be named. */
+export function namedPart(formula, label) {
+  return nameFormula(formula, label, { forbidden: typeWords() });
+}
 
 
 /** The attack's snapshot targets the roll hit; a null AC (total cover) MISSES, as dnd5e 6 judges it. */

@@ -7,7 +7,7 @@ import { MODULE_ID, readFlag, activeCombatFor, statContext, sheetModeEffects, ro
 import { featureNamed, isWorn, lower, namesAnswering } from "./lookup.js";
 import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
-import { chipSpentOnRecord, grantingActor, turnChitStands, chipKindOf, effectSourceUuid, metamagicOf, savesOf } from "./shared.js";
+import { chipSpentOnRecord, grantingActor, namedPart, turnChitStands, chipKindOf, effectSourceUuid, metamagicOf, savesOf } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor, postCard, pickInputs } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE, esc } from "./decide/present.js";
 import { chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
@@ -146,7 +146,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
     if ( !plus.length ) return;
     const roll = config.rolls?.[0];
     if ( !Array.isArray(roll?.parts) ) return;
-    for ( const s of plus ) roll.parts.push(String(s.plus));
+    for ( const s of plus ) roll.parts.push(String(namedPart(String(s.plus), s.plusName ?? "")));
   } catch(err) {
     log.error(`The attack's plus could not be added — add it by hand.`, err);
   }

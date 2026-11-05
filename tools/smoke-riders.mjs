@@ -167,7 +167,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       victimToken.setTarget(true, { releaseOthers: true });
       await until(() => (game.user.targets.size === 1) && game.user.targets.has(victimToken), { label: 'the Victim targeted' });
       const rolls = await activity().rollDamage({ isCritical }, { configure: false }, { create: false });
-      return (rolls ?? []).map(r => ({ formula: r.formula, type: r.options?.type ?? null }));
+      return (rolls ?? []).map(r => ({ formula: String(r.formula ?? '').replace(/\[[^\]]*\]/g, ''), named: r.formula, type: r.options?.type ?? null }));   // the dice; the part's name beside (RULINGS *Every part of a roll says where it came from*)
     };
     const forceParts = rolls => rolls.filter(r => r.type === 'force');
 
@@ -182,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await putMark(itemOrigin);
       rolls = await rollAt();
       ok('1. marked target gets the rider', forceParts(rolls).length === 1
-        && forceParts(rolls)[0].formula === '1d6', JSON.stringify(rolls));
+        && forceParts(rolls)[0].formula === '1d6' && (forceParts(rolls)[0].named === "1d6[Hunter's Mark]"), JSON.stringify(rolls));
     });
 
     // ---------------------------------------------------------------- 2. crit doubles it

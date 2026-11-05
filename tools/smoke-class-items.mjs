@@ -510,7 +510,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         else {
           await victimAs('humanoid');
           const r1 = await dmgHit(w, 20);
-          const parts = d => (d?.rolls ?? []).map(r => String(r.formula).trim());
+          const parts = d => (d?.rolls ?? []).map(r => String(r.formula ?? '').replace(/\[[^\]]*\]/g, '').trim());   // the dice and numbers, not the parts' names
           ok('120a. a 20 on a Humanoid: a 7 Bludgeoning part rides', parts(r1.dmg).includes('7') && dmgKeys(r1.dmg).includes('mace-of-smiting'), `parts=${JSON.stringify(parts(r1.dmg))} keys=${dmgKeys(r1.dmg)}`);
           await victimAs('construct');
           const r2 = await dmgHit(w, 20, { hpTo: 30 });
