@@ -19,7 +19,8 @@ const SECTIONS = {
   3: "the held key (highlightObjects): a card for every creature with effects, cleared on release",
   4: "the bar follows the sheet: an effect deleted, its chip leaves",
   5: "the client switch off removes the bar (effectViewChanged)",
-  6: "the bar's actions: the fold with Remove, Remove deletes, Clear zeroes temp HP, the name's full panel, Escape closes"
+  6: "the bar's actions: the fold with Remove, Remove deletes, Clear zeroes temp HP, the name's full panel, Escape closes",
+  7: "a switching fighting style stands on the bar: Dueling green and last with one Longsword, red with why once a Javelin joins it, never on the hover card"
 };
 const DEPENDS = {};
 
@@ -50,6 +51,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorBar = game.settings.get(MOD, "effectBar"), priorHover = game.settings.get(MOD, "effectHover");
   let made = [];
   let seeded = [];
+  let lent = [];          // §7's Dueling, Longsword and Javelin, deleted after
+  let unequipped = [];    // §7's weapons and shields taken out of the hands, put back after
   const CLOCKLESS = "Death Armor (probe)";
   let priorSheet = null;
   try {
@@ -95,6 +98,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // The Vanguard's own bar, drawn after the control (the sheet writes above it coalesce into that draw); §1 reports a missing one.
     const bar = await until(() => { const b = document.getElementById("bf-effect-view-bar"); return (b && !b.classList.contains("empty") && b.querySelector(".bf-ev-chip") && (b.dataset.actor === vanguard.uuid)) ? b : null; }, { timeout: 8000 }).catch(() => null);
     const barNames = bar ? [...bar.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
+    // A standing fighting-style face is the bar's alone (§7): the hover card is held to the rest.
+    const standingCount = bar ? bar.querySelectorAll(".bf-ev-chip.standing").length : 0;
 
     // ---- 1. the bar
     if ( want(1) ) await section(1, async () => {
@@ -125,7 +130,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       Hooks.callAll("hoverToken", token, true);
       const card = await until(() => document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), { timeout: 3000 });
       ok("2. the hover card appears for the token with the same list",
-        !!card && (card.querySelectorAll(".bf-ev-chip").length === barNames.length), `chips=${card?.querySelectorAll(".bf-ev-chip").length}`);
+        !!card && (card.querySelectorAll(".bf-ev-chip").length === (barNames.length - standingCount)), `chips=${card?.querySelectorAll(".bf-ev-chip").length} bar=${barNames.length} standing=${standingCount}`);
       Hooks.callAll("hoverToken", token, false);
       await until(() => !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), { timeout: 3000, label: "the hover card gone" });
       ok("2b. and leaves when the hover ends", !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), "");
@@ -202,6 +207,50 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("6f. Escape closes it", !barEl()?.querySelector(".bf-ev-panel"), "");
     });
 
+    // ---- 7. a switching fighting style stands on the bar, live or off (2026-11-05, Kartor's Dueling)
+    // Dueling, a Longsword and a Javelin lent from the PHB; every other weapon and shield out of the hands. The face
+    // follows on the elect's debounce (damage-rules.js), the chip on the bar's redraw. Runs before §5, whose switch
+    // takes the bar away.
+    if ( want(7) ) await section(7, async () => {
+      const findPHB = async (name, type) => {
+        for ( const pack of game.packs.filter(p => (p.metadata.packageName === "dnd-players-handbook") && (p.documentName === "Item")) ) {
+          const hit = (await pack.getIndex({ fields: ["type"] })).find(e => (e.name === name) && (e.type === type));
+          if ( hit ) return pack.getDocument(hit._id);
+        }
+        return null;
+      };
+      const sources = await Promise.all([["Dueling", "feat"], ["Longsword", "weapon"], ["Javelin", "weapon"]].map(([n, t]) => findPHB(n, t)));
+      if ( sources.some(s => !s) ) { skips.push("§7: the PHB's Dueling, Longsword or Javelin is not on this box"); return; }
+      unequipped = vanguard.items.filter(i => (i.system?.equipped === true) && ((i.type === "weapon") || (i.system?.type?.value === "shield"))).map(i => i.id);
+      if ( unequipped.length ) await vanguard.updateEmbeddedDocuments("Item", unequipped.map(id => ({ _id: id, "system.equipped": false })));
+      lent = await vanguard.createEmbeddedDocuments("Item", sources.map(s => { const d = s.toObject(); if ( "equipped" in (d.system ?? {}) ) d.system.equipped = false; return d; }));
+      const sword = lent.find(i => i.name === "Longsword"), javelin = lent.find(i => i.name === "Javelin");
+      await hold(7);
+      const barEl = () => document.getElementById("bf-effect-view-bar");
+      const duelChip = () => [...(barEl()?.querySelectorAll(".bf-ev-chip") ?? [])].find(c => c.querySelector(".nm")?.textContent === "Fighting Style: Dueling") ?? null;
+
+      await sword.update({ "system.equipped": true });
+      const live = await until(() => { const c = duelChip(); return c?.classList.contains("buff") ? c : null; }, { timeout: 5000 }).catch(() => null);
+      const chips = [...(barEl()?.querySelectorAll(".bf-ev-chip") ?? [])];
+      ok("7. one Longsword in hand: Dueling stands on the bar, green, the last chip, why in its title",
+        !!live && (chips.at(-1) === live) && /Longsword in one hand/.test(live.title), `title="${live?.title}" chips=${JSON.stringify(chips.map(c => `${c.querySelector(".nm")?.textContent}:${c.className}`))}`);
+
+      await javelin.update({ "system.equipped": true });
+      const off = await until(() => { const c = duelChip(); return c?.classList.contains("off") ? c : null; }, { timeout: 5000 }).catch(() => null);
+      ok("7b. a Javelin beside it: Dueling stays on the bar, red, \"off: a second weapon held (Javelin)\"",
+        !!off && /off: a second weapon held \(Javelin\)/.test(off.title), `title="${off?.title}" class="${duelChip()?.className}"`);
+
+      const token = canvas.tokens.get(doc.id);
+      token?.release();
+      await until(() => !token?.controlled, { label: "the Vanguard released" }).catch(() => null);
+      Hooks.callAll("hoverToken", token, true);
+      const card = await until(() => document.querySelector(`.bf-ev-card[data-token="${token?.id}"]`), { timeout: 3000 }).catch(() => null);
+      const cardNames = card ? [...card.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : null;
+      ok("7c. the hover card lists what is in force, never the standing face", !!card && !cardNames.includes("Fighting Style: Dueling"), `card=${JSON.stringify(cardNames)}`);
+      Hooks.callAll("hoverToken", token, false);
+      await hold(7);
+    });
+
     // ---- 5. the switch
     // Off, the bar leaves — the setting's onChange publishes effectViewChanged, the bar's redraw hears it.
     if ( want(5) ) await section(5, async () => {
@@ -216,6 +265,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } finally {
     try { for ( const c of document.querySelectorAll(".bf-ev-card") ) c.remove(); } catch { /* fine */ }
     try { const ids = [...made, ...seeded].map(e => e.id).filter(id => vanguard.effects.get(id)); if ( ids.length ) await vanguard.deleteEmbeddedDocuments("ActiveEffect", ids); } catch(err) { log.push(`cleanup effects: ${err?.message}`); }
+    try { const ids = lent.map(i => i.id).filter(id => vanguard.items.get(id)); if ( ids.length ) await vanguard.deleteEmbeddedDocuments("Item", ids); } catch(err) { log.push(`cleanup lent items: ${err?.message}`); }
+    try { const back = unequipped.filter(id => vanguard.items.get(id)); if ( back.length ) await vanguard.updateEmbeddedDocuments("Item", back.map(id => ({ _id: id, "system.equipped": true }))); } catch(err) { log.push(`cleanup equipped: ${err?.message}`); }
     try { if ( priorSheet ) await vanguard.update({ "system.attributes.hp.temp": priorSheet.temp ?? 0, "system.attributes.inspiration": priorSheet.insp ?? false }); } catch(err) { log.push(`cleanup sheet: ${err?.message}`); }
     try { canvas.tokens?.releaseAll?.(); } catch { /* fine */ }
     try { if ( placed.length ) await scene.deleteEmbeddedDocuments("Token", placed); } catch(err) { log.push(`cleanup tokens: ${err?.message}`); }

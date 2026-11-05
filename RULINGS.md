@@ -379,7 +379,8 @@ objection, and a spendable-actions surface was never the need.
   its `EFFECT_BENDS` row (2026-10-29, the user: Helped "is a debuff, not a buff" — Disadvantage on the
   bearer's rolls or Advantage on the rolls against it is a debuff, the mirror a buff, both at once
   nothing); else the caster's side by disposition; else a buff.
-- **Order:** concentration, debuffs, buffs, the sheet rows last; the panel vertical.
+- **Order:** concentration, debuffs, buffs, the sheet rows; on the bar alone, the standing
+  fighting-style faces last, live or off (2026-11-05, *The fighting styles*); the panel vertical.
 
 Not picked: a count badge, tracker chip lines, a turn-start card. Pinned by
 `tests/decide-effect-view.test.js` and `tools/probe-effect-view.mjs`.
@@ -1097,7 +1098,7 @@ Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-gua
   style keeps ONE effect on the character — its **face** — live, or disabled with the reason ("a
   second weapon held (Dagger)", "no armor worn"), read off the sheet's **Equipped** boxes (held =
   equipped, the register). The effect view's panel lists it (Passive when live, Unavailable with
-  why when off; never the bar). Where the pack ships an UNGATED effect (Defense, Dueling — their
+  why when off); a face that switches stands on the bar too (below). Where the pack ships an UNGATED effect (Defense, Dueling — their
   notes say "disable it when …"), the machine switches that off and the face carries the rule
   (Defense's AC change, read off the pack's effect); unlisting the style gives it back.
 - **The face on the panel is ONE line, no suffix** (the walk, 2026-09-26: "i only want one line";
@@ -1112,6 +1113,20 @@ Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-gua
   (the walk, 2026-09-26: "the toggle should be the standard +/- every other effect uses"; "match
   the buff name"); the module draws it for every face, since core floats only an effect with
   changes, and quiets core's on the face writes so Defense floats once.
+- **A face that switches with what is held or worn stands on the bar, live or off** (2026-11-05, the user: Kartor's
+  Dueling "doesnt show well when its on or off. there should always be Dueling on his buff bar, either green for
+  active or red for inactive"; "do a review of all the fighting styles and which should have this type of
+  indicator"). The 2026-09-26 panel rule had kept every face off the bar, so a javelin taken up beside the sword
+  turned Dueling off where no one looked. Now the faces whose gate turns on the Equipped boxes (`faceSwitches`)
+  are always on the bar, after every other chip. A live face is green, as a buff. An off face is red, its icon
+  grey and its name struck through. The hover title says why ("Longsword in one hand", "off: a second weapon held
+  (Javelin)"). It offers no fold and is not on the hover card or the held key. **The review:** on the bar are
+  Great Weapon Fighting, Two-Weapon Fighting, Dueling and Defense, and the feats kept as faces the same way,
+  Great Weapon Master, Heavy Armor Master and Crossbow Expert. Left off: Thrown Weapon Fighting (always live, the
+  attack's thrown mode is its gate); Unarmed Fighting (always live, its d8 or d6 named on each Unarmed Strike's
+  card); the `always` and `typed` rows (nothing held decides them); Archery and Blind Fighting (the pack's
+  always-on effects); Protection and Interception (reactions, asked only of a guard holding what the style
+  demands); Blessed, Druidic and Arcane Warrior (cantrips).
 - **The numbers on the roll** (`preRollDamage`, by the attack's own mode): **Great Weapon
   Fighting** floors every damage die of the attack at 3 (`min3`, a crit's doubled dice included —
   "a damage die"), only in two hands with a Two-Handed or Versatile melee weapon; **Thrown Weapon

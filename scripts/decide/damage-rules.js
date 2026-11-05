@@ -36,6 +36,14 @@ const has = (item, prop) => (item?.properties ?? []).includes(prop);
 const CROSSBOW_IDS = new Set(["handcrossbow", "lightcrossbow", "heavycrossbow"]);
 const isMelee = item => MELEE.has(item?.kind);
 
+/** The gates that switch a face on and off with what the owner holds or wears. Such a face stands on
+ * the effect view's bar, live or off (RULINGS *The fighting styles*). Not `thrown` or `unarmed` (always
+ * live: the attack's mode, or the die, is the whole difference) and not `always`.
+ * @param {string} gate @returns {boolean} */
+export function faceSwitches(gate) {
+  return ["twoHanded", "offhand", "oneHanded", "armored", "heavy", "heavyArmor", "offhandCrossbow"].includes(gate);
+}
+
 /** A style's face: live, or off; `word` is the one-word state, `detail` the hover line.
  * @param {string} gate
  * @param {ReturnType<typeof heldOf>} held

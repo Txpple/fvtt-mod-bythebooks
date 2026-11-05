@@ -84,6 +84,27 @@ describe("faceState", () => {
   });
 });
 
+describe("faceSwitches (2026-11-05: the faces that stand on the effect view's bar)", () => {
+  it("is every gate that turns on what is held or worn", () => {
+    const switching = Object.entries(reg.DAMAGE_RULES)
+      .filter(([, row]) => d.faceSwitches(row.gate))
+      .map(([name]) => name);
+    expect(switching).toEqual([
+      "Great Weapon Fighting",
+      "Two-Weapon Fighting",
+      "Dueling",
+      "Defense",
+      "Great Weapon Master",
+      "Heavy Armor Master",
+      "Crossbow Expert"
+    ]);
+  });
+  it("leaves out the faces that are always live", () => {
+    for (const gate of ["thrown", "unarmed", "always", undefined])
+      expect(d.faceSwitches(gate)).toBe(false);
+  });
+});
+
 describe("rollFits", () => {
   it("Great Weapon Fighting: melee, two hands, a Two-Handed or Versatile weapon", () => {
     expect(

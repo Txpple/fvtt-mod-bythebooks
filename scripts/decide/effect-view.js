@@ -28,6 +28,7 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * @property {boolean} [disabled]    the sheet's toggle is OFF (not merely suppressed)
  * @property {boolean} [style]       a fighting style's FACE; off means the module disabled it
  * @property {boolean} [feat]        a face kept for a general feat, titled by the feat alone
+ * @property {boolean} [onBar]       a face that switches with what is held or worn: it stands on the bar, live or off
  * @property {string|null} [styleFeat]  the Fighting Style feat an item effect rides
  * @property {string|null} [detail]  the face's hover line
  * @property {{key: string, type: string|null, value: string|number}[]} [changes]   `type` off decide/changes.js
@@ -41,7 +42,7 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * @property {string} id
  * @property {string} name
  * @property {string|null} img
- * @property {"buff"|"debuff"|"concentration"} tone
+ * @property {"buff"|"debuff"|"concentration"|"off"} tone   "off" is a standing face that does not apply now
  * @property {string} clock
  * @property {string} [detail]      a value with no clock glyph (the sheet rows)
  * @property {boolean} noIcon
@@ -229,6 +230,21 @@ export function everyRow(facts, sheet = {}) {
 /** Every row for one creature: the effects (debuffs, then buffs), then the sheet's own buffs. */
 export function allRows(facts, sheet) {
   return [...effectRows(facts), ...sheetRows(sheet)];
+}
+
+/**
+ * THE BAR'S ROWS: every row, then the STANDING FACES. These are the fighting styles and feats whose rule turns on
+ * what the owner holds or wears (`onBar`), shown whether they apply or not: a buff while live, "off" while not, so
+ * the player sees Dueling go out when a second weapon comes into the hand (RULINGS *The fighting styles*). The bar
+ * only: the hover card and the held key list what is in force.
+ * @param {EffectFact[]} facts
+ * @param {{tempHp?: number|null, inspiration?: boolean}} [sheet]
+ * @returns {EffectRow[]}
+ */
+export function barRows(facts, sheet = {}) {
+  const standing = (facts ?? []).filter(f => (f?.style === true) && (f.onBar === true))
+    .map(f => ({ ...rowOf(f), tone: (f.active === true) ? "buff" : "off", noIcon: false }));
+  return [...allRows(facts, sheet), ...standing];
 }
 
 /**

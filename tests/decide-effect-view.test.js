@@ -3,6 +3,7 @@ import {
   drawnAlways,
   drawsOnToken,
   allRows,
+  barRows,
   changeSign,
   effectRows,
   everyRow,
@@ -439,6 +440,51 @@ describe('a fighting style\'s face in the panel (user, 2026-09-26: "i only want 
     expect(panelGroups([senses]).flatMap(g => g.rows)[0].name).toBe(
       "Fighting Style: Blind Fighting"
     );
+  });
+});
+
+describe('a switching face stands on the bar (user, 2026-11-05: "always be Dueling on his buff bar, either green for active or red for inactive")', () => {
+  const face = over =>
+    fact({
+      id: "duel",
+      name: "Dueling",
+      temporary: false,
+      worn: true,
+      clock: "",
+      style: true,
+      onBar: true,
+      detail: "Longsword in one hand",
+      ...over
+    });
+
+  it("a live face is a buff on the bar, after every other row", () => {
+    const rows = barRows([face(), fact({ id: "bless" })], { tempHp: 5 });
+    expect(rows.map(r => r.id)).toEqual(["bless", "sheet:tempHp", "duel"]);
+    expect(rows[2]).toMatchObject({
+      name: "Fighting Style: Dueling",
+      tone: "buff",
+      style: true,
+      why: "Longsword in one hand"
+    });
+  });
+  it("an off face stays on the bar, toned off, its why kept", () => {
+    const row = barRows([
+      face({ active: false, disabled: true, detail: "a second weapon held (Javelin)" })
+    ])[0];
+    expect(row).toMatchObject({ id: "duel", tone: "off", why: "a second weapon held (Javelin)" });
+  });
+  it("a face that does not switch, and the hover card's list, leave it off", () => {
+    const thrown = face({ id: "thrown", name: "Thrown Weapon Fighting", onBar: undefined });
+    expect(barRows([thrown])).toEqual([]);
+    expect(allRows([face()], {})).toEqual([]);
+  });
+  it("a feat's face keeps the feat's own name", () => {
+    expect(barRows([face({ name: "Great Weapon Master", feat: true })])[0].name).toBe(
+      "Great Weapon Master"
+    );
+  });
+  it("offers no fold: the face follows the equipped boxes", () => {
+    expect(rowAction(barRows([face()])[0], { owner: true })).toBeNull();
   });
 });
 

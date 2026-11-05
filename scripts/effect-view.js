@@ -6,8 +6,9 @@
  * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
 import { MODULE_ID, isActiveGM, S, setting, resolveUuid, log } from "./core.js";
-import { allRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
-import { EFFECT_BENDS, EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
+import { allRows, barRows, drawnAlways, drawsOnToken, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
+import { DAMAGE_RULES, EFFECT_BENDS, EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
+import { faceSwitches } from "./decide/damage-rules.js";
 import { carriedCover, measuredCoverBetween, tokenDocOf } from "./geometry.js";
 import { coverStanding } from "./decide/cover.js";
 import { changeType } from "./decide/changes.js";
@@ -77,16 +78,21 @@ const styleFeatOf = effect => {
   return answers("Fighting Style", item) ? effect.name : item.name;
 };
 
+/** A face's DAMAGE_RULES gate, by the key its flag carries. */
+const GATE_BY_KEY = new Map(Object.values(DAMAGE_RULES).map(r => [r.key, r.gate]));
+
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
-  // A fighting style's FACE (damage-rules.js) reads as a worn passive: the panel, never the bar.
+  // A fighting style's FACE (damage-rules.js) reads as a worn passive in the panel. One that switches with what is
+  // held or worn also stands on the bar, live or off.
   const style = styleFaceOf(effect);
   return {
     id: effect.id, name: effect.name, img: effect.img ?? null,
     active: effect.active === true, temporary: effect.isTemporary === true, showIcon: effect.showIcon ?? null,
     disabled: effect.disabled === true,
     worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
-    style: !!style, ...(style?.feat ? { feat: true } : {}), detail: style?.detail ?? null, styleFeat: styleFeatOf(effect),
+    style: !!style, ...(style?.feat ? { feat: true } : {}), ...(style && faceSwitches(GATE_BY_KEY.get(style.key)) ? { onBar: true } : {}),
+    detail: style?.detail ?? null, styleFeat: styleFeatOf(effect),
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
@@ -115,6 +121,9 @@ function sheetOf(actor) {
 /** Every row for an actor — the effects and the sheet rows. */
 const rowsOf = actor => allRows(factsOf(actor), sheetOf(actor));
 
+/** The bar's rows: those, then the standing fighting-style faces, live or off. */
+const barRowsOf = actor => barRows(factsOf(actor), sheetOf(actor));
+
 /** The marks this actor holds on the other creatures on the scene. */
 function marksOf(actor) {
   const others = [];
@@ -135,9 +144,13 @@ function chipHTML(row, { button = false } = {}) {
   const tag = row.noIcon ? `<em title="This effect paints no icon on the token">no icon</em>` : "";
   const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : (row.detail ? `<span class="dtl">${esc(row.detail)}</span>` : "");
   const inner = `${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}`;
+  // A face says why it is live or off: "Longsword in one hand", "off: a second weapon held (Javelin)".
+  const off = row.unavailable || (row.tone === "off");
+  const why = row.style ? (row.why ? ` — ${off ? "off: " : ""}${row.why}` : "")
+    : ((button && row.unavailable) ? " — unavailable: suppressed by the platform (unequipped, unattuned or expired)" : "");
   return button
-    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${row.unavailable ? (row.style ? ` — off: ${esc(row.why ?? "")}` : " — unavailable: suppressed by the platform (unequipped, unattuned or expired)") : ""}">${inner}</button>`
-    : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}${row.style && row.why ? ` — ${esc(row.why)}` : ""}">${inner}</span>`;
+    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}${row.style ? " standing" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${esc(why)}">${inner}</button>`
+    : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}${esc(why)}">${inner}</span>`;
 }
 
 /** The list for one actor: debuffs, buffs, and (for the hover card) the marks it holds. */
@@ -165,6 +178,8 @@ function ensureStyle() {
     .bf-ev-chip{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:2px 7px 2px 4px;border-radius:4px;border:1px solid var(--bf-tone);background:color-mix(in srgb,var(--bf-tone) 20%,transparent);color:#e8e3d6;line-height:1.25;white-space:nowrap}
     .bf-ev-chip.buff{--bf-tone:rgb(70,150,95)} .bf-ev-chip.debuff{--bf-tone:rgb(180,70,60)}
     .bf-ev-chip.concentration{--bf-tone:rgb(232,190,50)}
+    .bf-ev-chip.off{--bf-tone:rgb(180,70,60)} .bf-ev-chip.off img{filter:grayscale(1) drop-shadow(0 0 1px #000)}
+    .bf-ev-chip.off .nm{text-decoration:line-through;text-decoration-color:rgba(232,227,214,.7)}
     .bf-ev-chip img{width:18px;height:18px;border-radius:3px;border:0;flex:none;filter:drop-shadow(0 0 1px #000)}
     .bf-ev-chip .txt{display:flex;flex-direction:column} .bf-ev-chip .nm{font-weight:600;font-size:11.5px} .bf-ev-chip .clk{font-size:10px;color:#b5b0a4}
     .bf-ev-chip .clk::before{content:"◔ ";opacity:.7}
@@ -315,7 +330,7 @@ function drawBar() {
     document.body.appendChild(bar);
   }
   const actor = barActor();
-  const rows = actor ? rowsOf(actor) : [];
+  const rows = actor ? barRowsOf(actor) : [];
   // The bar stands whenever there is someone to stand for — empty rows draw the name alone.
   bar.classList.toggle("empty", !actor);
   if ( !actor ) {
