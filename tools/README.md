@@ -388,6 +388,14 @@ only, so a recording under-reports, never over. The battery clears the directory
 printing `contracts.mjs --check --run`: a field, pair, key or hook the run saw that the files do not
 name, and the documented fields it never saw.
 
+**A name that changes run to run is never a field.** A property name carrying a document id (a map
+keyed by ids, a ledger step `ally-<id>`, a uuid as a key `Actor|<id>`) or a numbered slot's index
+(`burst-0`) folds into one `patternProperties` entry, listed by its label: `<id>`, `ally-<id>`,
+`Actor|<id>`, `burst-<n>`. An id is 16 letters and digits: with a digit it is an id; with none it is
+an id unless it is shaped like a camelCase or PascalCase name (`compendiumSource`), and a name-shaped
+one folds anyway beside ids that are not. A recording or a committed file written before the fold is
+folded as it is read (`foldSchema`), so its ids leave the file at the next `--write`.
+
 ```bash
 node tools/contracts.mjs --check               # the files against the code — offline, in npm run verify
 node tools/contracts.mjs --check --run         # ...and against the last run's recordings
@@ -460,7 +468,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `prelude.mjs` | **the one in-page helper set**: `connectSuite` installs it on the page as `window.__btb` before any suite body runs (a suite's second page calls `installPrelude`). `sleep` (a module clock only), `until(test, { timeout, every, label })` (returns the first truthy value, THROWS with the label or the predicate's text), `watch(test, { ms })` (a window for what must not happen), `canvasReady` · `tokenOn` · `viewScene`, `begin({ sections, titles })` (`results`, `log`, `skips`, `ok`, `want`, and `section(id, fn)`: a throw fails that section by name and the next one runs), `snapshotSettings(keys)`, the dice (`faces([[n, of], …])`, `unrig()`) and `stage`. `tests/prelude.test.js`. A change here is the full battery. |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
 | `contract-recorder.mjs` | **the contract recorder**: armed by `connectSuite` beside the hook ledger, dumped at teardown to `dist/contract-recordings/<tag>.json` — every `bythebooks.*` hook's arguments and every document hook's module flags, by shape (*The contracts*, above). Not run directly. |
-| `contract-shapes.mjs` | the shape algorithm the recorder and `contracts.mjs` share: `schemaOf`, `mergeSchemas`, `sampleOf`, `fieldsOf`, `diffSchemas`; self-contained functions, shipped to the page as source. `tests/contract-shapes.test.js`. |
+| `contract-shapes.mjs` | the shape algorithm the recorder and `contracts.mjs` share: `schemaOf`, `mergeSchemas`, `sampleOf`, `fieldsOf`, `diffSchemas`, and the fold of names that change run to run (`idLabelOf`, `foldIdKeys`, `foldSchema`); self-contained functions, shipped to the page as source. `tests/contract-shapes.test.js`. |
 | `contracts.mjs` | `--check` the committed `contracts/` against the code (offline, in verify) and, with `--run`, against a run; `--write` unions a run's recordings into them (*The contracts*, above). |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
 | `claim-proof.mjs` | **the runtime half of the coverage map** (2026-09-23), printed as `hook-coverage`'s second section. The harness also counts every `bythebooks.moment` by record `kind` into the same ledger file (`moments`); this reads it against each suite's `COVERS`: a claimed file is PROVEN (a kind only it writes was published there), PROVEN (shared kind), **UNPROVEN** (it writes kinds, none published — a stale claim), UNPROVABLE-BY-MOMENTS (it writes no kind — derived from the gate's tables, not listed) or NOT MEASURED (no moment half in the ledger). It also names a file that acted in a suite that does NOT claim it. The tag → suite join is read off each script's `connectSuite({ tag })`. Same contract: **reports, never fails.** ⚠ It hears the tester's page only — a second client's resolves are not counted. |

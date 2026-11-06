@@ -26,11 +26,14 @@
 // hand-written and kept across writes. ⚠ The version moves when a shape another repo reads changes:
 // a renamed or removed field, a word or a key gone. A new field or key is additive and does not move
 // it. The recording is a live run's (the battery records every suite, tools/contract-recorder.mjs).
+// A name that changes run to run (a document id, a slot's index) is never a field: every recorded
+// and committed schema is folded (`foldSchema`) before it is merged or compared, so a recording or a
+// file written before the fold reads as one written after it.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { strictArgs, usageOf } from "./args.mjs";
-import { diffSchemas, fieldsOf, mergeSchemas, schemaOf } from "./contract-shapes.mjs";
+import { diffSchemas, fieldsOf, foldSchema, mergeSchemas, schemaOf } from "./contract-shapes.mjs";
 import { RECORDING_DIR } from "./contract-recorder.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -103,20 +106,20 @@ export function readRecordings(dir) {
     for (const [hook, h] of Object.entries(r.hooks ?? {})) {
       const into = run.hooks[hook] ?? (run.hooks[hook] = { count: 0, args: [], sample: null });
       into.count += h.count ?? 0;
-      (h.args ?? []).forEach((a, i) => { into.args[i] = mergeSchemas(into.args[i] ?? null, a); });
+      (h.args ?? []).forEach((a, i) => { into.args[i] = mergeSchemas(into.args[i] ?? null, foldSchema(a)); });
       into.sample ??= h.sample ?? null;
     }
     for (const [pair, m] of Object.entries(r.moments ?? {})) {
       const into = run.moments[pair] ?? (run.moments[pair] = { count: 0, schema: null, sample: null });
       into.count += m.count ?? 0;
-      into.schema = mergeSchemas(into.schema, m.schema ?? null);
+      into.schema = mergeSchemas(into.schema, foldSchema(m.schema));
       into.sample ??= m.sample ?? null;
     }
     for (const [key, f] of Object.entries(r.flags ?? {})) {
       const into = run.flags[key] ?? (run.flags[key] = { count: 0, on: {}, schema: null });
       into.count += f.count ?? 0;
       for (const [doc, n] of Object.entries(f.on ?? {})) into.on[doc] = (into.on[doc] ?? 0) + n;
-      into.schema = mergeSchemas(into.schema, f.schema ?? null);
+      into.schema = mergeSchemas(into.schema, foldSchema(f.schema));
     }
   }
   return run;
@@ -135,8 +138,8 @@ export function stampOf(schema) {
   return null;
 }
 
-/** A committed pair's whole payload schema: its envelope with its details put back. */
-const documentedOf = doc => ({ ...(doc.envelope ?? { type: "object" }), properties: { ...(doc.envelope?.properties ?? {}), details: doc.details ?? { type: "object" } } });
+/** A committed pair's whole payload schema: its envelope with its details put back, folded. */
+const documentedOf = doc => foldSchema({ ...(doc.envelope ?? { type: "object" }), properties: { ...(doc.envelope?.properties ?? {}), details: doc.details ?? { type: "object" } } });
 
 /** The payload's envelope: everything but `details`, whose shape is each pair's. */
 function envelopeOf(schema) {
@@ -203,7 +206,7 @@ export function buildMoment(committed, run, fresh = false) {
     const seen = run.hooks[hook] ?? null;
     const n = Math.max(before?.args?.length ?? 0, seen?.args?.length ?? 0);
     const args = [];
-    for (let i = 0; i < n; i++) args.push(mergeSchemas(before?.args?.[i] ?? null, seen?.args?.[i] ?? null));
+    for (let i = 0; i < n; i++) args.push(mergeSchemas(foldSchema(before?.args?.[i]), seen?.args?.[i] ?? null));
     hooks[hook] = {
       recorded: !!(before?.recorded || seen),
       fields: args.map(a => fieldsOf(a)),
@@ -241,7 +244,7 @@ export function buildFlags(committed, run, writers, readBy, fresh = false) {
   for (const key of all) {
     const before = fresh ? null : (base.keys?.[key] ?? null);
     const seen = run.flags[key] ?? null;
-    const schema = (before?.schema || seen?.schema) ? mergeSchemas(before?.schema ?? null, seen?.schema ?? null) : null;
+    const schema = (before?.schema || seen?.schema) ? mergeSchemas(foldSchema(before?.schema), seen?.schema ?? null) : null;
     const record = MOMENT_RECORDS[key];
     keys[key] = {
       class: record ? "record" : "state",
@@ -360,7 +363,7 @@ export function checkRun(moment, flags, run) {
     if (hook === "bythebooks.moment" || MOMENT_WORDS.includes(hook.replace(/^bythebooks\./, ""))) continue;
     const doc = moment?.hooks?.[hook];
     if (!doc) { fail.push(`NEW hook ${hook} (${h.count} fired) — not in moment.json`); continue; }
-    h.args.forEach((a, i) => { for (const p of diffSchemas(doc.args?.[i] ?? null, a).added) fail.push(`NEW field ${hook} argument ${i} ${p}`); });
+    h.args.forEach((a, i) => { for (const p of diffSchemas(foldSchema(doc.args?.[i]), a).added) fail.push(`NEW field ${hook} argument ${i} ${p}`); });
   }
   for (const [key, f] of Object.entries(run.flags)) {
     const doc = flags?.keys?.[key];
@@ -369,7 +372,7 @@ export function checkRun(moment, flags, run) {
     if (!doc && !MOMENT_RECORDS[key] && !STATE_KEYS[key]) { note.push(`${key} seen on ${Object.keys(f.on).join(", ")}: not a key the module writes (a tool's or a table's flag), not in the contract`); continue; }
     if (!doc) { fail.push(`NEW flag key ${key} (seen ${f.count} time(s) on ${Object.keys(f.on).join(", ")}) — not in card-flags.json`); continue; }
     if (!doc.recorded) { fail.push(`NEW shape for ${key}: the contract has none — run node tools/contracts.mjs --write`); continue; }
-    const d = diffSchemas(doc.schema, f.schema);
+    const d = diffSchemas(foldSchema(doc.schema), f.schema);
     for (const p of d.added) fail.push(`NEW field ${key} ${p}`);
     for (const w of d.widened) note.push(`${key} ${w} (a type the contract does not list)`);
   }

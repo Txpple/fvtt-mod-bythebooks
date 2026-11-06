@@ -5,8 +5,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   diffSchemas,
   fieldsOf,
+  foldSchema,
+  idLabelOf,
+  labelOfPattern,
   mergeSchemas,
   PAGE_SOURCE,
+  patternOfLabel,
   sampleOf,
   schemaOf
 } from "../tools/contract-shapes.mjs";
@@ -75,6 +79,146 @@ describe("schemaOf — one value's shape", () => {
     const root = deep;
     for (let i = 0; i < 20; i++) deep = deep.next = {};
     expect(JSON.stringify(schemaOf(root))).toContain("x-truncated");
+  });
+});
+
+describe("names that change run to run — never a field", () => {
+  it("idLabelOf: an id is <id> wherever it stands in the name, a slot's index <n>; a name is null", () => {
+    expect(idLabelOf("abcdefgh12345678")).toBe("<id>");
+    expect(idLabelOf("ANSpcJYzznsSwGZM")).toBe("<id>");
+    expect(idLabelOf("gInGiIbxxZCsgWiP")).toBe("<id>");
+    expect(idLabelOf("ally-0SSengnfp7NfltfN")).toBe("ally-<id>");
+    expect(idLabelOf("Actor|YeegJ3yS1vLryJ4C")).toBe("Actor|<id>");
+    expect(idLabelOf("Scene|abcdefgh12345678|Token|QWERTYUIOPASDFGH")).toBe(
+      "Scene|<id>|Token|<id>"
+    );
+    expect(idLabelOf("burst-1")).toBe("burst-<n>");
+    expect(idLabelOf("burst-1", false)).toBeNull();
+    for (const name of [
+      "compendiumSource",
+      "awaitingTemplate",
+      "fallbackRegained",
+      "bar1",
+      "dnd5e",
+      "d20",
+      "beat-companion-events",
+      "fvtt-mod-bythebooks",
+      "<id>",
+      "ally-<id>",
+      "burst-<n>"
+    ]) {
+      expect(idLabelOf(name)).toBeNull();
+    }
+  });
+
+  it("a label's pattern matches what it stands for and reads back as the label", () => {
+    expect(patternOfLabel("<id>")).toBe("^[A-Za-z0-9]{16}$");
+    for (const label of ["<id>", "ally-<id>", "Actor|<id>", "burst-<n>", "Scene|<id>|Token|<id>"]) {
+      expect(labelOfPattern(patternOfLabel(label))).toBe(label);
+    }
+    const uuidKey = new RegExp(patternOfLabel("Actor|<id>"));
+    expect(uuidKey.test("Actor|YeegJ3yS1vLryJ4C")).toBe(true);
+    expect(uuidKey.test("ActorxYeegJ3yS1vLryJ4C")).toBe(false);
+    expect(new RegExp(patternOfLabel("burst-<n>")).test("burst-12")).toBe(true);
+  });
+
+  it("a map keyed by ids with and without digits is one entry; a name-shaped id folds beside them", () => {
+    const s = schemaOf({ abcdefgh12345678: true, ANSpcJYzznsSwGZM: true, someWordShapedId: true });
+    expect(s.properties).toBeUndefined();
+    expect(s.required).toBeUndefined();
+    expect(fieldsOf(s)).toEqual(["<id>"]);
+    expect(fieldsOf(schemaOf({ someWordShapedId: true, compendiumSource: "x" }))).toEqual([
+      "compendiumSource",
+      "someWordShapedId"
+    ]);
+  });
+
+  it("a ledger's steps by id and by slot are one field each; its named steps stay named and required", () => {
+    const step = { state: "done", before: null };
+    const s = schemaOf({
+      "ally-0SSengnfp7NfltfN": step,
+      "ally-gziHvFEVLin64JO7": step,
+      "burst-0": step,
+      "burst-1": { ...step, result: 3 },
+      die: step
+    });
+    expect(fieldsOf(s)).toEqual([
+      "ally-<id>",
+      "ally-<id>.before",
+      "ally-<id>.state",
+      "burst-<n>",
+      "burst-<n>.before",
+      "burst-<n>.result",
+      "burst-<n>.state",
+      "die",
+      "die.before",
+      "die.state"
+    ]);
+    expect(s.required).toEqual(["die"]);
+  });
+
+  it("the union folds a name-shaped id one side saw into the ids the other folded", () => {
+    const m = mergeSchemas(schemaOf({ abcdefgh12345678: 1 }), schemaOf({ someWordShapedId: 2 }));
+    expect(m.properties).toBeUndefined();
+    expect(fieldsOf(m)).toEqual(["<id>"]);
+  });
+
+  it("foldSchema folds a schema recorded before the rule, at every level", () => {
+    const step = { type: "object", properties: { state: { type: "string" } }, required: ["state"] };
+    const old = {
+      type: "object",
+      properties: {
+        ledger: {
+          type: "object",
+          properties: {
+            "ally-0SSengnfp7NfltfN": step,
+            "eat-0": step,
+            "eat-1": step,
+            cost: step
+          },
+          required: ["ally-0SSengnfp7NfltfN", "cost", "eat-0", "eat-1"]
+        },
+        read: { type: "object", properties: { ANSpcJYzznsSwGZM: { type: "boolean" } } }
+      },
+      required: ["ledger", "read"]
+    };
+    const folded = foldSchema(old);
+    expect(fieldsOf(folded)).toEqual([
+      "ledger",
+      "ledger.ally-<id>",
+      "ledger.ally-<id>.state",
+      "ledger.cost",
+      "ledger.cost.state",
+      "ledger.eat-<n>",
+      "ledger.eat-<n>.state",
+      "read",
+      "read.<id>"
+    ]);
+    expect(folded.properties.ledger.required).toEqual(["cost"]);
+    expect(folded.required).toEqual(["ledger", "read"]);
+    expect(foldSchema(null)).toBeNull();
+  });
+
+  it("a new id or slot under a folded name adds nothing; a new labelled name is added by its label", () => {
+    const documented = schemaOf({ ledger: { "ally-0SSengnfp7NfltfN": { state: "done" } } });
+    const seen = schemaOf({
+      ledger: { "ally-kbJwYdeJRNU7I64A": { state: "done" }, "give-0": { state: "done" } }
+    });
+    expect(diffSchemas(documented, seen).added).toEqual([
+      "ledger.give-<n>",
+      "ledger.give-<n>.state"
+    ]);
+  });
+
+  it("a sample masks an id in a property name and keeps a slot's index", () => {
+    expect(
+      sampleOf({
+        "ally-0SSengnfp7NfltfN": 1,
+        "burst-0": 2,
+        ANSpcJYzznsSwGZM: 3,
+        compendiumSource: 4
+      })
+    ).toEqual({ "ally-<id>": 1, "burst-0": 2, "<id>": 3, compendiumSource: 4 });
   });
 });
 
@@ -173,6 +317,9 @@ describe("the page bundle", () => {
       mergeSchemas(schemaOf({ a: 1 }), schemaOf({ a: 2, b: "x" }))
     );
     expect(o({ at: 9 })).toEqual({ at: 0 });
+    const ledger = { "ally-0SSengnfp7NfltfN": { state: "done" }, ANSpcJYzznsSwGZM: true };
+    expect(s(ledger)).toEqual(schemaOf(ledger));
+    expect(o(ledger)).toEqual(sampleOf(ledger));
   });
 });
 
@@ -428,6 +575,54 @@ describe("the contract files — built from a recording, checked against the cod
     expect(note.some(n => n.startsWith("noCover seen on Scene: not a key the module writes"))).toBe(
       true
     );
+  });
+
+  it("a recording and a committed file written before the fold read as folded: their ids are one <id>", () => {
+    const OLD = mkdtempSync(join(tmpdir(), "contracts-old-"));
+    try {
+      const idMap = ids => ({
+        type: "object",
+        properties: Object.fromEntries(ids.map(id => [id, { type: "boolean" }])),
+        required: [...ids].sort()
+      });
+      writeFileSync(
+        join(OLD, "old.json"),
+        JSON.stringify({
+          tag: "old",
+          hooks: {},
+          moments: {},
+          flags: {
+            initiativeGrantRead: {
+              count: 1,
+              on: { Combat: 1 },
+              schema: idMap(["abcdefgh12345678", "ANSpcJYzznsSwGZM"])
+            }
+          }
+        })
+      );
+      const run = tool.readRecordings(OLD);
+      expect(fieldsOf(run.flags.initiativeGrantRead.schema)).toEqual(["<id>"]);
+      const committed = tool.buildFlags(null, run, {}, null);
+      committed.keys.initiativeGrantRead.schema = idMap(["ATebbUcZtluWtOET"]);
+      const flags = tool.buildFlags(committed, run, {}, null);
+      expect(flags.keys.initiativeGrantRead.fields).toEqual(["<id>"]);
+      const later = {
+        suites: ["later"],
+        errors: 0,
+        hooks: {},
+        moments: {},
+        flags: {
+          initiativeGrantRead: {
+            count: 1,
+            on: { Combat: 1 },
+            schema: schemaOf({ zoOtbBzWmnBVXRdI: true, QWERTYUI00000000: true })
+          }
+        }
+      };
+      expect(tool.checkRun(tool.buildMoment(null, run), committed, later).fail).toEqual([]);
+    } finally {
+      rmSync(OLD, { recursive: true, force: true });
+    }
   });
 
   it("a write unions into the committed file: a schema only grows, a sample once there stays", () => {

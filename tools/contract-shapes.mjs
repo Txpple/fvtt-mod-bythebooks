@@ -11,6 +11,14 @@
 //                             documents to their name
 //   fieldsOf(schema)          every field path a schema names (`targets[].hit`, `parts.<id>`)
 //   diffSchemas(doc, seen)    what a run saw that a contract does not name, and what it never saw
+//   foldSchema(schema)        a schema with its names that change run to run folded, every level
+//
+// A NAME THAT CHANGES RUN TO RUN is never a field. A property name carrying a document id (a map
+// keyed by ids, a ledger step `ally-<id>`, a uuid as a key `Actor|<id>`) or a numbered slot's index
+// (`burst-0`) folds into one `patternProperties` entry, read back by its label (`idLabelOf`): `<id>`,
+// `ally-<id>`, `Actor|<id>`, `burst-<n>`. An id is 16 letters and digits; one with no digit is told
+// from a 16-letter name (`compendiumSource`) by its shape, and a name-shaped one folds anyway beside
+// ids that are not (`foldIdKeys`). `foldSchema` folds a schema recorded before the rule.
 //
 // ⚠ Every function here is SELF-CONTAINED: it names no module-scope binding but the other functions
 // in `PAGE_FUNCTIONS`, because the recorder ships them to the page as source text (`PAGE_SOURCE`)
@@ -31,10 +39,85 @@
  */
 
 /**
+ * A property name's label when the name changes run to run, or null for a plain name: each document
+ * id in it as `<id>`, and with `indices` a numbered slot's trailing index as `<n>`. An id is a run of
+ * 16 letters and digits standing alone in the name: one with a digit is an id, and one with none is an
+ * id unless it is shaped like a camelCase or PascalCase name (`compendiumSource`, `awaitingTemplate`).
+ * `ANSpcJYzznsSwGZM` → `<id>`, `ally-0SSengnfp7NfltfN` → `ally-<id>`, `Actor|YeegJ3yS1vLryJ4C` →
+ * `Actor|<id>`, `burst-1` → `burst-<n>`; `bar1`, `dnd5e` and `d20` are names.
+ * @param {string} key
+ * @param {boolean} [indices]   fold a slot's index too (a sample keeps it: an index is the same every run)
+ * @returns {string|null}
+ */
+export function idLabelOf(key, indices = true) {
+  const ID = /(?<![A-Za-z0-9])[A-Za-z0-9]{16}(?![A-Za-z0-9])/g;
+  const NAME = /^[A-Za-z][a-z]+(?:[A-Z][a-z]+)*$/;
+  const INDEX = /(?<=[A-Za-z]-)[0-9]+$/;
+  if ( typeof key !== "string" ) return null;
+  let label = key.replace(ID, run => (/[0-9]/.test(run) || !NAME.test(run)) ? "<id>" : run);
+  if ( indices ) label = label.replace(INDEX, "<n>");
+  return (label === key) ? null : label;
+}
+
+/**
+ * The `patternProperties` key a label stands for: `<id>` → `^[A-Za-z0-9]{16}$`, `ally-<id>` →
+ * `^ally-[A-Za-z0-9]{16}$`, `burst-<n>` → `^burst-[0-9]+$`; the rest of the name is matched as written.
+ * @param {string} label
+ * @returns {string}
+ */
+export function patternOfLabel(label) {
+  const parts = label.split(/(<id>|<n>)/).map(part => (part === "<id>") ? "[A-Za-z0-9]{16}"
+    : (part === "<n>") ? "[0-9]+" : part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return `^${parts.join("")}$`;
+}
+
+/**
+ * One object schema with its names that change run to run folded: a property whose name has a label
+ * (`idLabelOf`) moves into that label's `patternProperties` entry, then any other property a pattern
+ * there matches follows it (a name-shaped id beside ids that are not). A folded name is never
+ * `required`. The children are taken as they are; the schema itself comes back when nothing folds.
+ * @param {Schema} s
+ * @returns {Schema}
+ */
+export function foldIdKeys(s) {
+  if ( !s?.properties ) return s;
+  /** @type {Record<string, Schema>} */
+  const patterns = { ...(s.patternProperties ?? {}) };
+  /** @type {Record<string, Schema>} */
+  const named = {};
+  for ( const [k, v] of Object.entries(s.properties) ) {
+    const label = idLabelOf(k);
+    if ( !label ) {
+      named[k] = v;
+      continue;
+    }
+    const p = patternOfLabel(label);
+    patterns[p] = mergeSchemas(patterns[p] ?? null, v);
+  }
+  /** @type {Record<string, Schema>} */
+  const kept = {};
+  for ( const [k, v] of Object.entries(named) ) {
+    const p = Object.keys(patterns).find(re => new RegExp(re).test(k));
+    if ( p ) patterns[p] = mergeSchemas(patterns[p] ?? null, v);
+    else kept[k] = v;
+  }
+  if ( Object.keys(kept).length === Object.keys(s.properties).length ) return s;
+  /** @type {Schema} */
+  const out = { ...s };
+  if ( Object.keys(kept).length ) out.properties = kept;
+  else delete out.properties;
+  out.patternProperties = Object.fromEntries(Object.entries(patterns).sort(([x], [y]) => (x < y) ? -1 : 1));
+  const required = (s.required ?? []).filter(k => k in kept);
+  if ( required.length ) out.required = required;
+  else delete out.required;
+  return out;
+}
+
+/**
  * The schema of one value. `key` is the property it sits under (a choice-naming key such as
  * `answer` or `outcome` keeps its short values as `examples`). A document is named
- * (`x-document`), never walked; a key that is a document id folds into one `patternProperties`
- * entry, so a map keyed by ids is one shape however many ids a run saw.
+ * (`x-document`), never walked; a name that changes run to run folds into one `patternProperties`
+ * entry (`foldIdKeys`), so a map keyed by ids is one shape however many ids a run saw.
  * @param {any} value
  * @param {string|null} [key]
  * @param {number} [depth]
@@ -42,7 +125,6 @@
  * @returns {Schema}
  */
 export function schemaOf(value, key = null, depth = 0, seen = null) {
-  const ID_KEY = /^[A-Za-z0-9]{16}$/;
   const CHOICE_KEYS = ["answer", "outcome", "status", "mode", "verdict", "trigger", "event", "how", "testKind", "companion", "kind"];
   const MAX_DEPTH = 12;
   if ( value === null ) return { type: "null" };
@@ -77,18 +159,12 @@ export function schemaOf(value, key = null, depth = 0, seen = null) {
     const required = [];
     for ( const [k, v] of Object.entries(value) ) {
       if ( v === undefined ) continue;
-      const child = schemaOf(v, k, depth + 1, walked);
-      if ( ID_KEY.test(k) && /[0-9]/.test(k) ) {
-        s.patternProperties = s.patternProperties ?? {};
-        s.patternProperties["^[A-Za-z0-9]{16}$"] = mergeSchemas(s.patternProperties["^[A-Za-z0-9]{16}$"] ?? null, child);
-        continue;
-      }
       s.properties = s.properties ?? {};
-      s.properties[k] = child;
+      s.properties[k] = schemaOf(v, k, depth + 1, walked);
       required.push(k);
     }
     if ( required.length ) s.required = required.sort();
-    return s;
+    return foldIdKeys(s);
   } finally {
     walked.delete(value);
   }
@@ -97,7 +173,8 @@ export function schemaOf(value, key = null, depth = 0, seen = null) {
 /**
  * The union of two schemas (either may be null). Types join; properties join, each merged where
  * both name it; a key stays `required` only when every object either side saw carried it (a side
- * that saw no object leaves the other's list alone); `examples` join, capped.
+ * that saw no object leaves the other's list alone); `examples` join, capped. The union is folded
+ * (`foldIdKeys`): a name-shaped id one side saw joins the ids the other side folded.
  * @param {Schema|null} a
  * @param {Schema|null} b
  * @returns {Schema}
@@ -139,13 +216,14 @@ export function mergeSchemas(a, b) {
   const examples = [...new Set([...(a.examples ?? []), ...(b.examples ?? [])])].sort();
   if ( examples.length ) out.examples = examples.slice(0, MAX_EXAMPLES);
   if ( a["x-truncated"] || b["x-truncated"] ) out["x-truncated"] = true;
-  return out;
+  return foldIdKeys(out);
 }
 
 /**
  * A value reduced for a contract file's sample: a document id inside an id-naming field becomes
- * `<id>`, a clock reading (`at`, `…At`, `deadline`) becomes 0, a document becomes its name and a
- * class instance its class, and deep or long values are cut. The shape is the value's; only what changes run to run is masked.
+ * `<id>`, and so does one in a property name (`idLabelOf`, a slot's index kept), a clock reading
+ * (`at`, `…At`, `deadline`) becomes 0, a document becomes its name and a class instance its class,
+ * and deep or long values are cut. The shape is the value's; only what changes run to run is masked.
  * @param {any} value
  * @param {string|null} [key]
  * @param {number} [depth]
@@ -177,14 +255,45 @@ export function sampleOf(value, key = null, depth = 0) {
   const out = {};
   for ( const [k, v] of Object.entries(value) ) {
     if ( v === undefined ) continue;
-    out[/^[A-Za-z0-9]{16}$/.test(k) && /[0-9]/.test(k) ? "<id>" : k] = sampleOf(v, k, depth + 1);
+    out[idLabelOf(k, false) ?? k] = sampleOf(v, k, depth + 1);
   }
   return out;
 }
 
 /**
- * Every field path a schema names, sorted: `a.b` for a property, `a[]` for an array's items,
- * `a.<id>` for a map keyed by document ids. The root itself is not a path.
+ * The label a `patternProperties` key reads back as (`patternOfLabel`'s inverse): `^ally-[A-Za-z0-9]{16}$`
+ * → `ally-<id>`. Offline only.
+ * @param {string} pattern
+ * @returns {string}
+ */
+export function labelOfPattern(pattern) {
+  return pattern.replace(/^\^/, "").replace(/\$$/, "")
+    .replaceAll("[A-Za-z0-9]{16}", "<id>").replaceAll("[0-9]+", "<n>")
+    .replace(/\\(.)/g, "$1");
+}
+
+/**
+ * A schema folded at every level, children first (`foldIdKeys`): for a schema recorded before names
+ * that change run to run were folded, and a committed file's. Offline only.
+ * @param {Schema|null|undefined} schema
+ * @returns {Schema|null}
+ */
+export function foldSchema(schema) {
+  if ( !schema || (typeof schema !== "object") ) return schema ?? null;
+  /** @type {Schema} */
+  const out = { ...schema };
+  for ( const group of /** @type {const} */ (["properties", "patternProperties"]) ) {
+    const children = schema[group];
+    if ( children ) out[group] = Object.fromEntries(Object.entries(children).map(([k, v]) => [k, /** @type {Schema} */ (foldSchema(v))]));
+  }
+  if ( schema.items ) out.items = /** @type {Schema} */ (foldSchema(schema.items));
+  return foldIdKeys(out);
+}
+
+/**
+ * Every field path a schema names, sorted: `a.b` for a property, `a[]` for an array's items, and a
+ * name that changes run to run by its label: `a.<id>` for a map keyed by document ids, `a.ally-<id>`,
+ * `a.burst-<n>`. The root itself is not a path.
  * @param {Schema|null|undefined} schema
  * @param {string} [prefix]
  * @returns {string[]}
@@ -200,8 +309,9 @@ export function fieldsOf(schema, prefix = "") {
       out.add(p);
       walk(v, p);
     }
-    for ( const v of Object.values(s.patternProperties ?? {}) ) {
-      const p = at ? `${at}.<id>` : "<id>";
+    for ( const [pattern, v] of Object.entries(s.patternProperties ?? {}) ) {
+      const label = labelOfPattern(pattern);
+      const p = at ? `${at}.${label}` : label;
       out.add(p);
       walk(v, p);
     }
@@ -235,8 +345,9 @@ export function diffSchemas(documented, seen) {
     for ( const part of path.match(/[^.[\]]+|\[\]/g) ?? [] ) {
       if ( !node ) return null;
       if ( part === "[]" ) node = node.items ?? null;
-      else if ( part === "<id>" ) node = Object.values(node.patternProperties ?? {})[0] ?? null;
-      else node = node.properties?.[part] ?? null;
+      else node = node.properties?.[part]
+        ?? Object.entries(node.patternProperties ?? {}).find(([pattern]) => labelOfPattern(pattern) === part)?.[1]
+        ?? null;
     }
     return node;
   };
@@ -256,7 +367,7 @@ export function diffSchemas(documented, seen) {
 }
 
 /** The functions the page recorder needs, shipped as source. */
-export const PAGE_FUNCTIONS = [schemaOf, mergeSchemas, sampleOf];
+export const PAGE_FUNCTIONS = [idLabelOf, patternOfLabel, foldIdKeys, schemaOf, mergeSchemas, sampleOf];
 
 /** The page bundle: evaluate it inside a function and it returns `{ schemaOf, mergeSchemas, sampleOf }`. */
 export const PAGE_SOURCE = `${PAGE_FUNCTIONS.map(fn => fn.toString()).join("\n")}\nreturn { schemaOf, mergeSchemas, sampleOf };`;
