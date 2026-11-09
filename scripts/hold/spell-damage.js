@@ -5,7 +5,11 @@
  */
 import { MODULE_ID, readFlag, TITLE, drivesMomentFor, whisperNoGM, writableTargets, log } from "../core.js";
 import { damagePartsOf } from "../shared.js";
-import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
+import { CARD, activityUuidOf, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
+import { EMANATIONS, tableIndex } from "../decide/registry.js";
+import { damageAim } from "../decide/emanations.js";
+import { cardActivity } from "../lookup.js";
+import { areaOccupants } from "../saves/index.js";
 import { registerResumable } from "../ui.js";
 import { applyDamagesWithReceipt, hasReceipt } from "../auto-apply.js";
 import { listen } from "../dispatch.js";
@@ -39,6 +43,28 @@ listen("dnd5e.preApplyDamage", "hold/spell-damage", (actor, _amount, _updates, o
   return false;
 });
 
+/* WHO IT LANDS ON (decide/emanations.js damageAim): an activity with an area is aimed by the area it
+ * placed, never by the caster's selected targets; Spike Growth's cast pays nothing (its move does). */
+
+const { rowFor: emanationRowOf } = tableIndex(EMANATIONS);   // listed or not: what the spell IS does not hang on the switch
+
+/**
+ * The applier's targets, or null when the use lands on nobody (no area placed, or a cast that pays nothing).
+ * @returns {{ uuid: string, name: string }[]|null}
+ */
+function aimedTargets(message) {
+  const activity = cardActivity(message, activityUuidOf(message));
+  const aim = activity ? damageAim(activity, emanationRowOf(activity.item)) : "targets";
+  if ( aim === "none" ) return null;
+  if ( aim === "targets" ) return targetsOf(message).map(t => ({ uuid: String(t.uuid ?? ""), name: String(t.name ?? "") }));
+  const inside = areaOccupants(activity, message.speaker?.scene ?? null);
+  if ( !inside ) {
+    ui.notifications.warn(`${TITLE}: ${activity.item?.name ?? "The area"} has no area on the map — its damage was not applied; apply it from the card's damage tray.`);
+    return null;
+  }
+  return inside;
+}
+
 /* The applier: a no-attack damage roll applies itself on the elect; a pending spell-hold claim defers
  * it, a negated target is skipped. The birth stamp (`spellDamage`) gates it, so history is inert. */
 
@@ -52,7 +78,7 @@ async function applySpellDamage(message) {
       // A RESOLVED hold applies per its verdicts; otherwise the release write re-triggers.
       if ( !hold || (hold.status === "pending") ) return;
     }
-    const targets = targetsOf(message)
+    const targets = (aimedTargets(message) ?? [])
       .filter(t => hold?.targets?.find(h => h.uuid === t.uuid)?.verdict !== "negated")
       .map(t => ({ uuid: t.uuid, name: t.name }));
     if ( !targets.length ) return;

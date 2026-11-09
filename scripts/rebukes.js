@@ -7,12 +7,12 @@
 import { MODULE_ID, readFlag, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, resolveUuid, resolveUuidAsync, log } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, meleeOptions, preferredMeleeOption, wearsEffectNamed } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
-import { REBUKES } from "./decide/registry.js";
-import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } from "./decide/rebukes.js";
+import { REBUKES, EMANATIONS, tableIndex } from "./decide/registry.js";
+import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit, zoneKeysOf, placedAreaDamage, rebukeAimsAtDealer } from "./decide/rebukes.js";
 import { castWayCost, WAYS_HEAD } from "./decide/cast-ways.js";
 import { castWayOf, castBy, payPillsFor } from "./cast-ways.js";
 import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets, hitTargets, grantingActor } from "./shared.js";
-import { CARD, isCard, targetsOf } from "./decide/card.js";
+import { CARD, isCard, targetsOf, originIdOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenOf } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, ruleLine } from "./decide/present.js";
@@ -34,7 +34,7 @@ function reactionActivity(item, row) {
 
 /** The rebukes this bearer may take at this damager now. `ward`: the WARD rows only (Sentinel, a
  * bystander to the hit); `attackHit`: the damage came from an attack. */
-function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = false, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false } = {}) {
+function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = false, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false, zone = false } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenOf(actor.uuid);
   const damager = tokenOf(source.uuid);
@@ -52,6 +52,9 @@ function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = 
     // A miss row answers a melee weapon attack's miss (Sticky Shield); `missOf: "any"` (Masterful Shots) any attack roll's.
     if ( miss && (row.missOf !== "any") && !missMelee ) continue;
     if ( (row.on === "attack") !== onAttack ) continue;     // C1 — an attack row only on the marked creature's attack card
+    // A placed area's damage (Cloud of Daggers, Moonbeam, Spike Growth) is not the dealer's blow: nothing answers
+    // its caster (RULINGS, the rebukes against a standing area); a self answer (Misty Escape) still stands.
+    if ( zone && rebukeAimsAtDealer(row) ) continue;
     // THE BLOODIED MOMENT (Harvest Undead): the damage took the bearer from above half its Hit Points to half or fewer.
     if ( (row.judge === "becameBloodied") && !becameBloodied ) continue;
     // C1 — `mark` (Soul of Vengeance): the attacker must wear the bearer's effect of that name.
@@ -104,7 +107,8 @@ listen("dnd5e.applyDamage", "rebukes", (actor, amount, options) => {
     // The damage's types, off the card's rolls (a `types` row); a card with none is unreadable and counts.
     const damageTypes = [...new Set((origin.rolls ?? []).map(r => r?.options?.type).filter(Boolean))];
     const becameBloodied = becameBloodiedBy(actor, Number(amount));
-    void stampRebuke(actor, source, Number(amount), origin, { attackHit, hitMelee, damageTypes, becameBloodied });
+    const zone = isZoneDamage(origin);
+    void stampRebuke(actor, source, Number(amount), origin, { attackHit, hitMelee, damageTypes, becameBloodied, zone });
     if ( attackHit ) void stampWards(actor, source, Number(amount), origin);
     if ( becameBloodied ) void stampWatchers(actor, source, Number(amount), origin);
   } catch(err) {
@@ -121,6 +125,30 @@ function becameBloodiedBy(actor, amount) {
   const max = Number(hp.effectiveMax ?? hp.max) || 0;
   if ( !(max > 0) || !(now > 0) || !(now * 2 <= max) ) return false;
   return (now + amount) * 2 > max;
+}
+
+/** The Emanations table by row key (a zone card's `key`) and by the item it is cast from (a cast card's item). */
+const { rowNamed: emanationRowNamed } = tableIndex(EMANATIONS);
+const { rowFor: emanationRowFor } = tableIndex(EMANATIONS, (row, key) => row.item ?? key);
+
+/** Did this damage come from a placed area (decide/rebukes.js `placedAreaDamage`)? The rows its card names, the cards it
+ * chains to (a save trigger's damage roll → its demand; three hops at most), and its own item's. */
+function isZoneDamage(origin) {
+  try {
+    const keys = [...zoneKeysOf(origin.flags?.[MODULE_ID])];
+    let at = origin;
+    for ( let hop = 0; hop < 3; hop++ ) {
+      const id = originIdOf(at);
+      at = id ? game.messages?.get?.(id) : null;
+      if ( !at ) break;
+      keys.push(...zoneKeysOf(at.flags?.[MODULE_ID]));
+    }
+    const item = cardActivity(origin)?.item ?? origin.getAssociatedItem?.() ?? null;
+    return placedAreaDamage([...keys.map(k => emanationRowNamed(k)), item ? emanationRowFor(item) : null]);
+  } catch(err) {
+    log.warn(`Could not tell whether the damage was an area's — offered as a blow.`, err);
+    return false;
+  }
 }
 
 /** Did this damage come from an attack's hit — its card's activity an attack, or chained to one? */
@@ -157,8 +185,8 @@ async function stampWatchers(hurt, dealer, amount, origin) {
   }
 }
 
-async function stampRebuke(actor, source, amount, origin, { attackHit = false, hitMelee = false, ward = null, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false, dealerName = null } = {}) {
-  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, hitMelee, miss, missMelee, onAttack, damageTypes, becameBloodied, watch });
+async function stampRebuke(actor, source, amount, origin, { attackHit = false, hitMelee = false, ward = null, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false, dealerName = null, zone = false } = {}) {
+  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, hitMelee, miss, missMelee, onAttack, damageTypes, becameBloodied, watch, zone });
   if ( !options.length ) return;
   const window = decisionWindow();
   const flag = {

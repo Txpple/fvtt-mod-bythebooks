@@ -218,6 +218,17 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
 
 const ALLOW = [
   {
+    from: "hold/spell-damage.js", to: "saves/index.js", disposition: "BY DESIGN",
+    why: "machine → machine: a no-save area's damage (Cloud of Daggers) lands on what its placed area holds — "
+      + "`areaOccupants`, the saves machine's area authority with the demand's reach; never the caster's "
+      + "selected targets, and a second reader of the area would drift"
+  },
+  {
+    from: "damage-casts.js", to: "saves/index.js", disposition: "BY DESIGN",
+    why: "machine → machine: an area damage cast's dice are against what its placed area holds "
+      + "(`areaOccupants`), the same reader the applier lands it with"
+  },
+  {
     from: "heal-on-hit.js", to: "rest-grants.js", disposition: "BY DESIGN",
     why: "machine → machine: Improved Blessed Strikes' Temporary Hit Points to one creature within 60 ft are the rest "
       + "song's hand-out too (`askHandOut`, one pick) — the same one picker (2026-09-30, the PHB classes C1)"

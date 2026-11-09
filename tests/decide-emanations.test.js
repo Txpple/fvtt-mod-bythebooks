@@ -16,6 +16,28 @@ beforeAll(async () => {
 
 const { FRIENDLY, NEUTRAL, HOSTILE, SECRET } = { FRIENDLY: 1, NEUTRAL: 0, HOSTILE: -1, SECRET: -2 };
 
+describe("damageAim: an area's damage lands on what the area holds (Cloud of Daggers hurt a selected Lysandra, 2026-11-09)", () => {
+  const cube = { target: { template: { type: "cube" } } };
+  it("an activity with an area is aimed by the area, never by the selected targets", () => {
+    expect(em.damageAim(cube, reg.EMANATIONS["Cloud of Daggers"])).toBe("area");
+    expect(em.damageAim(cube, null)).toBe("area");
+    expect(
+      em.damageAim({ target: { template: { type: "radius" } }, range: { units: "self" } })
+    ).toBe("area");
+  });
+  it("an aimed activity with no area keeps the card's targets", () => {
+    expect(em.damageAim({ target: { template: {} } })).toBe("targets");
+    expect(em.damageAim({})).toBe("targets");
+    expect(em.damageAim(null)).toBe("targets");
+  });
+  it("Spike Growth's cast pays nothing: its damage is the move's", () => {
+    expect(
+      em.damageAim({ target: { template: { type: "sphere" } } }, reg.EMANATIONS["Spike Growth"])
+    ).toBe("none");
+    expect(em.damageAim(cube, reg.EMANATIONS.Moonbeam)).toBe("area");
+  });
+});
+
 describe("reach `all` and the area's own `affects` (the Aasimar walk, 2026-09-25)", () => {
   it("`all` reaches every side — allies included, as Inner Radiance's text says — but never a SECRET token", () => {
     for (const d of [FRIENDLY, NEUTRAL, HOSTILE])

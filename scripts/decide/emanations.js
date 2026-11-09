@@ -52,6 +52,20 @@ export function selfEmanation(activity) {
 }
 
 /**
+ * Who a no-attack, no-save damage use lands on (the spell-damage applier, the damage cast's dice).
+ * An activity with an AREA is aimed by its area: the creatures the placed area holds, never the
+ * user's selected targets (Cloud of Daggers hurt a selected Lysandra outside the Cube). A listed area
+ * that pays per feet MOVED (Spike Growth, `on: "move"`) deals nothing at the cast.
+ * @param {{ target?: { template?: { type?: string } } }|null|undefined} activity
+ * @param {{ kind?: string, trigger?: { on?: readonly string[] } }|null|undefined} row   its EMANATIONS row, if listed
+ * @returns {"targets"|"area"|"none"}
+ */
+export function damageAim(activity, row = null) {
+  if ( (row?.kind === "area") && (row.trigger?.on ?? []).includes("move") ) return "none";
+  return activity?.target?.template?.type ? "area" : "targets";
+}
+
+/**
  * The listed PULSE row whose form this use is (its damage is the pulse's at turn end, never the use's).
  * @param {Record<string, {pulse?: object|null, item?: string, activity?: string}>} table   EMANATIONS
  * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use

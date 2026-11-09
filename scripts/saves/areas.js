@@ -24,6 +24,21 @@ function regionsForActivity(activityUuid) {
   return found;
 }
 
+/**
+ * Who an area use's DAMAGE lands on (the no-save applier, the damage cast's dice): the creatures the
+ * activity's newest placed area on the scene holds, an Emanation's origin and a listed row's reach left out
+ * as the demand leaves them; null when no area stands on the map.
+ * @returns {{ uuid: string, name: string }[]|null}
+ */
+export function areaOccupants(activity, sceneId) {
+  const scene = game.scenes.get(sceneId ?? "") ?? canvas?.scene ?? null;
+  const regions = (scene?.regions ?? []).filter(r => activityOfRegion(r) === activity?.uuid);
+  if ( !regions.length ) return null;
+  const born = r => r._stats?.createdTime ?? 0;
+  const newest = regions.reduce((a, b) => (born(b) > born(a) ? b : a));
+  return (emanationReach(activity, tokensInRegions([newest]) ?? []) ?? []).map(c => ({ uuid: c.uuid, name: c.name }));
+}
+
 /** The Region shape a demand's area will wear, through the system's map; null = no toolbar adoption. */
 function expectedShapeType(flag) {
   if ( !flag.templateType ) return null;

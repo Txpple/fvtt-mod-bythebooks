@@ -9,13 +9,14 @@ import { damageSaveEntries, emanationEntries, listedNames } from "./decide/regis
 import { withTargets } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { DAMAGE_SAVES, EMANATIONS, MANEUVER_FEATURE_NAMES, answers, tableIndex } from "./decide/registry.js";
-import { pulseFormKey } from "./decide/emanations.js";
+import { damageAim, pulseFormKey } from "./decide/emanations.js";
 import { volleyEntryFor } from "./volley-registry.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsInData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 import { tokenOf } from "./geometry.js";
+import { areaOccupants } from "./saves/index.js";
 
 /* THE DICE: a bare damage activity aimed at targets is rolled at the use on the casting client,
  * chained to the usage card, where the `spellDamage` applier lands it (no roll dialog click).
@@ -25,6 +26,8 @@ const listed = () => listedNames(damageSaveEntries());
 
 /** An item as the Emanations table's `item ?? key` names it, for `pulseFormKey`. */
 const pulseItemName = item => namesAnswering([item], Object.entries(EMANATIONS).map(([k, r]) => r.item ?? k))[0];
+
+const { rowFor: emanationRowOf } = tableIndex(EMANATIONS);   // listed or not
 
 /** Is this a bare damage activity the module will drive — aimed, on a side the mode admits, not a volley's? */
 function drives(activity, targetCount) {
@@ -37,7 +40,10 @@ function drives(activity, targetCount) {
   // A transformation whose damage is a turn-end PULSE: the use is the transform alone.
   if ( pulseFormKey(EMANATIONS, { itemName: item ? pulseItemName(item) : null, activityName: activity.name }, listedNames(emanationEntries())) ) return false;
   if ( !activity.damage?.parts?.length ) return false;
-  return targetCount > 0;
+  // An area is aimed by what it holds, selected targets or none; Spike Growth's cast pays nothing (decide/emanations.js damageAim).
+  const aim = damageAim(activity, emanationRowOf(activity.item));
+  if ( aim === "none" ) return false;
+  return (aim === "area") || (targetCount > 0);
 }
 
 // ⚠ ONE ROLL, NEVER TWO: the native follow-up roll (`_triggerSubsequentActions`) is switched off at the use.
@@ -58,7 +64,10 @@ listen("dnd5e.postUseActivity", "damage-casts", (activity, _usageConfig, results
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;                                          // used with create: false — no card, no bus
     if ( readFlag(message, "smiteFor") ) return;                     // a smite's dice rode the hit's roll (hit-menu.js)
-    const targets = targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
+    // An area's dice are AGAINST what the area holds, never the selected targets (decide/emanations.js damageAim).
+    const area = damageAim(activity, emanationRowOf(activity.item)) === "area";
+    const targets = (area ? (areaOccupants(activity, message.speaker?.scene ?? null) ?? []) : targetsOf(message))
+      .map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
     if ( !drives(activity, targets.length) ) return;                 // nothing aimed — the humans have it
     if ( readFlag(message, "damageCast") ) return;          // never re-drive
     // The consumed-flag write the suppressed follow-up skips — the volley machine's two lines.

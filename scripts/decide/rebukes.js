@@ -25,6 +25,37 @@ export function rebukeTypesAdmit(types, damageTypes) {
   return dealt.some(t => wanted.has(t));
 }
 
+/** The cards an emanation deals its damage on (emanations.js), each naming its Emanations row (`key`): a trigger's (enter,
+ * a turn's start or end, the area moved onto it), a move's (Spike Growth), a pulse's. A save trigger's damage roll chains
+ * to its demand (`system.origin`). */
+export const ZONE_CARD_FLAGS = Object.freeze(["emanationTrigger", "areaMove", "emanationPulse"]);
+
+/** The Emanations row keys a card's module flags name through its zone flags.
+ * @param {Record<string, any>|null|undefined} flags the card's `flags[MODULE_ID]`
+ * @returns {string[]} */
+export function zoneKeysOf(flags) {
+  return ZONE_CARD_FLAGS.map(f => flags?.[f]?.key).filter(k => (typeof k === "string") && k);
+}
+
+/**
+ * Was this damage a PLACED area's — an Emanations row of kind `area` (Cloud of Daggers, Moonbeam, Spike Growth, Wall of
+ * Fire), not a creature's own blow (RULINGS, the rebukes against a standing area)? The rows a zone card or its chain
+ * names, and the row of the card's own item (the area appearing on a creature at the cast), are read. A ring carried
+ * on its source (`spell` or `feature`: Spirit Guardians, a monster's aura) is its bearer's blow, and so is every
+ * other card — a Fireball, a Shatter, a spell attack, a weapon. A key the table does not know counts as a blow.
+ * @param {readonly ({kind?: string}|null|undefined)[]} rows
+ * @returns {boolean} */
+export function placedAreaDamage(rows) {
+  return (rows ?? []).some(r => r?.kind === "area");
+}
+
+/** Does this row answer the DEALER (a rebuke aimed back at it), so a zone's damage skips it? A `self` row (Misty Escape)
+ * answers the damage itself, wherever it came from.
+ * @param {{self?: boolean}} row */
+export function rebukeAimsAtDealer(row) {
+  return !row?.self;
+}
+
 /** Why this rebuke may not be offered now, or null. A null fact is a rule that does not apply (no uses,
  * not a spell, no `while`, no `equipped`, not a ward); a ward asks only when the damager is on another side.
  * @param {{self: boolean, hp: number, reactionSpent: boolean, distance: number|null, reach: number|null, usesLeft: number|null,

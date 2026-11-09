@@ -17,3 +17,5 @@ import "./ask.js";           // the system dialog with the demand fieldset, the 
 import "./consequences.js";  // effects per outcome, the status press, damage reconcile
 import "./choices.js";       // Interpose and the bash, on the same `saves` flag
 import "./views.js";         // the card row and the create / update / delete watchers
+
+export { areaOccupants } from "./areas.js";

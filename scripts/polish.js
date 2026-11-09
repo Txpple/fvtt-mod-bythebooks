@@ -274,7 +274,9 @@ listen("preCreateChatMessage", "polish", doc => {
 
   // The no-attack damage applier's birth stamp (not gated on autoApply: the veto's fallback reads
   // it). A BLOCKLISTED spell also carries the hold's claim from birth, so the applier can never win the race.
-  if ( isCard(doc, CARD.damage) && (activityTypeOf(doc) === "damage") && targetsOf(doc).length ) {
+  // An AREA's roll is stamped with nothing selected: the applier aims it by the area placed (damageAim).
+  if ( isCard(doc, CARD.damage) && (activityTypeOf(doc) === "damage")
+    && (targetsOf(doc).length || !!activityOf(doc)?.target?.template?.type) ) {
     const claim = { spellDamage: true };
     // The card's live item, else the name its snapshot carries (a statblock's cached spell resolves no uuid).
     const item = cardItem(doc, itemUuidOf(doc));
