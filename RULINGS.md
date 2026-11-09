@@ -2416,7 +2416,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Frenzy | `CLOCK_RIDERS` `judge: reckless` | the Rage Damage d6s on the first hit of the turn while raging and Reckless |
 | Repelling Blast | `CLOCK_RIDERS` `enchant`, `maxSize`, `says` | a card line per beam on the cantrip the invocation enchanted (else Eldritch Blast) |
 | Combat Inspiration — Offense | `CLOCK_RIDERS` `inspired`, `unticked` | the bard's die on the damage offer, unticked; ridden, the Inspired effect is spent |
-| Combat Inspiration — Defense | `INTERRUPT_ROLLS` `inspired`, `only: "self"` | the hit creature's own popup: −the die off the attack, its Reaction and its Inspired die spent |
+| Combat Inspiration — Defense | `INTERRUPT_ROLLS` `inspired`, `only: "self"` | the hit creature's own popup: −the die off the attack, its Reaction and its Inspired die spent; asked whoever swung, an ally or a neutral too ("hit by an attack roll" names no side), while the other bystanders keep the rule that an attack inside one side is not theirs to bend (`hold/lookup.js` `bystandersOf`) |
 | Glorious Defense | `INTERRUPT_ROLLS` `reach: "target"`, formula `bonus`, `turned: "strike"` | −Cha off an attack that hits the paladin or a creature within 10 ft of it; turned to a miss, a Strike popup drives one weapon attack at the attacker. Moved from the `ac` list, where the pack's effectless utility moved no AC |
 | Dark One's Blessing | `HEAL_ON_HIT` `on: "kill"`, `temphp`, `within: 10` | the pack's heal (Cha + Warlock level, min 1) as Temporary Hit Points when the warlock drops an enemy — or anyone does within 10 ft of it (the 2024 text; the plan's walk line had it the warlock's kill only) |
 | Starry Form | `EFFECT_CHOICES` `picks`, `lands`, `chip` + `HEAL_REROLLS` `also` | Archer / Chalice / Dragon asked at "Consume Wild Shape": Dragon Form lands only with Dragon (the pack lands it on every use); Chalice keeps a form chip, and a levelled healing spell's card then offers the Chalice heal to you or a creature on your side within 30 ft |
@@ -2434,7 +2434,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Frenzy, Reckless ticked, the first hit | the offer's ticked row "Frenzy — 2d6 …"; the second hit shows none |
 | Rage with Rage of the Wilds | the Rage's card asks Bear / Eagle / Wolf; Wolf: an ally attacking a goblin beside the barbarian sees "Rage of the Wolf — Advantage" in the gate |
 | Combat Inspiration, an Inspired ally hits | the offer's UNticked row "Combat Inspiration — 1d6"; ticked, the die rides and the Inspired effect is gone |
-| Combat Inspiration, an Inspired ally is hit by 2 | the ally's popup "−1d6 · a Reaction · the Inspired die"; Answer: the die rolls, MISS |
+| Combat Inspiration, an Inspired ally is hit by 2 | the ally's popup "−1d6 · a Reaction · the Inspired die"; Answer: the die rolls, MISS; the same when the attacker is another PC |
 | War Priest, a weapon attack | Hew's popup "War Priest — … 3 of 3 uses left" |
 | Starry Form | "Which constellation glimmers on you?"; Chalice, then Cure Wounds at an ally: "Chalice — heal one more within 30 ft" with a button per creature |
 | Hunter's Prey, the first hit | the offer asks "Hunter's Prey — which option did you take?"; Colossus Slayer on a damaged target rides 1d8; the card's *Change* asks again next hit |

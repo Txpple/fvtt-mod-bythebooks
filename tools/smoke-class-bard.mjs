@@ -29,7 +29,7 @@ const SECTIONS = {
   6: 'the mutes in a combat: "Not until my turn" (the chip, the next hit asks nobody, the Bard\'s turn sweeps it) and "Not this combat" (the chip, the combat\'s end sweeps it)',
   11: 'Cutting Words on a hostile\'s CHECK: the Attacker\'s Athletics; the Bard\'s popup says no DC is known; Answer takes the d8 (5) off — the card states the arithmetic and "ask your DM"',
   12: 'a check everyone passes: an Advantage Athletics asks the Bard and the Sorcerer; both pass, the offer resolves as a pass, the card says nothing',
-  14: 'Combat Inspiration — Defense: in a combat, the Halfling holding the Bard\'s Inspired die (the Bard lent Combat Inspiration) is hit by 2 — ITS OWN popup "−<the Bard\'s die> · a Reaction · the Inspired die", nobody else asked; Answer rolls the die: a MISS, the Inspired effect deleted, the Halfling\'s Reaction spent',
+  14: 'Combat Inspiration — Defense: in a combat, the Halfling holding the Bard\'s Inspired die (the Bard lent Combat Inspiration) is hit by 2 — ITS OWN popup "−<the Bard\'s die> · a Reaction · the Inspired die", nobody else asked; Answer rolls the die: a MISS, the Inspired effect deleted, the Halfling\'s Reaction spent; an ALLY\'s hit asks the Halfling all the same, nobody else',
   15: 'Combat Inspiration — Offense: an Inspired ally (BTB Test PC Attacker, the Bard\'s die) hits — the offer\'s UNTICKED row "Combat Inspiration — <die>"; ticked, the die rides and the Inspired effect is spent; a driven roll (no pick) and an unticked offer ride nothing',
   42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — the Halfling\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody',
   54: 'Tandem Footwork (B4, lent to the Bard): the bard\'s Initiative asks "give 1d8 to allies within 30 ft?"; Yes rolls once (5): the bard and the Halfling +5, the foe untouched, the unrolled Sorcerer noted; it rolls later and lands +5',
@@ -327,6 +327,7 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
       await combat.createEmbeddedDocuments('Combatant', [attackerDoc, halflingDoc, KIT.bardDoc].map((d, i) =>
         ({ tokenId: d.id, sceneId: scene.id, actorId: d.actorId, initiative: 20 - i })));
       await combat.startCombat();
+      let inspired2 = null;
       try {
         // out of a running combat no Reaction chip is written (14d reads it)
         await until(() => combat.started && (game.combat?.id === combat.id), { label: 'the combat started and running' });
@@ -359,8 +360,30 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
         await until(() => /Attack — Combat Inspiration/.test(cardText(msg?.id)), { label: 'the attack card\'s Combat Inspiration block' });
         ok('14e. the attack card: "Combat Inspiration (BTB Test Halfling) −5 … MISS"',
           /Combat Inspiration \(BTB Test Halfling\) −5.*MISS/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
+        // f. an attack inside one side (the Attacker made friendly): the hit creature's own Defense is still asked, nobody else
+        await closeDialogs(); await dropReactionChips(halfling);
+        [inspired2] = await halfling.createEmbeddedDocuments('ActiveEffect', [{
+          name: 'Inspired', img: 'icons/magic/light/hand-sparks-smoke-green.webp',
+          origin: (inspiration() ?? ci).uuid, duration: { seconds: 3600 }, transfer: false, disabled: false, changes: []
+        }]);
+        await attackerDoc.update({ disposition: 1 });
+        await until(() => attackerToken.document.disposition === 1, { label: 'the Attacker friendly' });
+        const msg2 = await swing({ d20: [12] });
+        const pop2 = await until(() => popupTitled(/Combat Inspiration/), { timeout: 6000, label: 'the same-side Combat Inspiration popup' }).catch(() => null);
+        const guards2 = holdOf(msg2)?.targets?.[0]?.guards ?? [];
+        ok('14f. an ALLY\'s hit by 2 (the Attacker friendly): the Halfling\'s own Combat Inspiration popup all the same; the hold\'s guards are the Halfling alone',
+          !!pop2 && guards2.length > 0 && guards2.every(x => x.uuid === halfling.uuid) && guards2.some(x => x.hitSelf && (x.inspired?.effectId === inspired2.id)),
+          `pop=${!!pop2} guards=${JSON.stringify(guards2.map(x => [x.name, x.row, x.hitSelf ?? false]))}`);
+        faces([[5, denom || 6]]);
+        if (pop2) pickApply(pop2);
+        const t2 = await resolvedTarget(msg2);
+        ok('14g. answered: the die off the ally\'s attack, a MISS; the Inspired effect spent',
+          (t2?.verdict === 'miss') && (t2?.rescue === 'Combat Inspiration') && !halfling.effects.get(inspired2.id),
+          JSON.stringify({ answer: t2?.answer, verdict: t2?.verdict, rescue: t2?.rescue, inspired: !!halfling.effects.get(inspired2.id) }));
       } finally {
         await closeDialogs();
+        if (attackerToken.document.disposition !== -1) await attackerDoc.update({ disposition: -1 });
+        if (inspired2 && halfling.effects.get(inspired2.id)) await halfling.deleteEmbeddedDocuments('ActiveEffect', [inspired2.id]).catch(() => {});
         if (game.combats.get(combat.id)) await combat.delete();
         await dropReactionChips(halfling);
         if (halfling.effects.get(inspired.id)) await halfling.deleteEmbeddedDocuments('ActiveEffect', [inspired.id]).catch(() => {});

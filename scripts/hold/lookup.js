@@ -246,7 +246,8 @@ export function protectionGuardsOf(defender, attacker) {
  * feet of the ATTACKER, their Reaction free, a use left, not muted (shared.js `bystanderMuted`). ASKED (a popup)
  * when the bend can change the verdict — the margin gate; else not listed. A row's damage half (`damage`, Cutting
  * Words) is the DAMAGE hold's to ask, once the damage is known (damage-holds.js; RULINGS *The asks widened*).
- * Sight is never judged; the side and the distance are.
+ * Sight is never judged; the side and the distance are. The hit creature's own answer skips the sides: an ally's
+ * hit, or a hit on a neutral, still asks it (Combat Inspiration's Defense), and asks nobody else.
  * @returns {{uuid: string, name: string, row: string, itemId: string, activityId: string|null, passed: boolean,
  *   bystander: boolean, self?: boolean, die: string|null}[]}
  */
@@ -256,8 +257,11 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
   const guarded = tokenOf(defender.uuid), from = tokenOf(attacker.uuid);
   const side = (on === "hit") ? guarded?.document?.disposition : from?.document?.disposition;
   const other = (on === "hit") ? from?.document?.disposition : guarded?.document?.disposition;
-  if ( !guarded || !from || ((side !== 1) && (side !== -1)) ) return [];
-  if ( other === side ) return [];   // an attack inside one side: not a bystander's to bend
+  if ( !guarded || !from ) return [];
+  // The sides judge a BYSTANDER: an attack inside one side, or on a neutral, is no other creature's to bend. The hit
+  // creature's own answer (Combat Inspiration's Defense) is its own, whoever swung: an ally's hit asks it too.
+  const sided = ((side === 1) || (side === -1)) && (other !== side);
+  if ( !sided && (on !== "hit") ) return [];
   const want = (on === "hit") ? "miss" : "hit";
   const facts = d20FactsOf(roll);
   if ( !Number.isFinite(facts.kept) ) return [];
@@ -271,7 +275,8 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       const self = !!actor && (actor.uuid === attacker.uuid);
       // On a hit, the hit creature itself answers only a `self` row; `only: "self"` lets nobody else answer.
       const hitSelf = !!actor && (on === "hit") && (actor.uuid === defender.uuid);
-      if ( !actor || (self && !((on === "miss") && row.self)) || out.some(b => (b.uuid === actor.uuid) && (b.row === key)) ) continue;
+      if ( !sided && !hitSelf ) continue;
+      if ( !actor || (self &&!((on === "miss") && row.self)) || out.some(b => (b.uuid === actor.uuid) && (b.row === key)) ) continue;
       if ( (row.only === "self") && !hitSelf ) continue;
       if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
       const feet = hitSelf ? 0 : nearestFeet(token, (row.reach === "target") ? guarded : from);
