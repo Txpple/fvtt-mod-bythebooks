@@ -75,6 +75,8 @@ listen("dnd5e.postUseActivity", "damage-casts", (activity, _usageConfig, results
       const consumed = activity.createConsumedFlag?.(activity.actor, message.system?.deltas);
       if ( consumed ) activity.item.updateSource({ "flags.dnd5e.consumed": consumed });
     } catch { /* refund keeps working through the deltas either way */ }
+    // An area that holds nobody (or none placed) owes no dice: the native roll is already switched off.
+    if ( area && !targets.length ) return;
     void driveDamageCast(activity, message, targets);
   } catch(err) {
     log.error(`Damage cast failed — roll the dice from the card.`, err);

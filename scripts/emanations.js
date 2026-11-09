@@ -1448,6 +1448,11 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
       : row.trigger?.on?.includes("move") ? `${row.trigger.per ?? 5} feet moved inside pays the dice — when the move lands`
       : row.alert?.kind === "notice" ? `a card when a creature ${row.alert.on === "moveOut" ? "leaves" : "enters"} — the move is never stopped`
       : (row.effect === null) ? `no effect to apply — ${row.caveat ?? "the ring is the table's"}` : reach;
+    // What a trigger asks, as maybeTrigger decides it: a move's dice, the save, or plain damage (Cloud of Daggers).
+    const triggerLine = !row.trigger ? null
+      : row.trigger.on?.includes("move") ? `${row.trigger.per ?? 5} feet moved inside pays the dice — when the move lands`
+      : (item && !activityOfType(item, "save") && activityOfType(item, "damage")) ? "damage on entering and on ending a turn inside — no save"
+      : "a save on entering and on ending a turn inside";
     const rangeText = (row.kind === "area") ? (range ? `a ${range}-foot area` : "an area") : range ? `${range}-foot Emanation` : "Emanation";
     // A part with several types is a choice the card carries: the alignment's default, or the caster's pick.
     const types = partTypesOf(activity);
@@ -1458,7 +1463,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
       card: bfCard({
         img: item?.img ?? null, eyebrow: "Emanation", tone: (row.reach === "helpful") ? "good" : "bad",
         title: `${row.key} — ${actor?.name ?? ""} — ${rangeText}`,
-        subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}${row.heal ? " · an ally at 0 HP regains Hit Points at the start of its turn" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : nothing),
+        subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${triggerLine ? ` · ${triggerLine}` : ""}${row.heal ? " · an ally at 0 HP regains Hit Points at the start of its turn" : ""}` : (triggerLine ?? nothing),
         lines: [ruleLine(row.rule), (row.caveat && (row.effect !== null)) ? `<span style="opacity:0.8;">${row.caveat}</span>` : null]
       }),
       flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null, regionId, ...(sceneId ? { sceneId } : {}),

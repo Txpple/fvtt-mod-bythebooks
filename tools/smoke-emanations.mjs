@@ -835,6 +835,32 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await act.rollDamage({}, { configure: false }, {});
         const strayD = await watch(() => receiptsSince(t19d).length > 0, { ms: 3000 });
         ok('19d. with no cube on the map the cast’s damage lands on nobody, the selected Ranger included', !strayD && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19d).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        // A REAL cast (the use, its dice driven at the use): the cube pre-placed, the placement prompt off.
+        // An empty cube rolls NO dice (the DM's sandbox, 2026-11-09: a cast with nobody inside rolled 4d4 for nothing).
+        const cast = () => act.use({ consume: { spellSlot: false, resources: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
+        const rollsSince = t => game.messages.filter(m => (m.timestamp >= t) && (m.type === 'damage'));   // nothing else rolls meanwhile
+        await vicTok.update(far, mv());
+        const empty = await placeArea(item, act, { type: 'rectangle', x: cubeAt.x - grid / 2, y: cubeAt.y - grid / 2, width: grid, height: grid }, 2);
+        await until(() => scene.regions.get(empty.id)?.behaviors?.some(b => b.type === TYPE) ? true : null, { timeout: 8000 });
+        const t19f = Date.now();
+        await cast();
+        const strayF = await watch(() => rollsSince(t19f).length > 0, { ms: 3000 });
+        ok('19f. a real cast with nobody in the cube rolls no damage dice — the selected Ranger outside it untouched', !strayF && (ranger.system.attributes.hp.value === rgrHp0), `rolls=${rollsSince(t19f).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
+        await scene.regions.get(empty.id)?.delete().catch(() => {});
+        // The same real cast with the Victim in the cube: the dice roll and land on it alone.
+        await vicTok.update({ x: cubeAt.x - grid / 2, y: cubeAt.y - grid / 2 }, mv());
+        const full = await placeArea(item, act, { type: 'rectangle', x: cubeAt.x - grid / 2, y: cubeAt.y - grid / 2, width: grid, height: grid }, 2);
+        await until(() => scene.regions.get(full.id)?.behaviors?.some(b => b.type === TYPE) ? true : null, { timeout: 8000 });
+        aimAt(rgrTok);
+        const t19g = Date.now();
+        await cast();
+        const castHit = await until(() => receiptsSince(t19g)[0] ?? null, { timeout: 8000 });
+        const hitG = castHit?.getFlag(MOD, 'receipt')?.targets?.map(t => t.uuid) ?? [];
+        ok('19g. a real cast with the Victim in the cube rolls the dice and lands them on the Victim alone, never the selected Ranger', (hitG.length === 1) && (hitG[0] === vicActor().uuid) && (ranger.system.attributes.hp.value === rgrHp0),
+          `receipt=${JSON.stringify(hitG)} rolls=${rollsSince(t19g).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
+        await scene.regions.get(full.id)?.delete().catch(() => {});
         const spike = await giveSpell('Spike Growth');
         const spikeAct = [...(spike?.system?.activities ?? [])].find(a => a.type === 'damage');
         if (spikeAct) {
