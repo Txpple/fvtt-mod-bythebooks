@@ -13,7 +13,10 @@ import {
   parseLine,
   readRun,
   readScope,
+  LIVE_PATH,
   RELEASE_SCOPES,
+  RULED_FORM,
+  rulingOf,
   scopeProblem,
   twoRunLine
 } from "../tools/battery-line.mjs";
@@ -479,5 +482,81 @@ describe("the scope and the release's scope rule", () => {
       /uncommitted changes to live files outside its range \(scripts\/geometry\.js\)/
     );
     expect(scopeProblem("patch", [{ id: "a", scope: { ...DIRTY, dirtyLive: [] } }])).toBeNull();
+  });
+});
+
+describe("the DM's ruling — rulingOf, and the scope rule under it", () => {
+  const NAMED = {
+    mode: "named",
+    head: "b3b2997dc10ac07a9d3436810b4b349047facce7",
+    suites: ["smoke-class-bard", "smoke-clock"],
+    rows: ["setup-fixtures", "smoke-clock"]
+  };
+  const RULED = { words: "no full battery to release", date: "2026-11-09" };
+
+  it("reads one Ruled line: the DM's words and the date; none is no ruling", () => {
+    expect(rulingOf("Battery: x\nRuled: no full battery to release (the DM, 2026-11-09)")).toEqual({
+      ruled: {
+        words: "no full battery to release",
+        date: "2026-11-09",
+        line: "Ruled: no full battery to release (the DM, 2026-11-09)"
+      }
+    });
+    expect(rulingOf("Battery: none (pre-release)")).toEqual({ ruled: null });
+    expect(rulingOf("")).toEqual({ ruled: null });
+    expect(RULED_FORM).toBe("Ruled: <the DM's words> (the DM, YYYY-MM-DD)");
+  });
+
+  it("refuses two Ruled lines, or one out of its form", () => {
+    expect(rulingOf("Ruled: a (the DM, 2026-11-09)\nRuled: b (the DM, 2026-11-09)")).toMatchObject({
+      error: expect.stringMatching(/2 Ruled lines/)
+    });
+    expect(rulingOf("Ruled: no full battery")).toMatchObject({
+      error: expect.stringMatching(/is not a Ruled line/)
+    });
+    expect(rulingOf("ruled: x (the DM, 2026-11-09)")).toMatchObject({
+      error: expect.stringMatching(/is not a Ruled line/)
+    });
+    expect(rulingOf("Ruled: x (the DM, 9 Nov)")).toMatchObject({
+      error: expect.stringMatching(/is not a Ruled line/)
+    });
+  });
+
+  it("under the ruling a run of any scope stands for a minor — refused without it", () => {
+    expect(scopeProblem("minor", [{ id: "a", scope: NAMED }])).toMatch(
+      /the suites named by hand.*a minor release cites the full battery/
+    );
+    expect(
+      scopeProblem("minor", [{ id: "a", scope: NAMED, liveSince: [] }], { ruled: RULED })
+    ).toBeNull();
+    expect(
+      scopeProblem("patch", [{ id: "a", scope: { mode: "changed", files: [], rows: [] } }], {
+        ruled: RULED
+      })
+    ).toBeNull();
+    expect(scopeProblem("major", [{ id: "a", scope: NAMED }], { ruled: RULED })).toBeNull();
+  });
+
+  it("but never a run of an older tree: live files changed after its head refuse it", () => {
+    expect(
+      scopeProblem("minor", [{ id: "a", scope: NAMED, liveSince: ["scripts/clock-riders.js"] }], {
+        ruled: RULED
+      })
+    ).toMatch(
+      /^run a .* ran on b3b2997, and live files changed after it \(scripts\/clock-riders\.js\): the DM's ruling stands for a run of this code/
+    );
+  });
+
+  it("the live paths are what the module serves, never module.json", () => {
+    for (const f of [
+      "scripts/clock-riders.js",
+      "scripts/decide/clock.js",
+      "styles/bythebooks.css",
+      "templates/x.hbs",
+      "lang/en.json"
+    ])
+      expect(LIVE_PATH.test(f)).toBe(true);
+    for (const f of ["module.json", "tools/class-kit.mjs", "RULINGS.md", "tests/a.test.js"])
+      expect(LIVE_PATH.test(f)).toBe(false);
   });
 });

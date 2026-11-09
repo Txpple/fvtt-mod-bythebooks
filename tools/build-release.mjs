@@ -10,7 +10,9 @@
 // `npm run verify` is not a release.
 //
 // With --tag, the tag's body carries exactly one battery line (tools/battery-line.mjs): the run's
-// line `battery-status.mjs --line` prints, GREEN, or `Battery: none (pre-release)`. When the named
+// line `battery-status.mjs --line` prints, GREEN, or `Battery: none (pre-release)`; beside it at most one
+// `Ruled: <the DM's words> (the DM, YYYY-MM-DD)` line, the DM's ruling, under which a GREEN run of any scope
+// releases a version of any bump if it ran on the tag's live code (battery-line.mjs `rulingOf`). When the named
 // run is under dist/battery/ here, the run's own reading must agree with the line; CI has no
 // dist/battery/, so there the form alone is checked. Under GitHub Actions the builder writes
 // `prerelease=true|false` to GITHUB_OUTPUT for the publish step. The tag's checks run before the
@@ -29,7 +31,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statS
 import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
-import { BATTERY_DIR, bumpOf, checkTagBody, describeScope, parseLine, readRun, readScope, RUN_ID, scopeProblem } from "./battery-line.mjs";
+import { BATTERY_DIR, bumpOf, checkTagBody, describeScope, LIVE_PATH, parseLine, readRun, readScope, RUN_ID, rulingOf, scopeProblem } from "./battery-line.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(REPO, "dist", "fvtt-mod-bythebooks.zip");
@@ -71,6 +73,11 @@ if (tag) {
   const verdict = checkTagBody(body, { runOf });
   if (!verdict.ok) fail(`${tag} cannot be released: ${verdict.error}`);
   console.log(`build-release: ${verdict.line}\nbuild-release: ${verdict.note}`);
+  // THE DM's RULING (battery-line.mjs `rulingOf`): one `Ruled:` line lets a GREEN run of any scope stand.
+  const ruling = rulingOf(body);
+  if ("error" in ruling) fail(`${tag} cannot be released: ${ruling.error}`);
+  const { ruled } = ruling;
+  if (ruled) console.log(`build-release: the DM's ruling (${ruled.date}): ${ruled.words}`);
   // THE SCOPE RULE (battery-line.mjs `scopeProblem`): the proving run(s) on this machine, read for how their
   // rows were chosen — a patch cites a `--for` run sized to its commits or the full battery, a minor the full
   // battery. CI has no runs, so there the form alone stands, as above. The previous release is the newest
@@ -85,10 +92,23 @@ if (tag) {
     const bump = bumpOf(version, previous);
     const read = parseLine(verdict.line);
     const ids = ("run" in read) ? [read.run.id] : ("pair" in read) ? [read.pair.a.id, read.pair.b.id] : [];
-    const runs = ids.map(id => ({ id, here: existsSync(join(BATTERY_DIR, id)), scope: existsSync(join(BATTERY_DIR, id)) ? readScope(join(BATTERY_DIR, id)) : null }));
+    // Under a ruling, the live files changed between the run's head and the tag: a run of an older tree stands for nothing.
+    // A run with no head recorded cannot be placed, so under a ruling it is refused as changed.
+    const liveSinceOf = scope => {
+      if (!ruled || !scope) return [];
+      if (!scope.head) return ["(the run recorded no head)"];
+      const diff = git(["diff", "--name-only", scope.head, tag]);
+      if (diff === null) return [`(git cannot compare ${String(scope.head).slice(0, 7)} with ${tag})`];
+      return diff.split(/\r?\n/).map(f => f.trim()).filter(f => LIVE_PATH.test(f));
+    };
+    const runs = ids.map(id => {
+      const here = existsSync(join(BATTERY_DIR, id));
+      const scope = here ? readScope(join(BATTERY_DIR, id)) : null;
+      return { id, here, scope, liveSince: liveSinceOf(scope) };
+    });
     console.log(`build-release: ${previous ? `${previous} -> ${tag}, a ${bump}` : `${tag}, the first release`}`);
     for (const r of runs) console.log(`build-release: run ${r.id}: ${!r.here ? "not on this machine" : r.scope ? describeScope(r.scope) : "no scope recorded (a run from before scope.json)"}`);
-    const problem = scopeProblem(bump, runs.filter(r => r.here));
+    const problem = scopeProblem(bump, runs.filter(r => r.here), { ruled });
     if (problem) fail(`${tag} cannot be released as a ${bump}: ${problem}`);
   }
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `prerelease=${verdict.prerelease}\n`);

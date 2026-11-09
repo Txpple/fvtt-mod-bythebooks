@@ -19,7 +19,9 @@
 // a tag's line against; `checkTagBody` is the release rule itself (tests/battery-line.test.js).
 // `readScope` reads how the run's rows were chosen (battery.mjs's `scope.json`: the full battery, a
 // `--for` range, …) and `scopeProblem` is the rule over it: a patch cites a `--for` run or the full
-// battery, a minor the full battery. Offline, no Foundry.
+// battery, a minor the full battery — unless the tag carries the DM's ruling (`rulingOf`, one
+// `Ruled: <the DM's words> (the DM, YYYY-MM-DD)` line), when a GREEN run of any scope stands, so long
+// as it ran on the code being released. Offline, no Foundry.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -345,20 +347,60 @@ export function bumpOf(version, previous) {
  */
 export const RELEASE_SCOPES = { major: ["full"], minor: ["full"], patch: ["full", "for"] };
 
+/** THE DM's RULING's form: one line in a tag's body, the DM's own words and the day they were said. */
+export const RULED_FORM = "Ruled: <the DM's words> (the DM, YYYY-MM-DD)";
+
+/** A body line that means to be a ruling: `Ruled:` at its start, whatever decorates it. */
+const RULED_CANDIDATE = /^[\s>*_-]*ruled\s*:/i;
+
+/** The ruling's form; group 1 the words, group 2 the date. */
+const RULED_LINE = /^Ruled: (\S.*\S|\S) \(the DM, (\d{4}-\d{2}-\d{2})\)$/;
+
+/**
+ * THE DM's RULING (the DM, 2026-11-09: *"i rule here no full battery to release/put on prod"*): a tag's body may
+ * carry ONE `Ruled:` line, the DM's words and the date, and then the run its Battery line names stands for a release
+ * of any bump whatever its scope — named suites, `--files`, `--changed` — provided it is GREEN (`checkTagBody`) and
+ * ran on the code being released (`scopeProblem`'s `liveSince`). The ruling is the DM's to give; the tag only records it.
+ * @param {string} body
+ * @returns {{ ruled: { words: string, date: string, line: string } | null } | { error: string }}
+ */
+export function rulingOf(body) {
+  const lines = String(body ?? "").split(/\r?\n/).map(l => l.trim()).filter(l => RULED_CANDIDATE.test(l));
+  if ( !lines.length ) return { ruled: null };
+  if ( lines.length > 1 ) return { error: `the tag's body has ${lines.length} Ruled lines; a release carries at most one, ${RULED_FORM}` };
+  const line = /** @type {string} */ (lines[0]);
+  const m = RULED_LINE.exec(line);
+  if ( !m ) return { error: `"${line}" is not a Ruled line; its form is ${RULED_FORM}` };
+  return { ruled: { words: /** @type {string} */ (m[1]), date: /** @type {string} */ (m[2]), line } };
+}
+
+/** The paths a run's code is: what the module serves (deploy-house-module.mjs's set), never module.json's version bump. */
+export const LIVE_PATH = /^(scripts|styles|templates|lang)\//;
+
 /**
  * The release's scope rule over the proving runs on this machine: `runs` is `[{ id, scope }]` for the
  * run of a run line, or A and B of a pair; a null scope (a run before `scope.json`) is checked by its
- * form alone. The problem, or null.
+ * form alone. Under the DM's ruling (`rulingOf`) any scope stands, but a run whose `liveSince` (the live
+ * files changed between the run's head and the tag) is not empty does not. The problem, or null.
  * @param {"major"|"minor"|"patch"|null} bump
- * @param {{ id: string, scope: Scope|null }[]} runs
+ * @param {{ id: string, scope: Scope|null, liveSince?: string[] }[]} runs
+ * @param {{ ruled?: { words: string, date: string } | null }} [opts]
  * @returns {string|null}
  */
-export function scopeProblem(bump, runs) {
+export function scopeProblem(bump, runs, { ruled = null } = {}) {
   if ( !bump ) return null;
   const allowed = RELEASE_SCOPES[bump];
   const words = allowed.map(m => (m === "full") ? "the full battery" : `a --${m} run`).join(" or ");
-  for ( const { id, scope } of runs ) {
+  for ( const { id, scope, liveSince = [] } of runs ) {
     if ( !scope ) continue;
+    // THE DM's RULING: any scope the DM accepted stands — but only for the code it ran on.
+    if ( ruled ) {
+      if ( liveSince.length ) {
+        return `run ${id} (${describeScope(scope)}) ran on ${String(scope.head ?? "?").slice(0, 7)}, and live files changed after it `
+          + `(${liveSince.join(", ")}): the DM's ruling stands for a run of this code, not of an older tree`;
+      }
+      continue;
+    }
     if ( !allowed.includes(scope.mode) ) return `run ${id} is ${describeScope(scope)}, and a ${bump} release cites ${words}`;
     if ( (scope.mode === "for") && scope.dirtyLive?.length ) {
       return `run ${id} (${describeScope(scope)}) ran on a tree with uncommitted changes to live files outside its range `

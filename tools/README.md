@@ -512,7 +512,11 @@ only on the maintainer's word.
    run's reds are different suites, each green alone in `node tools/battery.mjs --rerun-failed <A> <B>`
    (the one-offs), the two-run line stands in (`--line <A> --and <B> --one-offs <C>`, above). A release
    with no run says `Battery: none (pre-release)` instead: it is published as a GitHub pre-release and
-   never reaches prod through the installer (NOTES §5 *Release*).
+   never reaches prod through the installer (NOTES §5 *Release*). **The DM's ruling** sets the sizing
+   aside: with one `Ruled: <the DM's words> (the DM, YYYY-MM-DD)` line in the tag's body, a GREEN run of
+   any scope (the suites named by hand, `--files`) releases a version of any bump, refused only when a
+   live file (`scripts/`, `styles/`, `templates/`, `lang/`) changed between the run's head and the tag.
+   Only the DM gives one; it is written as they said it.
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
    `--check` is part of `verify`. **The frame (2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
    per letter series or book stage; **v3.0.0 is the release where the PHB, the DMG and the MM are all done, before any
@@ -526,7 +530,8 @@ only on the maintainer's word.
 5. **The release.** An **annotated** tag on the release commit: its subject is the release title,
    its body the release notes (hand-written, never NOTES.md) carrying **exactly one battery line**,
    the one step 1 printed (`Battery: <run id> — <n>/<n> suites, <n>/<n> checks, GREEN`; an ASCII `-`
-   for the dash reads the same), the two-run line, or `Battery: none (pre-release)`. Before the push,
+   for the dash reads the same), the two-run line, or `Battery: none (pre-release)`, and at most one
+   `Ruled:` line (step 1). Before the push,
    `node tools/build-release.mjs --tag vX.Y.Z`: the tag against `module.json`, the line's form, and
    the line against its run under `dist/battery/`. That run is the only check that the line is true,
    since CI has no `dist/battery/`; until the tag is pushed, a refused one is rewritten in place

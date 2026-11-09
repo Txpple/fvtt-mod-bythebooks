@@ -1413,6 +1413,16 @@ two-run rule holds for a sized run as for a full one (the same range gives the s
 `--rerun-failed <A> <B>` is its one-offs run. A hand walk is not a battery: the battery before 3.4.7 found
 three bugs of 3.4.5, which had shipped on one.
 
+**The DM's ruling sets the sizing aside** (the DM, 2026-11-09, releasing Combat Inspiration's crit tick, whose
+`--for` range grew to the full battery through `registry.js`: *"do whatever small tests you have, but i rule here
+no full battery to release/put on prod"*). A tag's body may carry one `Ruled: <the DM's words> (the DM,
+YYYY-MM-DD)` line beside its Battery line; then the named run stands for a release of any bump whatever its scope
+(the suites named by hand, `--files`, `--changed`), so long as it is GREEN and ran on the code being released:
+`build-release.mjs --tag` refuses it when a live file (`scripts/`, `styles/`, `templates/`, `lang/`) changed
+between the run's recorded head and the tag (`battery-line.mjs` `rulingOf`, `scopeProblem`'s `liveSince`). The
+ruling is the DM's to give, per release, in their own words; the tag only records it, and the release notes say
+which suites ran.
+
 **The line meets its run only on the machine that ran it.** The by-hand `build-release.mjs --tag`,
 before the tag is pushed, reads the named run under `dist/battery/` and refuses a line the run does
 not bear out: GREEN claimed over a red or unfinished run, a count that is not the run's. CI has no
