@@ -34,7 +34,7 @@ const SECTIONS = {
   8: 'the area goes (concentration\'s end) — the region goes and Half Speed lifts',
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
   18: 'THE AREA KIND (the spells slice, Tier 3, 2026-09-28): Moonbeam\'s placed region is adopted where it stands, attached to nothing; a creature walking in is demanded the save (its damage rolled); the beam MOVED onto a standing creature demands it; in combat a turn ended inside demands it, once per turn',
-  19: 'Cloud of Daggers: an area whose activity is plain damage — a creature walking in takes the dice, rolled on the caster and applied with a receipt, no save',
+  19: 'Cloud of Daggers: an area whose activity is plain damage — a creature walking in takes the dice, rolled on the caster and applied with a receipt, no save; the cast’s own dice land on who the cube holds, never on a selected creature outside it, and on nobody with no cube; Spike Growth’s cast pays nothing',
   20: 'THE HELD SPELLS — Wall of Fire: the placed wall (a line) is adopted and WIDENED 10 ft on the side away from the Cleric (the base shape kept); the cast\'s card offers both sides by compass name; a creature ending its turn on the hot side is demanded the Dexterity save with the 5d8 fire, one on the cold side is not; flipping the side on the card re-shapes the region',
   21: 'Spike Growth: a walked move of 15 ft INSIDE the area pays 6d4 piercing when the move lands — a card with the roll and the feet, a receipt; a teleport pays nothing',
   22: 'Magic Circle: adopted with every type picked and no save demanded at the placement; a Fiend moving in raises the entry notice (the move carries on); the Fiend attacking a target INSIDE the circle has the gate list "Magic Circle — a fiend attacking into the circle" (net Disadvantage), attacking one outside it lists nothing; unticking Fiend on the card reaches the region and the gate lists nothing',
@@ -817,7 +817,38 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const hpDown = await until(() => (vicActor().system.attributes.hp.value < hp0) ? true : null, { timeout: 6000 });
         ok('19b. walking into the cube takes the dice — NO save demand: a card with the roll (4d4 slashing), a receipt, the Hit Points down', !!card && !card.getFlag(MOD, 'saves') && (tf?.damage === true) && /4d4/.test(card.rolls?.[0]?.formula ?? '') && !!receipt && !!hpDown,
           `preds=${JSON.stringify({ card: !!card, noSaves: !card?.getFlag(MOD, 'saves'), damage: tf?.damage === true, formula: /4d4/.test(card?.rolls?.[0]?.formula ?? ''), receipt: !!receipt, hpDown: !!hpDown })} flag=${JSON.stringify(tf)} formula=${card?.rolls?.[0]?.formula} receipt=${JSON.stringify(receipt && { taken: receipt.taken, delta: receipt.delta, note: receipt.note })} hp=${hp0}→${vicActor().system.attributes.hp.value}`);
+        // The cast's own dice land on what the cube HOLDS, never on who is selected (the DM's sandbox, 2026-11-09:
+        // a selected Lysandra outside the Cube took the cast's 4d4). The Ranger, selected, stands outside.
+        const aimAt = tok => { game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); }); canvas.tokens.get(tok.id)?.setTarget(true, { releaseOthers: true }); };
+        const receiptsSince = t => game.messages.filter(m => (m.timestamp >= t) && (m.type === 'damage') && m.getFlag(MOD, 'receipt'));
+        await rgrTok.update({ x: 300, y: 1600 }, mv());
+        const rgrHp0 = ranger.system.attributes.hp.value;
+        aimAt(rgrTok);
+        const t19c = Date.now();
+        await act.rollDamage({}, { configure: false }, {});
+        const castReceipt = await until(() => receiptsSince(t19c)[0] ?? null, { timeout: 8000 });
+        const hit = castReceipt?.getFlag(MOD, 'receipt')?.targets?.map(t => t.uuid) ?? [];
+        ok('19c. the cast’s damage lands on the creature IN the cube, never on the selected Ranger outside it', (hit.length === 1) && (hit[0] === vicActor().uuid) && (ranger.system.attributes.hp.value === rgrHp0),
+          `receipt=${JSON.stringify(hit)} victim=${vicActor().uuid} ranger hp ${rgrHp0}→${ranger.system.attributes.hp.value}`);
         await scene.regions.get(region.id)?.delete().catch(() => {});
+        const t19d = Date.now();
+        await act.rollDamage({}, { configure: false }, {});
+        const strayD = await watch(() => receiptsSince(t19d).length > 0, { ms: 3000 });
+        ok('19d. with no cube on the map the cast’s damage lands on nobody, the selected Ranger included', !strayD && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19d).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        const spike = await giveSpell('Spike Growth');
+        const spikeAct = [...(spike?.system?.activities ?? [])].find(a => a.type === 'damage');
+        if (spikeAct) {
+          const sRegion = await placeArea(spike, spikeAct, { type: 'circle', x: cubeAt.x, y: cubeAt.y, radius: 20 * px }, 2);
+          await until(() => { const r = areaRegion('Spike Growth'); return r?.behaviors?.some(b => b.type === TYPE) ? r : null; }, { timeout: 8000 });
+          const t19e = Date.now();
+          await spikeAct.rollDamage({}, { configure: false }, {});
+          const strayE = await watch(() => receiptsSince(t19e).length > 0, { ms: 3000 });
+          ok('19e. Spike Growth’s cast pays nothing, whoever stands in it or is selected: its damage is the move’s', !strayE && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19e).length}`);
+          await scene.regions.get(sRegion.id)?.delete().catch(() => {});
+        } else ok('19e-. Spike Growth lent', false, 'the PHB ships no Spike Growth this box can find');
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        await ranger.update({ 'system.attributes.hp.value': rgrHp0 });
+        await rgrTok.update(home[rgrTok.id], mv());
         await vicActor().update({ 'system.attributes.hp.value': hp0 });
         await vicTok.update(home[vicTok.id], mv()); await clrTok.update(home[clrTok.id], mv());
         await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
