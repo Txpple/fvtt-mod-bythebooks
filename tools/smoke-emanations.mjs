@@ -784,6 +784,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const endCard = await until(() => triggerCards().find(m => (m.timestamp >= t18) && m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnEnd') ?? null, { timeout: 8000 });
         ok('18h. the Victim\'s turn ending inside the beam demands the save (a new turn: the chit is gone)', !!endCard && (triggerCards().length === n3 + 1), `cards=${triggerCards().length} (was ${n3})`);
         await closeDialogs();
+        // §18's demands land their damage when each closes (its window, a held reduction's offer): settled here,
+        // or a late Moonbeam on the Ranger lands inside §19 (the release battery, 2026-11-09). Never a red of its own.
+        try {
+          await until(() => game.messages.filter(m => (m.timestamp >= t18) && m.getFlag(MOD, 'saves')).every(m => {
+            const f = m.getFlag(MOD, 'saves');
+            return (f.status === 'done') && (f.targets ?? []).every(t => !t.done || t.applied || (t.outcome === 'gone'));
+          }) || null, { timeout: 30000, label: "§18's save demands settled" });
+        } catch (err) { log.push(`18: ${err.message}`); }
         try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
         combat = null;
         await scene.regions.get(region.id)?.delete().catch(() => {});
@@ -821,6 +829,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // a selected Lysandra outside the Cube took the cast's 4d4). The Ranger, selected, stands outside.
         const aimAt = tok => { game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); }); canvas.tokens.get(tok.id)?.setTarget(true, { releaseOthers: true }); };
         const receiptsSince = t => game.messages.filter(m => (m.timestamp >= t) && (m.type === 'damage') && m.getFlag(MOD, 'receipt'));
+        // The selected Ranger is judged by RECEIPTS naming it on any card (an area's own card carries one), never by its
+        // Hit Points, which another section's late damage may move.
+        const rangerHit = t => game.messages.filter(m => m.timestamp >= t).flatMap(m => m.getFlag(MOD, 'receipt')?.targets ?? []).filter(r => (r.uuid === ranger.uuid) && !r.reverted);
         await rgrTok.update({ x: 300, y: 1600 }, mv());
         const rgrHp0 = ranger.system.attributes.hp.value;
         aimAt(rgrTok);
@@ -828,13 +839,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await act.rollDamage({}, { configure: false }, {});
         const castReceipt = await until(() => receiptsSince(t19c)[0] ?? null, { timeout: 8000 });
         const hit = castReceipt?.getFlag(MOD, 'receipt')?.targets?.map(t => t.uuid) ?? [];
-        ok('19c. the cast’s damage lands on the creature IN the cube, never on the selected Ranger outside it', (hit.length === 1) && (hit[0] === vicActor().uuid) && (ranger.system.attributes.hp.value === rgrHp0),
-          `receipt=${JSON.stringify(hit)} victim=${vicActor().uuid} ranger hp ${rgrHp0}→${ranger.system.attributes.hp.value}`);
+        ok('19c. the cast’s damage lands on the creature IN the cube, never on the selected Ranger outside it', (hit.length === 1) && (hit[0] === vicActor().uuid) && !rangerHit(t19c).length,
+          `rangerHit=${rangerHit(t19c).length} receipt=${JSON.stringify(hit)} victim=${vicActor().uuid} ranger hp ${rgrHp0}→${ranger.system.attributes.hp.value}`);
         await scene.regions.get(region.id)?.delete().catch(() => {});
         const t19d = Date.now();
         await act.rollDamage({}, { configure: false }, {});
         const strayD = await watch(() => receiptsSince(t19d).length > 0, { ms: 3000 });
-        ok('19d. with no cube on the map the cast’s damage lands on nobody, the selected Ranger included', !strayD && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19d).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        ok('19d. with no cube on the map the cast’s damage lands on nobody, the selected Ranger included', !strayD && !rangerHit(t19d).length, `rangerHit=${rangerHit(t19d).length} receipts=${receiptsSince(t19d).length} ranger hp=${ranger.system.attributes.hp.value}`);
         // A REAL cast (the use, its dice driven at the use): the cube pre-placed, the placement prompt off.
         // An empty cube rolls NO dice (the DM's sandbox, 2026-11-09: a cast with nobody inside rolled 4d4 for nothing).
         const cast = () => act.use({ consume: { spellSlot: false, resources: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
@@ -845,7 +856,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const t19f = Date.now();
         await cast();
         const strayF = await watch(() => rollsSince(t19f).length > 0, { ms: 3000 });
-        ok('19f. a real cast with nobody in the cube rolls no damage dice — the selected Ranger outside it untouched', !strayF && (ranger.system.attributes.hp.value === rgrHp0), `rolls=${rollsSince(t19f).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        ok('19f. a real cast with nobody in the cube rolls no damage dice — the selected Ranger outside it untouched', !strayF && !rangerHit(t19f).length, `rangerHit=${rangerHit(t19f).length} rolls=${rollsSince(t19f).length} ranger hp=${ranger.system.attributes.hp.value}`);
         try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
         await scene.regions.get(empty.id)?.delete().catch(() => {});
         // The same real cast with the Victim in the cube: the dice roll and land on it alone.
@@ -857,8 +868,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await cast();
         const castHit = await until(() => receiptsSince(t19g)[0] ?? null, { timeout: 8000 });
         const hitG = castHit?.getFlag(MOD, 'receipt')?.targets?.map(t => t.uuid) ?? [];
-        ok('19g. a real cast with the Victim in the cube rolls the dice and lands them on the Victim alone, never the selected Ranger', (hitG.length === 1) && (hitG[0] === vicActor().uuid) && (ranger.system.attributes.hp.value === rgrHp0),
-          `receipt=${JSON.stringify(hitG)} rolls=${rollsSince(t19g).length} ranger hp=${ranger.system.attributes.hp.value}`);
+        ok('19g. a real cast with the Victim in the cube rolls the dice and lands them on the Victim alone, never the selected Ranger', (hitG.length === 1) && (hitG[0] === vicActor().uuid) && !rangerHit(t19g).length,
+          `rangerHit=${rangerHit(t19g).length} receipt=${JSON.stringify(hitG)} rolls=${rollsSince(t19g).length} ranger hp=${ranger.system.attributes.hp.value}`);
         try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
         await scene.regions.get(full.id)?.delete().catch(() => {});
         const spike = await giveSpell('Spike Growth');
@@ -869,7 +880,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t19e = Date.now();
           await spikeAct.rollDamage({}, { configure: false }, {});
           const strayE = await watch(() => receiptsSince(t19e).length > 0, { ms: 3000 });
-          ok('19e. Spike Growth’s cast pays nothing, whoever stands in it or is selected: its damage is the move’s', !strayE && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19e).length} ranger hp ${rgrHp0}→${ranger.system.attributes.hp.value} victim hp=${vicActor().system.attributes.hp.value}`);
+          ok('19e. Spike Growth’s cast pays nothing, whoever stands in it or is selected: its damage is the move’s', !strayE && !rangerHit(t19e).length, `rangerHit=${rangerHit(t19e).length} receipts=${receiptsSince(t19e).length} ranger hp ${rgrHp0}→${ranger.system.attributes.hp.value} victim hp=${vicActor().system.attributes.hp.value}`);
           await scene.regions.get(sRegion.id)?.delete().catch(() => {});
         } else ok('19e-. Spike Growth lent', false, 'the PHB ships no Spike Growth this box can find');
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
