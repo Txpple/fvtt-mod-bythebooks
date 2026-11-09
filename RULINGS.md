@@ -2423,7 +2423,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Hunter's Prey — Horde Breaker | `BONUS_SWINGS` `option`, `near: 5` | the reminder when another creature stands within 5 ft of the target, once per turn |
 | Frenzy | `CLOCK_RIDERS` `judge: reckless` | the Rage Damage d6s on the first hit of the turn while raging and Reckless |
 | Repelling Blast | `CLOCK_RIDERS` `enchant`, `maxSize`, `says` | a card line per beam on the cantrip the invocation enchanted (else Eldritch Blast) |
-| Combat Inspiration — Offense | `CLOCK_RIDERS` `inspired`, `unticked` | the bard's die on the damage offer, unticked; ridden, the Inspired effect is spent |
+| Combat Inspiration — Offense | `CLOCK_RIDERS` `inspired`, `unticked`, `critTicks` | the bard's die on the damage offer, unticked — ticked on a Critical Hit, where it doubles (*Combat Inspiration on a crit*); ridden, the Inspired effect is spent |
 | Combat Inspiration — Defense | `INTERRUPT_ROLLS` `inspired`, `only: "self"` | the hit creature's own popup: −the die off the attack, its Reaction and its Inspired die spent; asked whoever swung, an ally or a neutral too ("hit by an attack roll" names no side), while the other bystanders keep the rule that an attack inside one side is not theirs to bend (`hold/lookup.js` `bystandersOf`) |
 | Glorious Defense | `INTERRUPT_ROLLS` `reach: "target"`, formula `bonus`, `turned: "strike"` | −Cha off an attack that hits the paladin or a creature within 10 ft of it; turned to a miss, a Strike popup drives one weapon attack at the attacker. Moved from the `ac` list, where the pack's effectless utility moved no AC |
 | Dark One's Blessing | `HEAL_ON_HIT` `on: "kill"`, `temphp`, `within: 10` | the pack's heal (Cha + Warlock level, min 1) as Temporary Hit Points when the warlock drops an enemy — or anyone does within 10 ft of it (the 2024 text; the plan's walk line had it the warlock's kill only) |
@@ -2441,7 +2441,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Rage, then a turn with no attack roll and no save forced | at the turn end: "Rage — it ends now unless you extended it"; nothing removed |
 | Frenzy, Reckless ticked, the first hit | the offer's ticked row "Frenzy — 2d6 …"; the second hit shows none |
 | Rage with Rage of the Wilds | the Rage's card asks Bear / Eagle / Wolf; Wolf: an ally attacking a goblin beside the barbarian sees "Rage of the Wolf — Advantage" in the gate |
-| Combat Inspiration, an Inspired ally hits | the offer's UNticked row "Combat Inspiration — 1d6"; ticked, the die rides and the Inspired effect is gone |
+| Combat Inspiration, an Inspired ally hits | the offer's UNticked row "Combat Inspiration — 1d6"; ticked, the die rides and the Inspired effect is gone; a Critical Hit: the row TICKED, 2d6 |
 | Combat Inspiration, an Inspired ally is hit by 2 | the ally's popup "−1d6 · a Reaction · the Inspired die"; Answer: the die rolls, MISS; the same when the attacker is another PC |
 | War Priest, a weapon attack | Hew's popup "War Priest — … 3 of 3 uses left" |
 | Starry Form | "Which constellation glimmers on you?"; Chalice, then Cure Wounds at an ally: "Chalice — heal one more within 30 ft" with a button per creature |
@@ -4563,6 +4563,18 @@ Paladin's Smite's Divine Smite, Familiar Friend, Fey Touched *"and many more"*.
   statblock's.
 - Pinned by `tests/decide-cast-ways.test.js` and `smoke-free-casts` (§1-§4 the rebuke on a Fighter lent both
   copies and two Pact slots by override, §5 the window, §6 the popup's pick overridden).
+
+## Combat Inspiration on a crit (2026-11-09)
+
+- **The Inspired die is ticked on a Critical Hit, as the smite is** (the DM, after the Valor work: "like smite, this
+  doubles on crit"; asked whether it should tick itself on a crit, *"Yes, tick on crit"*). Combat Inspiration's
+  Offense stays UNticked on an ordinary hit (*The PHB classes — A1*: the die is the ally's to spend); on a hit whose
+  attack d20 is a Critical Hit the damage offer opens with its row ticked, the smite's default (*Free casts, then
+  slots*, the smite). The die rides the attack's damage roll as its own part before dnd5e reads the crit
+  (`preRollDamage`), so it doubles with the weapon's dice and a smite's — an Inspired paladin's crit carries both,
+  each doubled. Unticking it on the offer keeps the die. A roll with no offer (a driven roll) still rides it only by
+  a pick. A registry facet, `critTicks`, read by `decide/clock.js` `riderTicked`; no other unticked row has it.
+- Pinned by `tests/decide-classes-a1.test.js` and `smoke-class-bard` §15f (unwalked until the sandbox is free).
 
 ## Rulings the code carried
 

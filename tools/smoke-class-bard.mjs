@@ -30,7 +30,7 @@ const SECTIONS = {
   11: 'Cutting Words on a hostile\'s CHECK: the Attacker\'s Athletics; the Bard\'s popup says no DC is known; Answer takes the d8 (5) off — the card states the arithmetic and "ask your DM"',
   12: 'a check everyone passes: an Advantage Athletics asks the Bard and the Sorcerer; both pass, the offer resolves as a pass, the card says nothing',
   14: 'Combat Inspiration — Defense: in a combat, the Halfling holding the Bard\'s Inspired die (the Bard lent Combat Inspiration) is hit by 2 — ITS OWN popup "−<the Bard\'s die> · a Reaction · the Inspired die", nobody else asked; Answer rolls the die: a MISS, the Inspired effect deleted, the Halfling\'s Reaction spent; an ALLY\'s hit asks the Halfling all the same, nobody else',
-  15: 'Combat Inspiration — Offense: an Inspired ally (BTB Test PC Attacker, the Bard\'s die) hits — the offer\'s UNTICKED row "Combat Inspiration — <die>"; ticked, the die rides and the Inspired effect is spent; a driven roll (no pick) and an unticked offer ride nothing',
+  15: 'Combat Inspiration — Offense: an Inspired ally (BTB Test PC Attacker, the Bard\'s die) hits — the offer\'s UNTICKED row "Combat Inspiration — <die>"; ticked, the die rides and the Inspired effect is spent; a driven roll (no pick) and an unticked offer ride nothing; on a Critical Hit the row comes TICKED and the die rides doubled',
   42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — the Halfling\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody',
   54: 'Tandem Footwork (B4, lent to the Bard): the bard\'s Initiative asks "give 1d8 to allies within 30 ft?"; Yes rolls once (5): the bard and the Halfling +5, the foe untouched, the unrolled Sorcerer noted; it rolls later and lands +5',
   79: 'Peerless Skill (C1, the Bard): a failed Athletics check offers the Bardic die; accepted, a Bardic Inspiration spent',
@@ -451,6 +451,24 @@ const out = await runClassSuite(f, { plan, sections: SECTIONS, body: async ({ se
             !!o2 && Array.isArray(m2?.getFlag(MOD, 'clockPick')) && (m2.getFlag(MOD, 'clockPick').length === 0)
               && !ridersOf(d2).some(x => x.key === 'combat-inspiration') && !strayE && !!pcAttacker.effects.get(eff2.id),
             `offer=${!!o2} pick=${JSON.stringify(m2?.getFlag(MOD, 'clockPick'))} d2=${!!d2} riders=${JSON.stringify(ridersOf(d2).map(x => x.key))} spent=${!!strayE} inspired=${!!pcAttacker.effects.get(eff2.id)}`);
+
+          // A CRITICAL HIT (2026-11-09, the DM: tick it on a crit, as the smite is): the row comes TICKED, and rolled as it
+          // stands the die rides crit-doubled (1d6 → 2d6), the Inspired effect spent.
+          const eff3 = pcAttacker.effects.get(eff2.id) ?? await seed();
+          const { msg: m3, offer: o3 } = await a1Hit(pcAttacker, pcToken, act, { d20: 20 });
+          const box3 = riderBox(o3, 'combat-inspiration');
+          const dieFaces = Number(/d(\d+)/.exec(die)?.[1]) || 0;
+          const dieCount = Number(/^(\d*)d/.exec(die)?.[1]) || 1;
+          const d3 = await a1Roll(m3, o3);
+          const r3 = ridersOf(d3).find(x => x.key === 'combat-inspiration');
+          const part3 = (d3?.rolls ?? []).find(x => (x.terms ?? []).some(t => t.flavor === 'Combat Inspiration'))
+            ?? (d3?.rolls ?? []).slice(1).find(x => (x.dice ?? []).some(dd => dd.faces === dieFaces)) ?? null;
+          const rolled3 = part3?.dice?.filter(dd => dd.faces === dieFaces).reduce((n, dd) => n + dd.number, 0) ?? 0;
+          const gone3 = await until(() => !pcAttacker.effects.get(eff3.id), { timeout: 6000, label: 'the Inspired effect spent on the crit' }).catch(() => false);
+          ok(`15f. a Critical Hit: the row comes TICKED; rolled as it stands the die rides crit-doubled (${dieCount * 2}d${dieFaces}), the Inspired effect spent`,
+            !!m3?.rolls?.[0]?.isCritical && !!box3 && box3.checked && !!r3 && (part3?.isCritical === true) && (rolled3 === dieCount * 2)
+              && (m3?.getFlag(MOD, 'clockPick') ?? []).includes('combat-inspiration') && !!gone3,
+            `crit=${m3?.rolls?.[0]?.isCritical} box=${!!box3} checked=${box3?.checked} rider=${!!r3} partCrit=${part3?.isCritical} dice=${rolled3} formulas=[${(d3?.rolls ?? []).map(x => `${x.formula}:${x.isCritical}`).join(' | ')}] gone=${!!gone3}`);
         } finally {
           await closeOffers();
           await dropEffects(pcAttacker, pcAttacker.effects.filter(e => e.name === 'Inspired').map(e => e.id));

@@ -11,7 +11,7 @@ import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders
 import { momentButton, registerResumable, registerOfferPart, postCard, pickInputs } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
-import { riderDue, riderPartFormula, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
+import { riderDue, riderPartFormula, riderTicked, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt, hasReceipt, receiptEntries } from "./auto-apply.js";
 import { creaturesWithin, feetOf, tokenOf } from "./geometry.js";
@@ -308,14 +308,17 @@ function clockRiderOfferParts(attackMessage, activity) {
   const due = all.filter(r => r.due && !r.unpicked && !r.row.spread && !r.row.always);
   const asks = optionAsks(all);
   if ( !due.length && !asks.length ) return null;
-  const chosen = new Set(due.filter(r => (r.formula || r.says) && !r.row.unticked).map(r => r.key));
+  // An unticked row stays unticked but on a Critical Hit, where a `critTicks` row ticks (Combat Inspiration: the smite's default).
+  const critical = !!attackMessage?.rolls?.[0]?.isCritical;
+  const ticked = r => riderTicked(r.row, { critical });
+  const chosen = new Set(due.filter(r => (r.formula || r.says) && ticked(r)).map(r => r.key));
   const options = new Map();                               // feature id → the option picked in this offer
   return {
     riders: due,
     lines: due.filter(r => !r.formula && !r.says).map(r => `<strong>${esc(r.label)}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
     html: optionAskHTML(asks.map(a => ({ featureId: a.featureId, feature: a.feature, options: a.options.map(o => ({ value: o.value, note: o.note })) })))
       + riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, says: r.says, type: r.type, why: r.why, rule: r.row.rule,
-        usesLeft: r.usesLeft, caveat: r.row.caveat, unticked: !!r.row.unticked }))),
+        usesLeft: r.usesLeft, caveat: r.row.caveat, unticked: !ticked(r) }))),
     wire(element) {
       for ( const box of pickInputs(element, "bf-rider") ) {
         box.addEventListener("change", () => { if ( box.checked ) chosen.add(box.value); else chosen.delete(box.value); });

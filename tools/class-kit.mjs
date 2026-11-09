@@ -356,15 +356,15 @@ export const classKit = async ({ sections }) => {
       };
       await victim.update({ 'system.attributes.ac.override': 1, 'system.attributes.hp.max': 400 });
     };
-    /** `actor` hits the Victim (d20 19, AC 1) with `activity`, the Victim set to `hpTo` first. A spell skips the
-     * usage card (a volley's use() would open the aim — the rider rides the attack roll alone). Returns the attack
-     * message and the NEW damage offer, or null when none opens within `offerWait`. */
-    const a1Hit = async (_actor, token, activity, { hpTo = 400, offerWait = 4000 } = {}) => {
+    /** `actor` hits the Victim (d20 19, AC 1; `d20: 20` a Critical Hit) with `activity`, the Victim set to `hpTo` first. A
+     * spell skips the usage card (a volley's use() would open the aim — the rider rides the attack roll alone). Returns the
+     * attack message and the NEW damage offer, or null when none opens within `offerWait`. */
+    const a1Hit = async (_actor, token, activity, { hpTo = 400, offerWait = 4000, d20 = 19 } = {}) => {
       await victim.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
       token.control({ releaseOthers: true });
       victimToken.setTarget(true, { releaseOthers: true });
       const before = new Set(popups());
-      faces([[19, 20], [19, 20], [3, 6]]);   // a second d20 if the gate adds Advantage (Reckless); assert flags, not faces
+      faces([[d20, 20], [d20, 20], [3, 6]]);   // a second d20 if the gate adds Advantage (Reckless); assert flags, not faces
       const usage = (activity.item?.type === 'spell') ? null : await activity.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await activity.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;

@@ -156,6 +156,17 @@ describe("CLOCK_RIDERS — the new judges", () => {
     expect(row).toMatchObject({ inspired: true, unticked: true, when: "any" });
     expect(c.riderDue(row, {}).due).toBe(true);
   });
+
+  it("Combat Inspiration's Offense: ticked on a Critical Hit, as the smite is (the die doubles there)", () => {
+    const row = reg.CLOCK_RIDERS["combat-inspiration"];
+    expect(row.critTicks).toBe(true);
+    expect(c.riderTicked(row, { critical: false })).toBe(false);
+    expect(c.riderTicked(row, { critical: true })).toBe(true);
+    expect(c.riderTicked(row)).toBe(false);
+    // every other unticked row stays unticked on a crit; a plain row is ticked either way
+    expect(c.riderTicked(reg.CLOCK_RIDERS["sacred-weapon"], { critical: true })).toBe(false);
+    expect(c.riderTicked(reg.CLOCK_RIDERS.frenzy, { critical: false })).toBe(true);
+  });
 });
 
 describe('HEAL_ON_HIT `on: "kill"` — Dark One\'s Blessing', () => {

@@ -116,6 +116,16 @@ export function targetsAnswer(spec, targets) {
   return { fits: true, why: "" };
 }
 
+/** IS A DUE RIDER TICKED ON THE DAMAGE OFFER? Every row is, but an `unticked` one (a scarce die spent by choice), and
+ * that one too on a Critical Hit when it `critTicks` (Combat Inspiration's die, doubled — the smite's default: "if its a
+ * crit, default to yes"). The offer only: a roll with no pick still rides no unticked row.
+ * @param {{unticked?: boolean, critTicks?: boolean}} row
+ * @param {{critical?: boolean}} facts   the attack's own d20 a Critical Hit
+ * @returns {boolean} */
+export function riderTicked(row, { critical = false } = {}) {
+  return !row.unticked || (!!row.critTicks && critical);
+}
+
 /** A damage part's formula as written: dice, custom, bonus, or a bonus alone (Assassinate); null = none.
  * @param {{number?: number|null, denomination?: number|null, custom?: {enabled?: boolean, formula?: string}|null, bonus?: string|null}} part
  * @returns {string|null} */

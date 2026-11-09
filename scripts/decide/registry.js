@@ -606,6 +606,8 @@ export const DEATH_STRIKE = Object.freeze({
  *   inspired  the feature is the granting BARD's, the die the bard's Bardic Inspiration, paid by the attacker's
  *             own Inspired effect (deleted as it rides) — Combat Inspiration's damage half
  *   unticked  offered UNticked, and never ridden without a pick (a driven roll): a scarce die is spent by choice
+ *   critTicks an `unticked` row offered TICKED on a Critical Hit (the attack's own d20), the smite's default — its die doubles
+ *             there (Combat Inspiration); a driven roll still rides it only by a pick (decide/clock.js `riderTicked`)
  *   option / options  the sheet never records which option the character took (Hunter's Prey): the offer asks
  *             once, the pick is kept on the feature (`option` flag), and only the picked option's rows ride
  *   type      "weapon" — the weapon's damage type; otherwise the part's first
@@ -691,8 +693,9 @@ export const CLOCK_RIDERS = Object.freeze({
     caveat: "the type is the activity's first — ask for the other by hand",
     rule: Object.freeze({ item: "Divine Fury", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbDivineFury" }),
     from: "Barbarian — Zealot 3" }),
-  // Offered unticked (RULINGS *The PHB classes — A1*): the die is the ally's to spend.
-  "combat-inspiration": Object.freeze({ feature: "Combat Inspiration", activity: null, when: "any", inspired: true, unticked: true,
+  // Offered unticked (RULINGS *The PHB classes — A1*): the die is the ally's to spend. Ticked on a Critical Hit, where it
+  // doubles with the attack's dice — the smite's default (RULINGS *Combat Inspiration on a crit*).
+  "combat-inspiration": Object.freeze({ feature: "Combat Inspiration", activity: null, when: "any", inspired: true, unticked: true, critTicks: true,
     label: "Combat Inspiration",
     rule: Object.freeze({ item: "Combat Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCombatInsp", benefit: "Offense" }),
     from: "Bard — College of Valor 3" }),
