@@ -843,7 +843,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const t19e = Date.now();
           await spikeAct.rollDamage({}, { configure: false }, {});
           const strayE = await watch(() => receiptsSince(t19e).length > 0, { ms: 3000 });
-          ok('19e. Spike Growth’s cast pays nothing, whoever stands in it or is selected: its damage is the move’s', !strayE && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19e).length}`);
+          ok('19e. Spike Growth’s cast pays nothing, whoever stands in it or is selected: its damage is the move’s', !strayE && (ranger.system.attributes.hp.value === rgrHp0), `receipts=${receiptsSince(t19e).length} ranger hp ${rgrHp0}→${ranger.system.attributes.hp.value} victim hp=${vicActor().system.attributes.hp.value}`);
           await scene.regions.get(sRegion.id)?.delete().catch(() => {});
         } else ok('19e-. Spike Growth lent', false, 'the PHB ships no Spike Growth this box can find');
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
