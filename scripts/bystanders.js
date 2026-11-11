@@ -264,7 +264,11 @@ async function sendAnswer(message, envelope, actor) {
  */
 async function bystanderAnswer(message, guard, choice, face = null) {
   const flag = readFlag(message, KEY);
-  if ( flag?.status !== "pending" ) return;
+  if ( flag?.status !== "pending" ) {
+    // A press after the buzzer, or after another's answer: nothing is spent, and the player is TOLD so (a pass needs no word).
+    if ( choice === "roll" ) ui.notifications.warn(`${TITLE}: ${guard.row} — the moment has passed; nothing was spent.`);
+    return;
+  }
   const actor = resolveUuid(guard.uuid);
   const base = { messageId: message.id, by: guard.uuid, itemId: guard.itemId, rescue: guard.row, rollerName: flag.rollerName };
   // The mutes (RULINGS *The asks widened*): "mute-turn" until the bystander's next turn, "mute-combat" until the combat ends.

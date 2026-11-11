@@ -48,6 +48,22 @@ export function recordAnswer(target, answer, by = null) {
 }
 
 /**
+ * Is this answer still asked for — the hold open, the target unanswered, the guard (`by`) not passed? A press that lands
+ * after the buzzer, or after another's answer, must pay NOTHING: `answerHold` would drop it, the cost already spent.
+ * @param {any} attackMessage
+ * @param {string} uuid
+ * @param {string|null} [by]
+ */
+export function stillAsked(attackMessage, uuid, by = null) {
+  const hold = readFlag(attackMessage, "hold");
+  if ( hold?.status !== "pending" ) return false;
+  return recordAnswer(foundry.utils.deepClone(hold.targets?.find(t => t.uuid === uuid) ?? null), "roll", by) === true;
+}
+
+/** The word for a press that came too late: nothing was spent. */
+const tooLate = what => ui.notifications.warn(`${TITLE}: ${what} — the moment has passed; nothing was spent.`);
+
+/**
  * Record an answer for one held target: an owner writes the hold, anyone else sends its OWN message.
  * @param {any} attackMessage
  * @param {string} uuid
@@ -266,6 +282,7 @@ async function bendTheRoll(attackMessage, actor, name) {
  * @param {string} name
  */
 export async function rescueReaction(attackMessage, target, name) {
+  if ( !stillAsked(attackMessage, target.uuid) ) return tooLate(name);
   const actor = await resolveUuidAsync(target.uuid);
   const found = rollRow(name);
   const record = (target.rescues ?? []).find(r => lower(r.name) === lower(name));
@@ -315,6 +332,7 @@ async function landRowHeal(attackMessage, actor, featureName) {
  * @param {object} guard
  */
 export async function protectReaction(attackMessage, target, guard) {
+  if ( !stillAsked(attackMessage, target.uuid, guard.uuid) ) return tooLate(guard.row);
   const actor = await resolveUuidAsync(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
@@ -345,6 +363,7 @@ export async function protectReaction(attackMessage, target, guard) {
  * @param {{face?: number|null}} [opts]  `face`: the stored face picked (Portent)
  */
 export async function bystanderReaction(attackMessage, target, guard, { face = null } = {}) {
+  if ( !stillAsked(attackMessage, target.uuid, guard.uuid) ) return tooLate(guard.row);
   const actor = await resolveUuidAsync(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
