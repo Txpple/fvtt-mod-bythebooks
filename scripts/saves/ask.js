@@ -125,11 +125,11 @@ function drawSaveDemand(app, element, demand) {
   // Rendered: `livePopups` (or the close below) answers for the key from here, so a re-ask is never swallowed.
   releaseOpening(demand.opening);
   const card = game.messages.get(demand.cardId);
-  if ( !card ) return;
   const flag = readFlag(card, "saves");
   const entry = flag?.targets?.find(t => t.uuid === demand.uuid);
-  // ⚠ Withdrawn before this first render: close here, the answered-popup sweep already ran.
-  if ( !entry || entry.done || (flag.status !== "pending") ) { void app.close(); return; }
+  // ⚠ Withdrawn before this first render, or its card deleted meanwhile: close here, the answered-popup sweep
+  // already ran, and a dialog never adopted is closed by nothing else.
+  if ( !card || !entry || entry.done || (flag.status !== "pending") ) { void app.close(); return; }
   adoptManagedPopup(popupKey(card.id, `save:${demand.uuid}`), card, app);
   if ( element.querySelector("[data-bf-save-demand]") ) return;
   const actor = resolveUuid(demand.uuid);

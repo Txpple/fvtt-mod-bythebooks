@@ -158,6 +158,16 @@ describe("openSaveDialog — an entry dropped and asked again", () => {
     expect(actor.dialogs).toHaveLength(2);
   });
 
+  it("closes a dialog whose card was deleted before its first render", async () => {
+    const { card, actor, key } = demand();
+    void openSaveDialog(card, UUID);
+    await settle();
+    cards.delete(card.id);
+    render(actor.dialogs[0]);
+    expect(actor.dialogs[0].closes).toBe(1);
+    expect(livePopups.has(key)).toBe(false);
+  });
+
   it("builds one dialog for two asks before the first render", async () => {
     const { card, actor } = demand();
     void openSaveDialog(card, UUID);
