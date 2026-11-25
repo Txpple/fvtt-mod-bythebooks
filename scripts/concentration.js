@@ -12,7 +12,7 @@ import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
 import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { DialogCarried, armAskTimer, disarmAskTimer, electOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, registerWithheld, withholds,
-  pendingRow, forgetShown, closePopup, frontPopup, postCard, confirmPopup } from "./ui.js";
+  pendingRow, forgetShown, closePopup, frontPopup, postCard, confirmPopup, claimOpening, releaseOpening } from "./ui.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
@@ -540,9 +540,6 @@ listen("dnd5e.renderChatMessage", "concentration", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });
 
-// Dialogs between the call and the render that adopts them.
-const concDialogsOpening = new Set();
-
 /**
  * The popup IS dnd5e's own save dialog, the ask riding it as a DialogCarried (RULINGS *The gate
  * before the roll*). Dismissing is not an answer: the buzzer still rolls.
@@ -551,15 +548,17 @@ async function showConcPopup(message, ask) {
   if ( !ask || (ask.status !== "pending") ) return;
   if ( frontPopup(message, "concentration") ) return;
   const key = popupKey(message.id, "concentration");
-  if ( concDialogsOpening.has(key) || concRollsInFlight.has(message.id) ) return;
-  concDialogsOpening.add(key);
+  if ( concRollsInFlight.has(message.id) ) return;
+  // Held from here to the dialog's first render, which adopts it (ui.js drawDemandFieldset).
+  const opening = claimOpening(key);
+  if ( !opening ) return;
   try {
     if ( game.messages.some(m => readFlag(m, "respondsTo") === message.id) ) return;
     const actor = await resolveUuidAsync(ask.actorUuid);
     if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
     const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
     const demand = new DialogCarried({
-      cardId: message.id, key, failed: null,
+      cardId: message.id, key, failed: null, opening,
       owed: card => readFlag(card, "concentration")?.status === "pending",
       present: () => ({
         img: actor.img ?? null,
@@ -587,7 +586,7 @@ async function showConcPopup(message, ask) {
   } catch(err) {
     log.error(`Concentration dialog failed — roll it from the sheet.`, err);
   } finally {
-    concDialogsOpening.delete(key);
+    releaseOpening(opening);
   }
 }
 

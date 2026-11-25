@@ -7,7 +7,8 @@ import { MODULE_ID, readFlag, queueFlagWrite, resolveUuid, resolveUuidAsync, log
 import { namesAnswering } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
-import { adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, closePopup, frontPopup } from "../ui.js";
+import { adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, closePopup, frontPopup,
+  claimOpening, releaseOpening } from "../ui.js";
 import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
 import { saveGate, saveSources, effectSaveSources, immunitySleepSource } from "../decide/reminders.js";
 import { conditionEntries, effectEntries, reminderEntries } from "../decide/registry.js";
@@ -65,21 +66,18 @@ async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut 
 /* THE DEMAND OPENS DND5E'S OWN SAVE DIALOG (RULINGS *The gate before the roll*): a save the rules
  * decide grows a Fails / Succeeds default, the human still presses. Dismissing is not an answer. */
 
-/** Dialogs between the call and the render that enrols them in `livePopups`. */
-const saveDialogsOpening = new Set();
-
 /** Open the save dialog for one target, the demand riding as the DialogCarried the Fails button writes. */
 export async function openSaveDialog(card, uuid) {
   if ( frontPopup(card, `save:${uuid}`) ) return;
-  const key = popupKey(card.id, `save:${uuid}`);
-  if ( saveDialogsOpening.has(key) ) return;
-  saveDialogsOpening.add(key);
+  // Held from here to the dialog's first render, which enrols it in `livePopups` (drawSaveDemand).
+  const opening = claimOpening(popupKey(card.id, `save:${uuid}`));
+  if ( !opening ) return;
   try {
     const owed = saveStillOwed(card, uuid);
     if ( !owed ) return;
     const actor = await resolveUuidAsync(uuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
-    const demand = new DialogCarried({ cardId: card.id, uuid, failed: null, succeeded: null });
+    const demand = new DialogCarried({ cardId: card.id, uuid, failed: null, succeeded: null, opening });
     const rolls = await actor.rollSavingThrow(
       { ability: owed.flag.abilities[0], target: owed.flag.dc },
       { configure: true, options: { bfSaveDemand: demand } },
@@ -91,12 +89,14 @@ export async function openSaveDialog(card, uuid) {
   } catch(err) {
     log.error(`Save dialog failed — roll it from the sheet.`, err);
   } finally {
-    saveDialogsOpening.delete(key);
+    releaseOpening(opening);
   }
 }
 
 /** The demand's fieldset above the dialog's CONFIGURATION. */
 function drawSaveDemand(app, element, demand) {
+  // Rendered: `livePopups` (or the close below) answers for the key from here, so a re-ask is never swallowed.
+  releaseOpening(demand.opening);
   const card = game.messages.get(demand.cardId);
   if ( !card ) return;
   const flag = readFlag(card, "saves");
