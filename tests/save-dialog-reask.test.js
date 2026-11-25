@@ -70,7 +70,7 @@ Object.assign(globalThis, {
 });
 
 const { openSaveDialog } = await import("../scripts/saves/ask.js");
-const { claimOpening, releaseOpening, closePopup, livePopups } = await import("../scripts/ui.js");
+const { closePopup, livePopups } = await import("../scripts/ui.js");
 
 /** A dialog element already drawn on: every query finds a node, so the handlers adopt it and draw nothing. */
 const element = () => ({ querySelector: () => ({ dataset: {} }), querySelectorAll: () => [] });
@@ -104,7 +104,7 @@ beforeEach(() => {
 });
 
 /**
- * THE SAVE ASK'S CLAIM (saves/ask.js `openSaveDialog`, ui.js `claimOpening`): an area's demand drops a
+ * THE SAVE ASK'S CLAIM (saves/ask.js `openSaveDialog`, `claimOpening`): an area's demand drops a
  * creature that leaves the area and asks it again when it returns. The re-ask must open a dialog though the
  * first one is still on its way out.
  */
@@ -177,27 +177,5 @@ describe("openSaveDialog — an entry dropped and asked again", () => {
     await openSaveDialog(card, UUID);
     await openSaveDialog(card, UUID);
     expect(actor.rollSavingThrow).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("claimOpening — one dialog on its way up per popup key", () => {
-  it("refuses a second claim until the first is released", () => {
-    const first = claimOpening("c1|ask");
-    expect(first).toEqual({ key: "c1|ask" });
-    expect(claimOpening("c1|ask")).toBeNull();
-    expect(claimOpening("c1|other")).not.toBeNull();
-    releaseOpening(first);
-    expect(claimOpening("c1|ask")).not.toBeNull();
-  });
-
-  it("leaves a later claim standing when an earlier one is released again", () => {
-    const first = claimOpening("c2|ask");
-    releaseOpening(first);
-    const second = claimOpening("c2|ask");
-    releaseOpening(first);
-    releaseOpening(null);
-    expect(claimOpening("c2|ask")).toBeNull();
-    releaseOpening(second);
-    expect(claimOpening("c2|ask")).not.toBeNull();
   });
 });

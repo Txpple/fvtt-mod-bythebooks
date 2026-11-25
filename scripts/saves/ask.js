@@ -7,8 +7,7 @@ import { MODULE_ID, readFlag, queueFlagWrite, resolveUuid, resolveUuidAsync, log
 import { namesAnswering } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
-import { adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, closePopup, frontPopup,
-  claimOpening, releaseOpening } from "../ui.js";
+import { adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer, electOwns, closePopup, frontPopup } from "../ui.js";
 import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
 import { saveGate, saveSources, effectSaveSources, immunitySleepSource } from "../decide/reminders.js";
 import { conditionEntries, effectEntries, reminderEntries } from "../decide/registry.js";
@@ -65,6 +64,34 @@ async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut 
 
 /* THE DEMAND OPENS DND5E'S OWN SAVE DIALOG (RULINGS *The gate before the roll*): a save the rules
  * decide grows a Fails / Succeeds default, the human still presses. Dismissing is not an answer. */
+
+/** popup key → the claim of a save dialog on its way up, from the call to its first render. */
+const saveDialogsOpening = new Map();
+
+/**
+ * Claim a save's popup key until its dialog first renders, which enrols it in `livePopups`; null when
+ * another dialog is already on its way up for that key.
+ * ⚠ Held to the first render and no longer. The roll settles on the dialog's "close" event, which the platform
+ * fires after the closing transition (up to a second); a claim held that long swallows the re-ask of an area
+ * entry dropped and returned meanwhile, and the show-once latch never asks again.
+ * @param {string} key
+ * @returns {{key: string}|null}
+ */
+function claimOpening(key) {
+  if ( saveDialogsOpening.has(key) ) return null;
+  const claim = { key };
+  saveDialogsOpening.set(key, claim);
+  return claim;
+}
+
+/**
+ * Release a claim: at the dialog's first render, and when the opener returns (a dialog that never rendered).
+ * Idempotent; a later claim on the same key is another dialog's and stands.
+ * @param {{key: string}|null|undefined} claim
+ */
+function releaseOpening(claim) {
+  if ( claim && (saveDialogsOpening.get(claim.key) === claim) ) saveDialogsOpening.delete(claim.key);
+}
 
 /** Open the save dialog for one target, the demand riding as the DialogCarried the Fails button writes. */
 export async function openSaveDialog(card, uuid) {

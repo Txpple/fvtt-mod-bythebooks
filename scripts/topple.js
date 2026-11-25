@@ -9,7 +9,7 @@ import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
 import { DialogCarried, momentButton, armAskTimer, disarmAskTimer, subjectOwns, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingRow,
-  closePopup, frontPopup, postCard, claimOpening, releaseOpening } from "./ui.js";
+  closePopup, frontPopup, postCard } from "./ui.js";
 import { listen } from "./dispatch.js";
 
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
@@ -30,6 +30,9 @@ listen("createChatMessage", "topple", message => {
   }
 });
 
+// Dialogs on their way up, between the call and the render that adopts them.
+const toppleDialogsOpening = new Set();
+
 /**
  * The Topple save in the system's OWN save dialog, the demand riding `dialog.options` (ui.js
  * drawDemandFieldset). Dismissing is not an answer: the card's Roll button recalls it.
@@ -37,9 +40,8 @@ listen("createChatMessage", "topple", message => {
 async function showTopplePopup(message, _topple, target) {
   if ( frontPopup(message, `topple:${target.uuid}`) ) return;
   const key = popupKey(message.id, `topple:${target.uuid}`);
-  // Held from here to the dialog's first render, which adopts it (ui.js drawDemandFieldset).
-  const opening = claimOpening(key);
-  if ( !opening ) return;
+  if ( toppleDialogsOpening.has(key) ) return;
+  toppleDialogsOpening.add(key);
   try {
     const flag = readFlag(message, "topple");
     const entry = flag?.targets?.find(t => t.uuid === target.uuid);
@@ -47,7 +49,7 @@ async function showTopplePopup(message, _topple, target) {
     const actor = await resolveUuidAsync(target.uuid);
     if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
     const demand = new DialogCarried({
-      cardId: message.id, key, failed: null, opening,
+      cardId: message.id, key, failed: null,
       owed: card => { const e = readFlag(card, "topple")?.targets?.find(t => t.uuid === target.uuid); return !!e && !e.done; },
       present: card => ({
         img: readFlag(card, "topple")?.weapon?.img ?? null,
@@ -70,7 +72,7 @@ async function showTopplePopup(message, _topple, target) {
   } catch(err) {
     log.error(`Topple save dialog failed — roll it from the sheet.`, err);
   } finally {
-    releaseOpening(opening);
+    toppleDialogsOpening.delete(key);
   }
 }
 

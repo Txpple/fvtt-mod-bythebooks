@@ -655,10 +655,11 @@ dialog already gone (`sub` may be a test over the message's open popups: a save 
 closes every popup it asked); an opener that rides the system's own dialog (the roll dialog a save or Topple
 rides) asks `frontPopup(message, sub)` first, which brings an open one forward and answers whether there was one,
 as `openMomentPopup` does for the rest. The system renders that dialog itself, so the registry holds it only
-from its first render: the opener covers the gap with `claimOpening(key)`, carried on the dialog's
-`DialogCarried` as `opening` and released by that render (`releaseOpening`). Never held to the roll's return:
-the roll settles on the dialog's "close", after a closing transition of up to a second, and a claim held that
-long swallows the re-ask of an entry dropped and returned in the meantime. **The static proof is `npm run popups`**
+from its first render, and the opener guards the gap itself. The save ask's guard (saves/ask.js
+`claimOpening`) rides the `DialogCarried` as `opening` and is released by that render, never held to the
+roll's return: the roll settles on the dialog's "close", after a closing transition of up to a second, and a
+guard held that long swallows the re-ask of an area entry dropped and returned in the meantime (Concentration's
+and Topple's guards still run to the return; neither drops and re-asks an entry). **The static proof is `npm run popups`**
 ([tools/check-popups.mjs](tools/check-popups.mjs)): outside ui.js nothing touches the latch set, no
 `momentButton` is labelled "Answer", every row's `arm` arms through `armAskTimer`, nothing reads
 `livePopups`, nothing closes a dialog it was not handed (a render hook's app, `this`), and nothing builds a

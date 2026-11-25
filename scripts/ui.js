@@ -89,13 +89,10 @@ export class DialogCarried {
 
 /**
  * The demand fieldset in the SYSTEM's save dialog, from a DialogCarried `dialog.options.bfSaveDemand`:
- * { cardId, key, owed(card) (false closes it), present(card) → bfCard args, bar(card), failed,
- *   opening (the opener's `claimOpening`, released at the first render) }.
+ * { cardId, key, owed(card) (false closes it), present(card) → bfCard args, bar(card), failed }.
  */
 function drawDemandFieldset(app, element, demand) {
   const card = game.messages.get(demand.cardId);
-  // Rendered: `livePopups` (or the close below) answers for the key from here.
-  releaseOpening(demand.opening);
   if ( !card ) return;
   if ( demand.owed && !demand.owed(card) ) { void app.close(); return; }
   adoptManagedPopup(demand.key, card, app);
@@ -184,35 +181,6 @@ export function adoptManagedPopup(key, message, dialog) {
     }
   } catch { /* the platform's own position stands */ }
   void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
-}
-
-/** popup key → the claim of a system dialog on its way up, from its opener's call to its first render. */
-const openingPopups = new Map();
-
-/**
- * Claim a popup key for a dialog the platform renders itself (a system roll dialog), which reaches
- * `livePopups` only at its first render (`adoptManagedPopup`): a second ask in between gets null and builds
- * no second dialog. The claim rides the dialog's DialogCarried as `opening`, and the render releases it.
- * ⚠ Held to the first render and no longer. A roll's promise settles on the dialog's "close" event, which the
- * platform fires after the closing transition (up to a second); a claim held that long swallows a re-ask
- * that arrives while a withdrawn dialog is still on its way out, and the show-once latch never asks again.
- * @param {string} key
- * @returns {{key: string}|null}
- */
-export function claimOpening(key) {
-  if ( openingPopups.has(key) ) return null;
-  const claim = { key };
-  openingPopups.set(key, claim);
-  return claim;
-}
-
-/**
- * Release a claim: at the dialog's first render, and when its opener returns (a dialog that never rendered).
- * Idempotent; a later claim on the same key is another dialog's and stands.
- * @param {{key: string}|null|undefined} claim
- */
-export function releaseOpening(claim) {
-  if ( claim && (openingPopups.get(claim.key) === claim) ) openingPopups.delete(claim.key);
 }
 
 /** popup key → the buzzer armed for it (`openMomentPopup`'s `buzzer`). */
